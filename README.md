@@ -30,16 +30,14 @@ MIT License
 - [x] Project initialization & base architecture
 - [x] Login & authentication module
 - [x] All module features implementation
-- [ ] Multi-language interface (EN/CH)
-- [ ] Push notification support
+- [x] Multi-language interface (EN/CH)
 - [ ] UI/UX improvements
-- [ ] More system adaptation & testing
+- [ ] Push notification support
 
 ### Android
 - [ ] Project initialization
 - [ ] Login & authentication module
 - [ ] All module features implementation
 - [ ] Multi-language interface (EN/CH)
-- [ ] Push notification support
 - [ ] UI/UX improvements
-- [ ] More system adaptation & testing
+- [ ] Push notification support
