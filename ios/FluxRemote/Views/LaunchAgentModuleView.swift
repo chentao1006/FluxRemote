@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LaunchAgentModuleView: View {
     @Environment(RemoteAPIClient.self) private var apiClient
+    @Environment(AppLanguageManager.self) private var languageManager
     @State private var launchAgents: [LaunchAgentItem] = []
     @State private var isLoading = true
     @State private var errorMessage: String?
@@ -14,12 +15,12 @@ struct LaunchAgentModuleView: View {
             if isLoading && launchAgents.isEmpty {
                 HStack {
                     Spacer()
-                    ProgressView("正在读取自启服务...")
+                    ProgressView(languageManager.t("launchagent.loading"))
                     Spacer()
                 }
                 .listRowSeparator(.hidden)
             } else if let error = errorMessage {
-                ContentUnavailableView("读取失败", systemImage: "wifi.exclamationmark.fill", description: Text(error))
+                ContentUnavailableView(languageManager.t("common.error"), systemImage: "wifi.exclamationmark.fill", description: Text(error))
             } else {
                 ForEach(launchAgents) { agent in
                     VStack(alignment: .leading, spacing: 10) {
@@ -65,7 +66,7 @@ struct LaunchAgentModuleView: View {
                             Spacer()
 
                             actionButton(
-                                icon: "trash.fill",
+                                icon: "trash",
                                 color: .red,
                                 isLoading: loadingAction[agent.path] == "remove"
                             ) {
@@ -73,16 +74,16 @@ struct LaunchAgentModuleView: View {
                             }
                                 .alert(item: $confirmDeleteAgent) { agent in
                                     Alert(
-                                        title: Text("确认删除？"),
-                                        message: Text("确定要删除 \(agent.name) 吗？此操作不可恢复。"),
-                                        primaryButton: .destructive(Text("删除")) {
+                                        title: Text(languageManager.t("launchagent.deleteConfirmTitle")),
+                                        message: Text(String.localizedStringWithFormat(languageManager.t("launchagent.deleteConfirmMessage"), agent.name)),
+                                        primaryButton: .destructive(Text(languageManager.t("launchagent.delete"))) {
                                             loadingAction[agent.path] = "remove"
                                             Task {
                                                 await performAction("remove", path: agent.path)
                                                 loadingAction[agent.path] = nil
                                             }
                                         },
-                                        secondaryButton: .cancel()
+                                        secondaryButton: .cancel(Text(languageManager.t("common.cancel")))
                                     )
                                 }
                         }
@@ -91,7 +92,7 @@ struct LaunchAgentModuleView: View {
                 }
             }
         }
-        .navigationTitle("自启服务")
+        .navigationTitle(languageManager.t("launchagent.title"))
         .refreshable {
             await fetchData()
         }
@@ -159,6 +160,7 @@ struct LaunchAgentModuleView: View {
 struct LaunchAgentDetailView: View {
     let agent: LaunchAgentItem
     @Environment(RemoteAPIClient.self) private var apiClient
+    @Environment(AppLanguageManager.self) private var languageManager
     @State private var content: String = ""
     @State private var isLoading = true
     @State private var errorMessage: String?
@@ -169,7 +171,7 @@ struct LaunchAgentDetailView: View {
             if isLoading {
                 ProgressView().padding()
             } else if let error = errorMessage {
-                ContentUnavailableView("读取失败", systemImage: "exclamationmark.triangle", description: Text(error))
+                ContentUnavailableView(languageManager.t("common.error"), systemImage: "exclamationmark.triangle", description: Text(error))
             } else {
                 TextEditor(text: $content)
                     .font(.system(.caption2, design: .monospaced))

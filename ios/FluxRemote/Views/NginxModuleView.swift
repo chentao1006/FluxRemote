@@ -3,6 +3,7 @@ import SwiftUI
 struct NginxModuleView: View {
         @State private var confirmDeleteSite: NginxSite? = nil
     @Environment(RemoteAPIClient.self) private var apiClient
+    @Environment(AppLanguageManager.self) private var languageManager
     @State private var sites: [NginxSite] = []
     @State private var serviceStatus: NginxResponse?
     @State private var isLoading = true
@@ -18,12 +19,12 @@ struct NginxModuleView: View {
             if isLoading && sites.isEmpty {
                 HStack {
                     Spacer()
-                    ProgressView("正在同步数据...")
+                    ProgressView(languageManager.t("common.loading"))
                     Spacer()
                 }
                 .listRowBackground(Color.clear)
             } else if let error = errorMessage {
-                ContentUnavailableView("同步失败", systemImage: "wifi.exclamationmark.fill", description: Text(error))
+                ContentUnavailableView(languageManager.t("common.error"), systemImage: "wifi.exclamationmark.fill", description: Text(error))
                     .listRowBackground(Color.clear)
             } else {
                 serviceSection
@@ -31,7 +32,7 @@ struct NginxModuleView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .navigationTitle("Nginx")
+        .navigationTitle(languageManager.t("sidebar.nginx"))
         .refreshable {
             await fetchData()
         }
@@ -74,11 +75,11 @@ struct NginxModuleView: View {
                     StatusBadge(status: serviceStatus?.running == true ? "running" : "stopped")
                         .padding(.top, 2)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("运行状态")
+                        Text(languageManager.t("nginx.runningStatus"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         if let pids = serviceStatus?.pids, !pids.isEmpty {
-                            Text("PIDs: \(pids.joined(separator: ", "))")
+                            Text("\(languageManager.t("common.pids")): \(pids.joined(separator: ", "))")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                                 .monospacedDigit()
@@ -88,22 +89,22 @@ struct NginxModuleView: View {
                 }
                 
                 if let binPath = serviceStatus?.binPath {
-                    Text("路径: \(binPath)")
+                    Text(String(format: languageManager.t("nginx.binPath"), binPath))
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
                 
                 HStack(spacing: 20) {
                     let isRunning = serviceStatus?.running == true
-                    actionButton(icon: isRunning ? "stop" : "play", color: isRunning ? .red : .green, label: isRunning ? "停止" : "启动", isLoading: loadingAction["service"] == (isRunning ? "stop" : "start")) {
+                    actionButton(icon: isRunning ? "stop" : "play", color: isRunning ? .red : .green, label: isRunning ? languageManager.t("server.stop") : languageManager.t("server.start"), isLoading: loadingAction["service"] == (isRunning ? "stop" : "start")) {
                         await performAction(isRunning ? "stop" : "start")
                     }
 
-                    actionButton(icon: "arrow.clockwise", color: .blue, label: "重启", isLoading: loadingAction["service"] == "restart") {
+                    actionButton(icon: "arrow.clockwise", color: .blue, label: languageManager.t("server.restart"), isLoading: loadingAction["service"] == "restart") {
                         await performAction("restart")
                     }
 
-                    actionButton(icon: "checkmark.shield", color: .orange, label: "测试", isLoading: loadingAction["service"] == "test") {
+                    actionButton(icon: "checkmark.shield", color: .orange, label: languageManager.t("common.test"), isLoading: loadingAction["service"] == "test") {
                         await performAction("test")
                     }
 
@@ -115,11 +116,11 @@ struct NginxModuleView: View {
             Button {
                 showingErrorLog = true
             } label: {
-                Label("查看错误日志", systemImage: "doc.text")
+                Label(languageManager.t("nginx.viewErrorLogs"), systemImage: "doc.text")
                     .foregroundStyle(.blue)
             }
         } header: {
-            Text("服务控制")
+            Text(languageManager.t("nginx.serviceControl"))
         }
     }
     
@@ -147,17 +148,17 @@ struct NginxModuleView: View {
                             editingSite = site
                         }
                         Spacer()
-                        actionButton(icon: "trash.fill", color: .red, isLoading: loadingAction[site.name] == "delete") {
+                        actionButton(icon: "trash", color: .red, isLoading: loadingAction[site.name] == "delete") {
                             confirmDeleteSite = site
                         }
                         .alert(item: $confirmDeleteSite) { site in
                             Alert(
-                                title: Text("确认删除？"),
-                                message: Text("确定要删除 \(site.name) 吗？此操作不可恢复。"),
-                                primaryButton: .destructive(Text("删除")) {
+                                title: Text(languageManager.t("launchagent.deleteConfirmTitle")),
+                                message: Text(String.localizedStringWithFormat(languageManager.t("launchagent.deleteConfirmMessage"), site.name)),
+                                primaryButton: .destructive(Text(languageManager.t("launchagent.delete"))) {
                                     Task { await deleteSite(site) }
                                 },
-                                secondaryButton: .cancel()
+                                secondaryButton: .cancel(Text(languageManager.t("common.cancel")))
                             )
                         }
                     }
@@ -166,7 +167,7 @@ struct NginxModuleView: View {
                 .padding(.vertical, 4)
             }
         } header: {
-            Text("站点管理")
+            Text(languageManager.t("nginx.siteManagement"))
         }
     }
     
@@ -228,11 +229,11 @@ struct NginxModuleView: View {
                 await fetchData()
             } else if response.requiresPassword == true {
                 await MainActor.run {
-                    self.errorMessage = "需要 sudo 密码。请前往网页版操作或等候后续集成密码输入。"
+                    self.errorMessage = languageManager.t("nginx.sudoRequired")
                 }
             } else {
                 await MainActor.run {
-                    self.errorMessage = response.details ?? response.error ?? "执行失败"
+                    self.errorMessage = response.details ?? response.error ?? languageManager.t("common.failed")
                 }
             }
         } catch {
@@ -279,6 +280,7 @@ struct NginxSiteEditView: View {
     var onSave: () async -> Void
     
     @Environment(RemoteAPIClient.self) private var apiClient
+    @Environment(AppLanguageManager.self) private var languageManager
     @Environment(\.dismiss) private var dismiss
     @State private var filename: String = ""
     @State private var content: String = ""
@@ -288,7 +290,7 @@ struct NginxSiteEditView: View {
     var body: some View {
         VStack(spacing: 0) {
             if site == nil {
-                TextField("文件名 (例如 example.conf)", text: $filename)
+                TextField(languageManager.t("nginx.filenamePlaceholder"), text: $filename)
                     .textFieldStyle(.roundedBorder)
                     .padding()
             }
@@ -301,7 +303,7 @@ struct NginxSiteEditView: View {
                 .font(.system(.caption2, design: .monospaced))
                 .padding(4)
         }
-        .navigationTitle(site?.name ?? "添加站点")
+        .navigationTitle(site == nil ? Text(languageManager.t("nginx.addSite")) : Text(site!.name))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -382,6 +384,7 @@ server {
 
 struct NginxErrorLogView: View {
     @Environment(RemoteAPIClient.self) private var apiClient
+    @Environment(AppLanguageManager.self) private var languageManager
     @State private var logs: String = ""
     @State private var isLoading = true
     
@@ -390,7 +393,7 @@ struct NginxErrorLogView: View {
             if isLoading {
                 ProgressView().padding()
             }
-            Text(logs.isEmpty ? "无日志数据" : logs)
+            Text(logs.isEmpty ? languageManager.t("nginx.noLogData") : logs)
                 .font(.system(.caption2, design: .monospaced))
                 .padding()
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -399,7 +402,7 @@ struct NginxErrorLogView: View {
         .refreshable {
             await fetchLogs()
         }
-        .navigationTitle("Nginx 错误日志")
+        .navigationTitle(languageManager.t("nginx.errorLogs"))
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             Task { await fetchLogs() }

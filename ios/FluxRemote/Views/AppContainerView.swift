@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AppContainerView: View {
     @Environment(RemoteAPIClient.self) private var apiClient
+    @Environment(AppLanguageManager.self) private var languageManager
     @State private var selection: NavigationItem? = .monitor
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     
@@ -12,23 +13,24 @@ struct AppContainerView: View {
         
         var title: String {
             switch self {
-            case .monitor: return "系统概览"
-            case .processes: return "进程管理"
-            case .logs: return "日志分析"
-            case .configs: return "配置管理"
-            case .launchagent: return "自启服务"
-            case .docker: return "Docker"
-            case .nginx: return "Nginx"
-            case .settings: return "设置"
+            case .monitor: return "sidebar.monitor"
+            case .processes: return "sidebar.processes"
+            case .logs: return "sidebar.logs"
+            case .configs: return "sidebar.configs"
+            case .launchagent: return "sidebar.launchagent"
+            case .docker: return "sidebar.docker"
+            case .nginx: return "sidebar.nginx"
+            case .settings: return "sidebar.settings"
             }
         }
         
+// ... (icon part remains same, omitting for brevity in TargetContent if possible, but I'll replace the whole block to be safe)
         var icon: String {
             switch self {
             case .monitor: return "waveform.path.ecg.rectangle.fill"
             case .processes: return "cpu.fill"
-            case .logs: return "doc.text.fill"
-            case .configs: return "gearshape.fill"
+            case .logs: return "long.text.page.and.pencil.fill"
+            case .configs: return "document.badge.gearshape.fill"
             case .launchagent: return "paperplane.fill"
             case .docker: return "shippingbox.fill"
             case .nginx: return "server.rack"
@@ -78,36 +80,36 @@ struct AppContainerView: View {
         if horizontalSizeClass == .regular {
             NavigationSplitView {
                 sidebarContent
-                    .navigationTitle("浮光远控")
+                    .navigationTitle(languageManager.t("appTitle"))
             } detail: {
                 if let selection = selection {
                     NavigationStack {
                         contentView(for: selection)
                     }
                 } else {
-                    Text("请选择一个选项")
+                    Text(languageManager.t("common.loading"))
                 }
             }
         } else {
             TabView {
                 if isFeatureEnabled(for: .monitor) {
                     NavigationStack { contentView(for: .monitor) }
-                        .tabItem { Label(NavigationItem.monitor.title, systemImage: NavigationItem.monitor.icon) }
+                        .tabItem { Label(languageManager.t(NavigationItem.monitor.title), systemImage: NavigationItem.monitor.icon) }
                 }
                 
                 if isFeatureEnabled(for: .processes) {
                     NavigationStack { contentView(for: .processes) }
-                        .tabItem { Label(NavigationItem.processes.title, systemImage: NavigationItem.processes.icon) }
+                        .tabItem { Label(languageManager.t(NavigationItem.processes.title), systemImage: NavigationItem.processes.icon) }
                 }
                 
                 if isFeatureEnabled(for: .logs) {
                     NavigationStack { contentView(for: .logs) }
-                        .tabItem { Label(NavigationItem.logs.title, systemImage: NavigationItem.logs.icon) }
+                        .tabItem { Label(languageManager.t(NavigationItem.logs.title), systemImage: NavigationItem.logs.icon) }
                 }
                 
                 if isFeatureEnabled(for: .configs) {
                     NavigationStack { contentView(for: .configs) }
-                        .tabItem { Label(NavigationItem.configs.title, systemImage: NavigationItem.configs.icon) }
+                        .tabItem { Label(languageManager.t(NavigationItem.configs.title), systemImage: NavigationItem.configs.icon) }
                 }
                 
                 NavigationStack {
@@ -116,45 +118,45 @@ struct AppContainerView: View {
                             contentView(for: item)
                         }
                 }
-                .tabItem { Label("更多", systemImage: "ellipsis.circle.fill") }
+                .tabItem { Label(languageManager.t("common.more"), systemImage: "ellipsis.circle.fill") }
             }
         }
     }
     
     private var moreView: some View {
         List {
-            Section("服务管理") {
+            Section(languageManager.t("sidebar.launchagent")) {
                 if isFeatureEnabled(for: .launchagent) { tabRow(for: .launchagent) }
                 if isFeatureEnabled(for: .docker) { tabRow(for: .docker) }
                 if isFeatureEnabled(for: .nginx) { tabRow(for: .nginx) }
             }
             
-            Section("系统") {
+            Section(languageManager.t("sidebar.settings")) {
                 tabRow(for: .settings)
             }
         }
-        .navigationTitle("更多")
+        .navigationTitle(languageManager.t("common.more"))
     }
     
     private var sidebarContent: some View {
         List(selection: $selection) {
-            Section("主页") {
+            Section(languageManager.t("sidebar.home")) {
                 if isFeatureEnabled(for: .monitor) { tabRow(for: .monitor) }
             }
             
-            Section("系统工具") {
+            Section(languageManager.t("sidebar.systemTools")) {
                 if isFeatureEnabled(for: .processes) { tabRow(for: .processes) }
                 if isFeatureEnabled(for: .logs) { tabRow(for: .logs) }
                 if isFeatureEnabled(for: .configs) { tabRow(for: .configs) }
             }
             
-            Section("服务管理") {
+            Section(languageManager.t("sidebar.serviceManagement")) {
                 if isFeatureEnabled(for: .launchagent) { tabRow(for: .launchagent) }
                 if isFeatureEnabled(for: .docker) { tabRow(for: .docker) }
                 if isFeatureEnabled(for: .nginx) { tabRow(for: .nginx) }
             }
             
-            Section("系统") {
+            Section(languageManager.t("sidebar.system")) {
                 tabRow(for: .settings)
             }
         }
@@ -176,7 +178,7 @@ struct AppContainerView: View {
     
     private func tabRow(for item: NavigationItem) -> some View {
         NavigationLink(value: item) {
-            Label(item.title, systemImage: item.icon)
+            Label(languageManager.t(item.title), systemImage: item.icon)
         }
         .tag(item)
     }
@@ -198,28 +200,29 @@ struct AppContainerView: View {
 
 struct QuickTerminalView: View {
     @Environment(RemoteAPIClient.self) private var apiClient
+    @Environment(AppLanguageManager.self) private var languageManager
     @State private var command: String = ""
     @State private var output: String = ""
     @State private var isExecuting = false
     @Environment(\.dismiss) private var dismiss
     @State private var executionTask: Task<Void, Never>?
     
-    let commonCommands = [
-        ("目录", "ls -FhG"),
-        ("磁盘", "df -h"),
-        ("内存排行", "ps -e -o pmem,comm | sort -rn | head -n 10"),
-        ("CPU 排行", "ps -e -o pcpu,comm | sort -rn | head -n 10"),
-        ("本机 IP", "ifconfig | grep \"inet \" | grep -v 127.0.0.1"),
-        ("监听端口", "lsof -i -P | grep LISTEN"),
-        ("运行时间", "uptime"),
-        ("Brew", "brew list --versions"),
-        ("系统版本", "sw_vers"),
-        ("进程数", "ps aux | wc -l"),
-        ("空间详情", "du -sh ~/* | sort -rh | head -n 5"),
-        ("下载历史", "ls -lt ~/Downloads | head -n 5"),
-        ("硬件架构", "uname -m"),
-        ("活跃用户", "who"),
-        ("DNS 配置", "cat /etc/resolv.conf")
+    let commonCommands: [(String, String)] = [
+        ("monitor.quickCmds.ls", "ls -FhG"),
+        ("monitor.quickCmds.df", "df -h"),
+        ("monitor.quickCmds.memSort", "ps -e -o pmem,comm | sort -rn | head -n 10"),
+        ("monitor.quickCmds.cpuSort", "ps -e -o pcpu,comm | sort -rn | head -n 10"),
+        ("monitor.quickCmds.ip", "ifconfig | grep \"inet \" | grep -v 127.0.0.1"),
+        ("monitor.quickCmds.ports", "lsof -i -P | grep LISTEN"),
+        ("monitor.quickCmds.uptime", "uptime"),
+        ("monitor.quickCmds.brew", "brew list --versions"),
+        ("monitor.quickCmds.vers", "sw_vers"),
+        ("monitor.quickCmds.procCount", "ps aux | wc -l"),
+        ("monitor.quickCmds.space", "du -sh ~/* | sort -rh | head -n 5"),
+        ("monitor.quickCmds.downloads", "ls -lt ~/Downloads | head -n 5"),
+        ("monitor.quickCmds.arch", "uname -m"),
+        ("monitor.quickCmds.who", "who"),
+        ("monitor.quickCmds.dns", "cat /etc/resolv.conf")
     ]
     
     var body: some View {
@@ -232,7 +235,7 @@ struct QuickTerminalView: View {
                             Button {
                                 command = cmd
                             } label: {
-                                Text(label)
+                                Text(languageManager.t(label))
                                     .font(.caption)
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 6)
@@ -252,7 +255,7 @@ struct QuickTerminalView: View {
                         Image(systemName: "chevron.right.square")
                             .foregroundStyle(.blue)
                         
-                        TextField("输入命令...", text: $command, axis: .vertical)
+                        TextField(languageManager.t("terminal.placeholder"), text: $command, axis: .vertical)
                             .lineLimit(1...3)
                             .font(.system(.subheadline, design: .monospaced))
                             .onSubmit { 
@@ -286,10 +289,10 @@ struct QuickTerminalView: View {
                 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        SectionHeader(title: "终端输出")
+                        SectionHeader(title: languageManager.t("terminal.output"))
                         
                         if output.isEmpty {
-                            Text("等待指令...")
+                            Text(languageManager.t("terminal.waiting"))
                                 .font(.system(.caption, design: .monospaced))
                                 .foregroundStyle(.secondary)
                                 .frame(maxWidth: .infinity, minHeight: 100, alignment: .center)
@@ -309,7 +312,7 @@ struct QuickTerminalView: View {
                     .padding(.vertical)
                 }
             }
-            .navigationTitle("命令执行")
+            .navigationTitle(languageManager.t("terminal.title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -328,7 +331,7 @@ struct QuickTerminalView: View {
     private func execute() async {
         guard !command.isEmpty else { return }
         isExecuting = true
-        output = "正在执行: \(command)...\n\n"
+        output = "\(languageManager.t("terminal.executing")): \(command)...\n\n"
         
         do {
             guard let baseURL = apiClient.baseURL else { throw NSError(domain: "API", code: 400, userInfo: [NSLocalizedDescriptionKey: "No base URL"]) }
@@ -352,15 +355,15 @@ struct QuickTerminalView: View {
             }
             
             await MainActor.run {
-                self.output += "\n[执行完毕]"
+                self.output += "\n[\(languageManager.t("terminal.finished"))]"
                 self.isExecuting = false
             }
         } catch {
             await MainActor.run {
                 if error is CancellationError || (error as? URLError)?.code == .cancelled {
-                    self.output += "\n[操作已停止]"
+                    self.output += "\n[\(languageManager.t("terminal.stopped"))]"
                 } else {
-                    self.output += "\n[执行出错: \(error.localizedDescription)]"
+                    self.output += "\n[\(languageManager.t("common.error")): \(error.localizedDescription)]"
                 }
                 self.isExecuting = false
             }

@@ -3,6 +3,7 @@ import SwiftUI
 struct DockerModuleView: View {
         @State private var confirmDeleteContainer: DockerContainer? = nil
     @Environment(RemoteAPIClient.self) private var apiClient
+    @Environment(AppLanguageManager.self) private var languageManager
     @State private var containers: [DockerContainer] = []
     @State private var images: [DockerImage] = []
     @State private var isLoading = true
@@ -12,8 +13,8 @@ struct DockerModuleView: View {
     @State private var loadingAction: [String: String] = [:] // entry: [container.id: action]
     
     enum Tab: String, CaseIterable {
-        case containers = "容器"
-        case images = "镜像"
+        case containers = "docker.containers"
+        case images = "docker.images"
     }
     
     var body: some View {
@@ -21,7 +22,7 @@ struct DockerModuleView: View {
             Section(header: 
                 Picker("Tabs", selection: $selectedTab) {
                     ForEach(Tab.allCases, id: \.self) { tab in
-                        Text(tab.rawValue).tag(tab)
+                        Text(languageManager.t(tab.rawValue)).tag(tab)
                     }
                 }
                 .pickerStyle(.segmented)
@@ -34,13 +35,13 @@ struct DockerModuleView: View {
                 if isLoading && (containers.isEmpty && images.isEmpty) {
                     HStack {
                         Spacer()
-                        ProgressView("正在同步 Docker 数据...")
+                        ProgressView(languageManager.t("docker.syncing"))
                         Spacer()
                     }
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
                 } else if let error = errorMessage {
-                    ContentUnavailableView("同步失败", systemImage: "exclamationmark.triangle.fill", description: Text(error))
+                    ContentUnavailableView(languageManager.t("common.error"), systemImage: "exclamationmark.triangle.fill", description: Text(error))
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                 } else {
@@ -54,7 +55,7 @@ struct DockerModuleView: View {
             }
         }
         .listStyle(.plain)
-        .navigationTitle("Docker")
+        .navigationTitle(languageManager.t("sidebar.docker"))
         .refreshable {
             await fetchData()
         }
@@ -136,21 +137,21 @@ struct DockerModuleView: View {
                         }
                         .alert(item: $confirmDeleteContainer) { container in
                             Alert(
-                                title: Text("确认删除？"),
-                                message: Text("确定要删除 \(container.name) 吗？此操作不可恢复。"),
-                                primaryButton: .destructive(Text("删除")) {
+                                title: Text(languageManager.t("launchagent.deleteConfirmTitle")),
+                                message: Text(String.localizedStringWithFormat(languageManager.t("launchagent.deleteConfirmMessage"), container.name)),
+                                primaryButton: .destructive(Text(languageManager.t("launchagent.delete"))) {
                                     Task {
                                         loadingAction[container.id] = "rm"
                                         await performAction("rm", id: container.id)
                                         loadingAction[container.id] = nil
                                     }
                                 },
-                                secondaryButton: .cancel()
+                                secondaryButton: .cancel(Text(languageManager.t("common.cancel")))
                             )
                         }
                     }
                     Spacer()
-                    Label("日志", systemImage: "doc.text")
+                    Label(languageManager.t("docker.logs"), systemImage: "doc.text")
                         .font(.caption)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
@@ -183,7 +184,7 @@ struct DockerModuleView: View {
                 }
                 
                 HStack {
-                    Text("ID: \(image.id.prefix(12))")
+                    Text("\(languageManager.t("common.id")): \(image.id.prefix(12))")
                     Spacer()
                     Text(image.size)
                 }
@@ -249,9 +250,9 @@ struct DockerModuleView: View {
                 if !Task.isCancelled {
                     await MainActor.run {
                         if let nsError = error as NSError?, let msg = nsError.userInfo[NSLocalizedDescriptionKey] as? String {
-                            self.errorMessage = "同步失败: \(msg)"
+                            self.errorMessage = "\(languageManager.t("common.failed")): \(msg)"
                         } else {
-                            self.errorMessage = "同步失败: \(error.localizedDescription)"
+                            self.errorMessage = "\(languageManager.t("common.failed")): \(error.localizedDescription)"
                         }
                         self.isLoading = false
                     }
@@ -277,6 +278,7 @@ struct DockerLogView: View {
     let containerId: String
     let containerName: String
     @Environment(RemoteAPIClient.self) private var apiClient
+    @Environment(AppLanguageManager.self) private var languageManager
     @State private var logs: String = ""
     @State private var isLoading = true
     
@@ -294,7 +296,7 @@ struct DockerLogView: View {
         .refreshable {
             await fetchLogs()
         }
-        .navigationTitle("\(containerName) 日志")
+        .navigationTitle(String(format: languageManager.t("docker.containerLogs"), containerName))
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             Task { await fetchLogs() }

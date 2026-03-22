@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ConfigsModuleView: View {
     @Environment(RemoteAPIClient.self) private var apiClient
+    @Environment(AppLanguageManager.self) private var languageManager
     @State private var configs: [ConfigItem] = []
     @State private var selectedCategory: String = "All"
     @State private var isLoading = true
@@ -28,8 +29,8 @@ struct ConfigsModuleView: View {
     
     var body: some View {
         fileList
-            .navigationTitle("配置管理")
-            .searchable(text: $searchText, prompt: "搜索配置...")
+            .navigationTitle(languageManager.t("configs.title"))
+            .searchable(text: $searchText, prompt: languageManager.t("configs.searchPlaceholder"))
             .sheet(item: $selectedConfig) { config in
                 NavigationStack {
                     ConfigDetailView(config: config)
@@ -49,15 +50,15 @@ struct ConfigsModuleView: View {
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Menu {
-                        Picker("分类", selection: $selectedCategory) {
+                        Picker(languageManager.t("common.category"), selection: $selectedCategory) {
                             ForEach(categories, id: \.self) { category in
-                                Text("\(category == "All" ? "全部" : category) (\(categoryCount(category)))").tag(category)
+                                Text("\(category == "All" ? languageManager.t("common.all") : languageManager.t(category)) (\(categoryCount(category)))").tag(category)
                             }
                         }
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "tag")
-                            Text("\(selectedCategory == "All" ? "全部" : selectedCategory) (\(categoryCount(selectedCategory)))").lineLimit(1)
+                            Text("\(selectedCategory == "All" ? languageManager.t("common.all") : languageManager.t(selectedCategory)) (\(categoryCount(selectedCategory)))").lineLimit(1)
                                 .font(.caption2)
                         }
                     }
@@ -65,13 +66,13 @@ struct ConfigsModuleView: View {
                     Button {
                         showingAddConfig = true
                     } label: {
-                        Image(systemName: "plus")
+                        Label(languageManager.t("configs.addPath"), systemImage: "plus")
                     }
                 }
             }
             .sheet(isPresented: $showingAddConfig) {
                 NavigationStack {
-                    AddPathView(title: "添加配置文件路径") { path, name in
+                    AddPathView(title: languageManager.t("configs.addPath")) { path, name in
                         let _: ActionResponse = try await apiClient.request("/api/configs", method: "POST", body: ["path": path, "name": name])
                         await fetchData()
                     }
@@ -86,7 +87,7 @@ struct ConfigsModuleView: View {
                     Button {
                         selectedCategory = category
                     } label: {
-                        Text(category)
+                        Text(category == "All" ? languageManager.t("common.all") : languageManager.t(category))
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
                             .background(selectedCategory == category ? Color.blue : Color.secondary.opacity(0.1))
@@ -104,14 +105,14 @@ struct ConfigsModuleView: View {
         List(selection: $selectedConfig) {
             Section {
                 if isLoading && configs.isEmpty {
-                    ProgressView("正在加载配置文件...")
+                    ProgressView(languageManager.t("configs.loading"))
                         .frame(maxWidth: .infinity)
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                 } else if let error = errorMessage {
-                    ContentUnavailableView("读取失败", systemImage: "exclamationmark.triangle.fill", description: Text(error))
+                    ContentUnavailableView(languageManager.t("common.error"), systemImage: "exclamationmark.triangle.fill", description: Text(error))
                 } else if configs.isEmpty {
-                    ContentUnavailableView("无配置文件", systemImage: "gearshape")
+                    ContentUnavailableView(languageManager.t("configs.noConfigs"), systemImage: "gearshape")
                 } else {
                     ForEach(filteredConfigs) { config in
                         Button {

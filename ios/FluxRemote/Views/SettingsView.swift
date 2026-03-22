@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(RemoteAPIClient.self) private var apiClient
+    @Environment(AppLanguageManager.self) private var languageManager
     @State private var serverSettings: ServerSettings?
     @State private var isLoading = true
     @State private var autoSaveTask: Task<Void, Never>?
@@ -11,65 +12,73 @@ struct SettingsView: View {
     var body: some View {
         Form {
             if isLoading {
-                ProgressView("正在同步设置...")
+                ProgressView(languageManager.t("common.loading"))
                     .frame(maxWidth: .infinity)
                     .listRowBackground(Color.clear)
             } else {
-                Section(header: Text("面板连接")) {
-                    LabeledContent("服务器", value: apiClient.baseURL?.absoluteString ?? "未配置")
-                    LabeledContent("版本", value: serverSettings?.version ?? "未知")
+                Section(header: Text(languageManager.t("settings.language"))) {
+                    Picker(languageManager.t("settings.language"), selection: Bindable(languageManager).selectedLanguage) {
+                        ForEach(AppLanguage.allCases) { lang in
+                            Text(lang.displayNameKey == "common.systemDefault" ? languageManager.t(lang.displayNameKey) : lang.displayNameKey).tag(lang)
+                        }
+                    }
+                }
+
+                Section(header: Text(languageManager.t("settings.connection"))) {
+                    LabeledContent(languageManager.t("settings.server"), value: apiClient.baseURL?.absoluteString ?? languageManager.t("common.none"))
+                    LabeledContent(languageManager.t("settings.version"), value: serverSettings?.version ?? languageManager.t("common.unknown"))
                 }
                 
-                Section(header: Text("AI 服务配置")) {
-                    TextField("API URL", text: Binding(
+                Section(header: Text(languageManager.t("settings.aiConfig"))) {
+                    TextField(languageManager.t("common.url"), text: Binding(
                         get: { serverSettings?.ai?.url ?? "" },
                         set: { serverSettings?.ai?.url = $0; triggerAutoSave() }
                     ))
-                    SecureField("API Key", text: Binding(
+                    SecureField(languageManager.t("login.accessKey"), text: Binding(
                         get: { serverSettings?.ai?.key ?? "" },
                         set: { serverSettings?.ai?.key = $0; triggerAutoSave() }
                     ))
                     #if os(iOS)
                     .textContentType(.password)
                     #endif
-                    TextField("模型名称", text: Binding(
+                    TextField(languageManager.t("settings.model"), text: Binding(
                         get: { serverSettings?.ai?.model ?? "" },
                         set: { serverSettings?.ai?.model = $0; triggerAutoSave() }
                     ))
                 }
                 
-                Section(header: Text("功能模块控制")) {
-                    Toggle("监控概览", isOn: featureBinding(\.monitor))
-                    Toggle("进程管理", isOn: featureBinding(\.processes))
-                    Toggle("日志分析", isOn: featureBinding(\.logs))
-                    Toggle("配置管理", isOn: featureBinding(\.configs))
-                    Toggle("自启服务", isOn: featureBinding(\.launchagent))
-                    Toggle("Docker", isOn: featureBinding(\.docker))
-                    Toggle("Nginx", isOn: featureBinding(\.nginx))
+                Section(header: Text(languageManager.t("settings.featureControl"))) {
+                    Toggle(languageManager.t("sidebar.monitor"), isOn: featureBinding(\.monitor))
+                    Toggle(languageManager.t("sidebar.processes"), isOn: featureBinding(\.processes))
+                    Toggle(languageManager.t("sidebar.logs"), isOn: featureBinding(\.logs))
+                    Toggle(languageManager.t("sidebar.configs"), isOn: featureBinding(\.configs))
+                    Toggle(languageManager.t("sidebar.launchagent"), isOn: featureBinding(\.launchagent))
+                    Toggle(languageManager.t("sidebar.docker"), isOn: featureBinding(\.docker))
+                    Toggle(languageManager.t("sidebar.nginx"), isOn: featureBinding(\.nginx))
                 }
                 
-                Section("账户") {
-                    LabeledContent("当前用户", value: apiClient.currentUser ?? "未知")
-                    Button("同步全局数据", action: { Task { await fetchData() } })
-                    Button("退出登录", role: .destructive) {
+                Section(languageManager.t("settings.account")) {
+                    LabeledContent(languageManager.t("settings.currentUser"), value: apiClient.currentUser ?? languageManager.t("common.unknown"))
+                    Button(languageManager.t("settings.syncData"), action: { Task { await fetchData() } })
+                    Button(languageManager.t("settings.logout"), role: .destructive) {
                         apiClient.logout()
                     }
                 }
                 
-                Section("本地设置") {
-                    Text("FluxRemote 是原生 iOS 客户端，严格遵循 Web 版的功能与布局，为您提供极致的监控体验。")
+                Section(header: Text(languageManager.t("settings.localSettings"))) {
+                    Text(languageManager.t("settings.iosAppDesc"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
         }
-        .navigationTitle("系统设置")
+        .navigationTitle(languageManager.t("sidebar.settings"))
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 if isSaving {
                     ProgressView().controlSize(.small)
                 } else if let _ = lastSavedTime {
-                    Text("已保存")
+                    Text(languageManager.t("common.saveSuccess"))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -138,5 +147,6 @@ struct SettingsView: View {
     NavigationStack {
         SettingsView()
             .environment(RemoteAPIClient())
+            .environment(AppLanguageManager())
     }
 }

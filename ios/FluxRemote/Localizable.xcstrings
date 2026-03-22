@@ -1,0 +1,1492 @@
+{
+  "sourceLanguage" : "zh-Hans",
+  "strings" : {
+    "appTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flux Monitor"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "浮光面板"
+          }
+        }
+      }
+    },
+    "sidebar.monitor" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Monitor"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系统概览"
+          }
+        }
+      }
+    },
+    "sidebar.processes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Processes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "进程管理"
+          }
+        }
+      }
+    },
+    "sidebar.logs" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Logs"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日志分析"
+          }
+        }
+      }
+    },
+    "sidebar.configs" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Configs"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "配置管理"
+          }
+        }
+      }
+    },
+    "sidebar.launchagent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LaunchAgent"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自启服务"
+          }
+        }
+      }
+    },
+    "sidebar.docker" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker"
+          }
+        }
+      }
+    },
+    "sidebar.nginx" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nginx"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nginx"
+          }
+        }
+      }
+    },
+    "sidebar.settings" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系统设置"
+          }
+        }
+      }
+    },
+    "common.systemDefault" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跟随系统"
+          }
+        }
+      }
+    },
+    "common.loading" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading..."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加载中..."
+          }
+        }
+      }
+    },
+    "common.refresh" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Refresh"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刷新数据"
+          }
+        }
+      }
+    },
+    "common.more" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更多"
+          }
+        }
+      }
+    },
+    "monitor.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "System Overview"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系统概览"
+          }
+        }
+      }
+    },
+    "monitor.cpu" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU Usage"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU 使用率"
+          }
+        }
+      }
+    },
+    "monitor.memory" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Memory Usage"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内存使用率"
+          }
+        }
+      }
+    },
+    "monitor.network" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Network Traffic"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "网络流量"
+          }
+        }
+      }
+    },
+    "monitor.hostname" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hostname"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主机名"
+          }
+        }
+      }
+    },
+    "monitor.osVersion" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OS Version"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系统版本"
+          }
+        }
+      }
+    },
+    "monitor.uptime" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uptime"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运行时间"
+          }
+        }
+      }
+    },
+    "monitor.arch" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Architecture"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "架构"
+          }
+        }
+      }
+    },
+    "monitor.diskSpace" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disk Space"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "磁盘空间"
+          }
+        }
+      }
+    },
+    "monitor.loadAvg" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Load Average"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "负载"
+          }
+        }
+      }
+    },
+    "monitor.battery" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Battery"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "电池"
+          }
+        }
+      }
+    },
+    "monitor.memPressure" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Memory Pressure"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内存压力"
+          }
+        }
+      }
+    },
+    "monitor.screenshot" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Screen Capture"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "屏幕快照"
+          }
+        }
+      }
+    },
+    "settings.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系统设置"
+          }
+        }
+      }
+    },
+    "settings.language" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Language"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "语言设置"
+          }
+        }
+      }
+    },
+    "settings.connection" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connection"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "面板连接"
+          }
+        }
+      }
+    },
+    "settings.server" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Server"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "服务器"
+          }
+        }
+      }
+    },
+    "settings.version" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "版本"
+          }
+        }
+      }
+    },
+    "settings.aiConfig" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI Service Configuration"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 服务配置"
+          }
+        }
+      }
+    },
+    "settings.featureControl" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feature Control"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "功能模块控制"
+          }
+        }
+      }
+    },
+    "settings.account" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Account"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "账户"
+          }
+        }
+      }
+    },
+    "settings.currentUser" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current User"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前用户"
+          }
+        }
+      }
+    },
+    "settings.syncData" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync Global Data"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步全局数据"
+          }
+        }
+      }
+    },
+    "settings.logout" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Logout"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "退出登录"
+          }
+        }
+      }
+    },
+    "settings.localSettings" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Local Settings"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本地设置"
+          }
+        }
+      }
+    },
+    "settings.iosAppDesc" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FluxRemote is a native iOS client that strictly follows the functionality and layout of the Web version, providing you with the ultimate monitoring experience."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FluxRemote 是原生 iOS 客户端，严格遵循 Web 版的功能与布局，为您提供极致的监控体验。"
+          }
+        }
+      }
+    },
+    "terminal.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terminal"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "终端命令执行"
+          }
+        }
+      }
+    },
+    "terminal.placeholder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter command..."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输入命令..."
+          }
+        }
+      }
+    },
+    "terminal.output" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terminal Output"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "终端输出"
+          }
+        }
+      }
+    },
+    "terminal.waiting" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for command..."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等待指令..."
+          }
+        }
+      }
+    },
+    "terminal.executing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Executing"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在执行"
+          }
+        }
+      }
+    },
+    "terminal.finished" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finished"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "执行完毕"
+          }
+        }
+      }
+    },
+    "terminal.stopped" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stopped"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "操作已停止"
+          }
+        }
+      }
+    },
+    "login.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FLUX"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FLUX"
+          }
+        }
+      }
+    },
+    "login.subtitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS Server Dashboard"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS 服务器管理面板"
+          }
+        }
+      }
+    },
+    "login.username" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Username"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用户名"
+          }
+        }
+      }
+    },
+    "login.password" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Password"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密码"
+          }
+        }
+      }
+    },
+    "login.submit" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Login"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登录"
+          }
+        }
+      }
+    },
+    "login.submitting" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Logging in..."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登录中..."
+          }
+        }
+      }
+    },
+    "login.serverURL" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Server Address (https://...)" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "服务器地址 (https://...)" } }
+      }
+    },
+    "login.accessKey" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Access Key" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "访问密钥" } }
+      }
+    },
+    "login.loginBtn" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Login Now" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "立即登录" } }
+      }
+    },
+    "login.safeConnection" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "FluxRemote Secure Connection" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "FluxRemote 安全连接" } }
+      }
+    },
+    "monitor.quickCmds.ls" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Directory" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "目录" } }
+      }
+    },
+    "monitor.quickCmds.df" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Disk" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "磁盘" } }
+      }
+    },
+    "monitor.quickCmds.memSort" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Mem Top" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "内存排行" } }
+      }
+    },
+    "monitor.quickCmds.cpuSort" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "CPU Top" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "CPU 排行" } }
+      }
+    },
+    "monitor.quickCmds.ip" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Local IP" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "本机 IP" } }
+      }
+    },
+    "monitor.quickCmds.ports" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Ports" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "监听端口" } }
+      }
+    },
+    "monitor.quickCmds.uptime" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Uptime" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "运行时间" } }
+      }
+    },
+    "monitor.quickCmds.brew" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Brew" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Brew" } }
+      }
+    },
+    "monitor.quickCmds.vers" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Sys Vers" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "系统版本" } }
+      }
+    },
+    "monitor.quickCmds.procCount" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Processes" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "进程数" } }
+      }
+    },
+    "monitor.quickCmds.space" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Space" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "空间详情" } }
+      }
+    },
+    "monitor.quickCmds.downloads" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Downloads" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下载历史" } }
+      }
+    },
+    "monitor.quickCmds.arch" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Arch" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "硬件架构" } }
+      }
+    },
+    "monitor.quickCmds.who" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Who" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "活跃用户" } }
+      }
+    },
+    "monitor.quickCmds.dns" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "DNS" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "DNS 配置" } }
+      }
+    },
+    "processes.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Task Manager" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "进程管理" } }
+      }
+    },
+    "processes.pid" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "PID" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "PID" } }
+      }
+    },
+    "processes.user" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "User" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "用户" } }
+      }
+    },
+    "processes.cpu" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "CPU" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "CPU" } }
+      }
+    },
+    "processes.mem" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "MEM" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "内存" } }
+      }
+    },
+    "processes.kill" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Kill Process" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "结束进程" } }
+      }
+    },
+    "processes.details" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Process Details" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "进程详细信息" } }
+      }
+    },
+    "processes.parentPid" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Parent PID" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "父进程" } }
+      }
+    },
+    "processes.state" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "State" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "状态" } }
+      }
+    },
+    "processes.startTime" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Start Time" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "启动时间" } }
+      }
+    },
+    "processes.cpuTime" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Total CPU Time" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "运行时长" } }
+      }
+    },
+    "processes.fullCommand" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Full Command" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "全路径命令" } }
+      }
+    },
+    "processes.openFiles" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open Files/Connections" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开的文件 (LSOF)" } }
+      }
+    },
+    "processes.terminate" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Terminate (SIGTERM)" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "停止进程" } }
+      }
+    },
+    "processes.forceKill" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Force Kill (SIGKILL)" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "强制结束进程" } }
+      }
+    },
+    "processes.terminateConfirm" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Are you sure you want to terminate this process (SIGTERM)?" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确定要安全停止进程吗 (SIGTERM)?" } }
+      }
+    },
+    "processes.forceKillConfirm" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Are you sure you want to force kill this process (SIGKILL)?" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确定要强制结束进程吗 (SIGKILL)?" } }
+      }
+    },
+    "processes.searchPlaceholder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Search Name or PID..." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "搜索名称或 PID..." } }
+      }
+    },
+    "processes.sort" : {
+        "extractionState" : "manual",
+        "localizations" : {
+          "en" : { "stringUnit" : { "state" : "translated", "value" : "Sort" } },
+          "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "排序" } }
+        }
+    },
+    "processes.fetchFailed" : {
+        "extractionState" : "manual",
+        "localizations" : {
+          "en" : { "stringUnit" : { "state" : "translated", "value" : "Fetch Failed" } },
+          "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "读取失败" } }
+        }
+    },
+    "processes.noData" : {
+        "extractionState" : "manual",
+        "localizations" : {
+          "en" : { "stringUnit" : { "state" : "translated", "value" : "No Processes" } },
+          "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无进程数据" } }
+        }
+    },
+    "logs.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Log Analysis" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日志分析" } }
+      }
+    },
+    "configs.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Config Management" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "配置管理" } }
+      }
+    },
+    "launchagent.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "LaunchAgent" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "自启服务" } }
+      }
+    },
+    "server.status" : {
+        "extractionState" : "manual",
+        "localizations" : {
+          "en" : { "stringUnit" : { "state" : "translated", "value" : "Status" } },
+          "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "服务状态" } }
+        }
+    },
+    "server.controlPanel" : {
+        "extractionState" : "manual",
+        "localizations" : {
+          "en" : { "stringUnit" : { "state" : "translated", "value" : "Control Panel" } },
+          "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "控制面板" } }
+        }
+    },
+    "server.start" : {
+        "extractionState" : "manual",
+        "localizations" : {
+          "en" : { "stringUnit" : { "state" : "translated", "value" : "Start" } },
+          "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "启动" } }
+        }
+    },
+    "server.stop" : {
+        "extractionState" : "manual",
+        "localizations" : {
+          "en" : { "stringUnit" : { "state" : "translated", "value" : "Stop" } },
+          "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "停止" } }
+        }
+    },
+    "server.restart" : {
+        "extractionState" : "manual",
+        "localizations" : {
+          "en" : { "stringUnit" : { "state" : "translated", "value" : "Restart" } },
+          "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重启" } }
+        }
+    },
+    "server.reload" : {
+        "extractionState" : "manual",
+        "localizations" : {
+          "en" : { "stringUnit" : { "state" : "translated", "value" : "Reload" } },
+          "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重载" } }
+        }
+    },
+    "logs.searchPlaceholder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Search log files..." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "搜索日志文件..." } }
+      }
+    },
+    "logs.addPath" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add Log Path" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加日志路径" } }
+      }
+    },
+    "logs.pathPlaceholder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Path (Absolute Path)" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "路径 (绝对路径)" } }
+      }
+    },
+    "logs.namePlaceholder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Display Name (Optional)" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示名称 (可选)" } }
+      }
+    },
+    "logs.syncing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Syncing logs..." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在同步日志..." } }
+      }
+    },
+    "logs.syncFailed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Sync Failed" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "同步失败" } }
+      }
+    },
+    "logs.noLogs" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No log files found" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无日志文件" } }
+      }
+    },
+    "logs.noContent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No log content" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无日志内容" } }
+      }
+    },
+    "configs.searchPlaceholder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Search configs..." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "搜索配置..." } }
+      }
+    },
+    "configs.addPath" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add Config Path" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加配置文件路径" } }
+      }
+    },
+    "configs.loading" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Loading configs..." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在加载配置文件..." } }
+      }
+    },
+    "configs.noConfigs" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No config files found" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无配置文件" } }
+      }
+    },
+    "launchagent.loading" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Loading launch agents..." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在读取自启服务..." } }
+      }
+    },
+    "launchagent.deleteConfirmTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Confirm Delete?" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认删除？" } }
+      }
+    },
+    "launchagent.deleteConfirmMessage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Are you sure you want to delete %@? This action cannot be undone." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确定要删除 %@ 吗？此操作不可恢复。" } }
+      }
+    },
+    "launchagent.delete" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除" } }
+      }
+    },
+    "docker.containers" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Containers" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "容器" } }
+      }
+    },
+    "docker.images" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Images" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "镜像" } }
+      }
+    },
+    "docker.syncing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Syncing Docker data..." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在同步 Docker 数据..." } }
+      }
+    },
+    "docker.logs" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Logs" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "日志" } }
+      }
+    },
+    "docker.containerLogs" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%@ Logs" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "%@ 日志" } }
+      }
+    },
+    "nginx.runningStatus" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Running Status" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "运行状态" } }
+      }
+    },
+    "nginx.binPath" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Path: %@" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "路径: %@" } }
+      }
+    },
+    "nginx.viewErrorLogs" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "View Error Logs" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "查看错误日志" } }
+      }
+    },
+    "nginx.serviceControl" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Service Control" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "服务控制" } }
+      }
+    },
+    "nginx.siteManagement" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Site Management" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "站点管理" } }
+      }
+    },
+    "nginx.addSite" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add Site" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加站点" } }
+      }
+    },
+    "nginx.filenamePlaceholder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Filename (e.g., example.conf)" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文件名 (例如 example.conf)" } }
+      }
+    },
+    "nginx.errorLogs" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Nginx Error Logs" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Nginx 错误日志" } }
+      }
+    },
+    "nginx.noLogData" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No log data" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无日志数据" } }
+      }
+    },
+    "nginx.sudoRequired" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Sudo password required. Please use the web version or wait for password integration." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "需要 sudo 密码。请前往网页版操作或等候后续集成密码输入。" } }
+      }
+    },
+    "common.test" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Test" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "测试" } }
+      }
+    },
+    "common.category" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Category" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "分类" } }
+      }
+    },
+    "common.error" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Error" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "读取失败" } }
+      }
+    },
+    "common.failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Failed" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "执行失败" } }
+      }
+    },
+    "common.all" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "All" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "全部" } }
+      }
+    },
+    "common.cancel" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Cancel" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

@@ -3,6 +3,7 @@ import SwiftUI
 struct ProcessListView: View {
         @State private var refreshTask: Task<Void, Never>? = nil
     @Environment(RemoteAPIClient.self) private var apiClient
+    @Environment(AppLanguageManager.self) private var languageManager
     @State private var processes: [RemoteProcess] = []
     @State private var searchText: String = ""
     @State private var isLoading: Bool = false
@@ -17,7 +18,7 @@ struct ProcessListView: View {
         case cpu = "CPU"
         case mem = "MEM"
         case pid = "PID"
-        case command = "名称"
+        case command = "common.command"
     }
     
     var filteredAndSortedProcesses: [RemoteProcess] {
@@ -49,14 +50,14 @@ struct ProcessListView: View {
         List {
             Section {
                     if isLoading && processes.isEmpty {
-                        ProgressView("正在读取进程数据...")
+                        ProgressView(languageManager.t("common.loading"))
                             .frame(maxWidth: .infinity)
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
                     } else if let error = errorMessage {
-                        ContentUnavailableView("读取失败", systemImage: "exclamationmark.triangle", description: Text(error))
+                        ContentUnavailableView(languageManager.t("processes.fetchFailed"), systemImage: "exclamationmark.triangle", description: Text(error))
                     } else if processes.isEmpty && !isLoading {
-                        ContentUnavailableView("无进程数据", systemImage: "cpu.fill")
+                        ContentUnavailableView(languageManager.t("processes.noData"), systemImage: "cpu.fill")
                     } else {
                         ForEach(filteredAndSortedProcesses) { process in
                             Button {
@@ -72,17 +73,17 @@ struct ProcessListView: View {
                                             .font(.subheadline)
                                             .fontWeight(.medium)
                                             .lineLimit(1)
-                                        Text("PID: \(process.pid) · 用户: \(process.user)")
+                                        Text("\(languageManager.t("processes.pid")): \(process.pid) · \(languageManager.t("processes.user")): \(process.user)")
                                             .font(.caption2)
                                             .foregroundStyle(.secondary)
                                     }
                                     Spacer()
                                     VStack(alignment: .trailing, spacing: 2) {
-                                        Text("\(process.cpu)% CPU")
+                                        Text("\(process.cpu)% \(languageManager.t("processes.cpu"))")
                                             .font(.caption)
                                             .foregroundStyle(.blue)
                                             .monospacedDigit()
-                                        Text("\(process.mem)% MEM")
+                                        Text("\(process.mem)% \(languageManager.t("processes.mem"))")
                                             .font(.caption2)
                                             .foregroundStyle(.secondary)
                                             .monospacedDigit()
@@ -96,7 +97,7 @@ struct ProcessListView: View {
                                 Button(role: .destructive) {
                                     Task { await killProcess(pid: process.pid) }
                                 } label: {
-                                    Label("结束进程", systemImage: "xmark.circle")
+                                    Label(languageManager.t("processes.kill"), systemImage: "xmark.circle")
                                 }
                             }
                         }
@@ -104,8 +105,8 @@ struct ProcessListView: View {
                 }
             }
         .listStyle(.plain)
-        .navigationTitle("系统进程")
-        .searchable(text: $searchText, prompt: "搜索名称或 PID...")
+        .navigationTitle(languageManager.t("processes.title"))
+        .searchable(text: $searchText, prompt: languageManager.t("processes.searchPlaceholder"))
         // 自动静默刷新
         .onAppear {
             Task { await fetchData() }
@@ -123,29 +124,29 @@ struct ProcessListView: View {
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Menu {
-                    Picker("排序", selection: $sortOrder) {
+                    Picker(languageManager.t("processes.sort"), selection: $sortOrder) {
                         ForEach(SortOrder.allCases, id: \.self) { order in
-                            Text(order.rawValue).tag(order)
+                            Text(languageManager.t(order.rawValue)).tag(order)
                         }
                     }
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.up.arrow.down")
-                        Text(sortOrder.rawValue)
+                        Text(languageManager.t(sortOrder.rawValue))
                             .font(.caption2)
                     }
                 }
                 
                 Menu {
-                    Picker("用户", selection: $selectedUser) {
+                    Picker(languageManager.t("processes.user"), selection: $selectedUser) {
                         ForEach(users, id: \.self) { user in
-                            Text(user).tag(user)
+                            Text(user == "All" ? languageManager.t("common.all") : user).tag(user)
                         }
                     }
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "person")
-                        Text(selectedUser == "All" ? "全部" : selectedUser).lineLimit(1)
+                        Text(selectedUser == "All" ? languageManager.t("common.all") : selectedUser).lineLimit(1)
                             .font(.caption2)
                     }
                 }
@@ -197,6 +198,7 @@ struct ProcessListView: View {
 struct ProcessDetailView: View {
     let process: RemoteProcess
     @Environment(RemoteAPIClient.self) private var apiClient
+    @Environment(AppLanguageManager.self) private var languageManager
     @State private var detailedProcess: DetailedProcess?
     @State private var isLoading = true
     @State private var isExecutingAction = false
@@ -226,28 +228,28 @@ struct ProcessDetailView: View {
             if isLoading {
                 ProgressView().frame(maxWidth: .infinity).padding()
             } else if let dp = detailedProcess {
-                Section("基础信息") {
-                    LabeledContent("PID", value: dp.pid)
-                    LabeledContent("父进程", value: "\(dp.ppidName) (\(dp.ppid))")
-                    LabeledContent("状态", value: dp.state)
-                    LabeledContent("用户", value: dp.user)
-                    LabeledContent("启动时间", value: dp.start)
-                    LabeledContent("运行时长", value: dp.time)
+                Section(languageManager.t("common.basicInfo")) {
+                    LabeledContent(languageManager.t("processes.pid"), value: dp.pid)
+                    LabeledContent(languageManager.t("processes.parentPid"), value: "\(dp.ppidName) (\(dp.ppid))")
+                    LabeledContent(languageManager.t("processes.state"), value: dp.state)
+                    LabeledContent(languageManager.t("processes.user"), value: dp.user)
+                    LabeledContent(languageManager.t("processes.startTime"), value: dp.start)
+                    LabeledContent(languageManager.t("processes.cpuTime"), value: dp.time)
                 }
                 
-                Section("资源占用") {
-                    LabeledContent("CPU 使用率", value: "\(dp.cpu)%")
-                    LabeledContent("内存使用率", value: "\(dp.mem)%")
+                Section(languageManager.t("common.resourceUsage")) {
+                    LabeledContent(languageManager.t("processes.cpu"), value: "\(dp.cpu)%")
+                    LabeledContent(languageManager.t("processes.mem"), value: "\(dp.mem)%")
                 }
                 
-                Section("全路径命令") {
+                Section(languageManager.t("processes.fullCommand")) {
                     Text(dp.fullCommand)
                         .font(.system(.caption2, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
                 
                 if !dp.openFiles.isEmpty {
-                    Section("打开的文件 (LSOF)") {
+                    Section(languageManager.t("processes.openFiles")) {
                         ForEach(dp.openFiles, id: \.self) { file in
                             Text(file)
                                 .font(.system(.caption2, design: .monospaced))
@@ -283,17 +285,17 @@ struct ProcessDetailView: View {
                 }
             }
         }
-        .confirmationDialog("确定要安全停止进程吗 (SIGTERM)?", isPresented: $showingStopConfirmation, titleVisibility: .visible) {
-            Button("停止进程", role: .destructive) {
+        .confirmationDialog(languageManager.t("processes.terminateConfirm"), isPresented: $showingStopConfirmation, titleVisibility: .visible) {
+            Button(languageManager.t("processes.terminate"), role: .destructive) {
                 Task { await stopProcess() }
             }
-            Button("取消", role: .cancel) {}
+            Button(languageManager.t("common.cancel"), role: .cancel) {}
         }
-        .confirmationDialog("确定要强制结束进程吗 (SIGKILL)?", isPresented: $showingKillConfirmation, titleVisibility: .visible) {
-            Button("强制结束进程", role: .destructive) {
+        .confirmationDialog(languageManager.t("processes.forceKillConfirm"), isPresented: $showingKillConfirmation, titleVisibility: .visible) {
+            Button(languageManager.t("processes.forceKill"), role: .destructive) {
                 Task { await killProcess() }
             }
-            Button("取消", role: .cancel) {}
+            Button(languageManager.t("common.cancel"), role: .cancel) {}
         }
         .onAppear {
             Task { await fetchDetails() }

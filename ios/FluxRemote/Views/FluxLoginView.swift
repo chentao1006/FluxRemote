@@ -2,6 +2,7 @@ import SwiftUI
 
 struct FluxLoginView: View {
     @Environment(RemoteAPIClient.self) private var apiClient
+    @Environment(AppLanguageManager.self) private var languageManager
     
     @State private var panelURL: String = ""
     @State private var username: String = ""
@@ -25,11 +26,11 @@ struct FluxLoginView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                     .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
                 
-                Text("浮光远控")
+                Text(languageManager.t("appTitle"))
                     .font(.largeTitle)
                     .fontWeight(.bold)
                 
-                Text("FluxRemote 安全连接")
+                Text(languageManager.t("login.safeConnection"))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -37,7 +38,7 @@ struct FluxLoginView: View {
             // Login Form
             VStack(spacing: 20) {
                 VStack(alignment: .leading, spacing: 12) {
-                    TextField("服务器地址 (https://...)", text: $panelURL)
+                    TextField(languageManager.t("login.serverURL"), text: $panelURL)
                         .textFieldStyle(.roundedBorder)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
@@ -45,14 +46,14 @@ struct FluxLoginView: View {
                         .focused($focusedField, equals: .url)
                         .submitLabel(.next)
                     
-                    TextField("用户名", text: $username)
+                    TextField(languageManager.t("login.username"), text: $username)
                         .textFieldStyle(.roundedBorder)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                         .focused($focusedField, equals: .username)
                         .submitLabel(.next)
                     
-                    SecureField("访问密钥", text: $password)
+                    SecureField(languageManager.t("login.accessKey"), text: $password)
                         .textFieldStyle(.roundedBorder)
                         .focused($focusedField, equals: .password)
                         .submitLabel(.go)
@@ -78,7 +79,7 @@ struct FluxLoginView: View {
                         ProgressView()
                             .tint(.white)
                     } else {
-                        Text("立即登录")
+                        Text(languageManager.t("login.loginBtn"))
                             .fontWeight(.semibold)
                     }
                 }
@@ -112,4 +113,5 @@ struct FluxLoginView: View {
 #Preview {
     FluxLoginView()
         .environment(RemoteAPIClient())
+        .environment(AppLanguageManager())
 }

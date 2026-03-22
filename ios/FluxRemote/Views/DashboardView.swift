@@ -4,6 +4,7 @@ import Charts
 
 struct DashboardView: View {
     @Environment(RemoteAPIClient.self) private var apiClient
+    @Environment(AppLanguageManager.self) private var languageManager
     @State private var stats: RemoteSystemStats?
     @State private var history: [MetricPoint] = []
     @State private var timer: Timer?
@@ -49,28 +50,28 @@ struct DashboardView: View {
                     VStack(spacing: 20) {
                         // Metric Charts Section
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("性能监控")
+                            Text(languageManager.t("monitor.title"))
                                 .font(.headline)
                                 .padding(.horizontal)
                             
                             LazyVGrid(columns: chartColumns, spacing: 16) {
-                                ChartTile(title: "CPU 使用率", 
+                                ChartTile(title: languageManager.t("monitor.cpu"), 
                                          value: "\(Int((stats.cpu?.user ?? 0) + (stats.cpu?.sys ?? 0)))%", 
-                                         subValue: "User: \(Int(stats.cpu?.user ?? 0))% | Sys: \(Int(stats.cpu?.sys ?? 0))%",
+                                         subValue: "\(languageManager.t("monitor.user")): \(Int(stats.cpu?.user ?? 0))% | \(languageManager.t("monitor.sys")): \(Int(stats.cpu?.sys ?? 0))%",
                                          color: .blue, 
                                          data: history, 
                                          keyPath: \.cpu)
                                 
-                                ChartTile(title: "内存使用率", 
+                                ChartTile(title: languageManager.t("monitor.memory"), 
                                          value: "\(Int(Double(stats.memory.usedMB) / Double(stats.memory.totalMB) * 100))%", 
                                          subValue: "\(stats.memory.usedMB) MB / \(stats.memory.totalMB) MB",
                                          color: .orange, 
                                          data: history, 
                                          keyPath: \.memory)
                                 
-                                ChartTile(title: "网络流量 (KB/s)", 
+                                ChartTile(title: languageManager.t("monitor.network"), 
                                          value: "↓\(Int(history.last?.netIn ?? 0)) ↑\(Int(history.last?.netOut ?? 0))", 
-                                         subValue: "总流量: ↓\(formatBytes(stats.netBytes?.in ?? 0)) ↑\(formatBytes(stats.netBytes?.out ?? 0))",
+                                         subValue: "\(languageManager.t("monitor.accumulated")): ↓\(formatBytes(stats.netBytes?.in ?? 0)) ↑\(formatBytes(stats.netBytes?.out ?? 0))",
                                          color: .green, 
                                          data: history, 
                                          isNetwork: true)
@@ -80,7 +81,7 @@ struct DashboardView: View {
                         
                         // System Details Tiles Section
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("系统信息")
+                            Text(languageManager.t("monitor.summary"))
                                 .font(.headline)
                                 .padding(.horizontal)
                             
@@ -89,18 +90,18 @@ struct DashboardView: View {
                                 [GridItem(.flexible()), GridItem(.flexible())]
                             
                             LazyVGrid(columns: detailColumns, spacing: 12) {
-                                SystemDetailTile(icon: "desktopcomputer", title: "主机名", value: stats.hostname)
-                                SystemDetailTile(icon: "info.circle", title: "系统版本", value: stats.osVersion)
-                                SystemDetailTile(icon: "clock", title: "运行时间", value: stats.uptime.components(separatedBy: ",").first ?? "N/A")
-                                SystemDetailTile(icon: "cpu", title: "架构", value: stats.arch)
-                                SystemDetailTile(icon: "internaldrive", title: "磁盘空间", value: "\(stats.disk.used) / \(stats.disk.total)")
-                                SystemDetailTile(icon: "gauge", title: "负载", value: stats.loadAvg)
+                                SystemDetailTile(icon: "desktopcomputer", title: languageManager.t("monitor.hostname"), value: stats.hostname)
+                                SystemDetailTile(icon: "info.circle", title: languageManager.t("monitor.osVersion"), value: stats.osVersion)
+                                SystemDetailTile(icon: "clock", title: languageManager.t("monitor.uptime"), value: stats.uptime.components(separatedBy: ",").first ?? "N/A")
+                                SystemDetailTile(icon: "cpu", title: languageManager.t("monitor.arch"), value: stats.arch)
+                                SystemDetailTile(icon: "internaldrive", title: languageManager.t("monitor.diskSpace"), value: "\(stats.disk.used) / \(stats.disk.total)")
+                                SystemDetailTile(icon: "gauge", title: languageManager.t("monitor.loadAvg"), value: stats.loadAvg)
                                 
                                 if let battery = stats.battery {
-                                    SystemDetailTile(icon: "battery.100", title: "电池", value: battery)
+                                    SystemDetailTile(icon: "battery.100", title: languageManager.t("monitor.battery"), value: battery)
                                 }
                                 if let memPressure = stats.memPressure {
-                                    SystemDetailTile(icon: "memorychip", title: "内存压力", value: memPressure)
+                                    SystemDetailTile(icon: "memorychip", title: languageManager.t("monitor.memPressure"), value: memPressure)
                                 }
                             }
                             .padding(.horizontal)
@@ -113,15 +114,13 @@ struct DashboardView: View {
                 }
             } else {
                 ContentUnavailableView {
-                    Label("正在同步状态", systemImage: "waveform.path.ecg.rectangle.fill")
-                } description: {
-                    Text("连接到远程服务器负载监控中...")
+                    Label(languageManager.t("common.loading"), systemImage: "waveform.path.ecg.rectangle")
                 } actions: {
                     ProgressView().controlSize(.large)
                 }
             }
         }
-        .navigationTitle("系统概览")
+        .navigationTitle(languageManager.t("sidebar.monitor"))
         .background(Color(.systemGroupedBackground))
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -211,7 +210,7 @@ struct DashboardView: View {
                 }
             } catch {
                 await MainActor.run {
-                    self.aiAnalysis = "分析失败: \(error.localizedDescription)"
+                    self.aiAnalysis = "\(languageManager.t("monitor.analysisFailed")): \(error.localizedDescription)"
                     self.isAnalyzing = false
                 }
             }
@@ -236,7 +235,7 @@ struct DashboardView: View {
                         self.isCapturingScreenshot = false
                     }
                 } else {
-                    throw NSError(domain: "ScreenshotError", code: 0, userInfo: [NSLocalizedDescriptionKey: "解码图像失败"])
+                    throw NSError(domain: "ScreenshotError", code: 0, userInfo: [NSLocalizedDescriptionKey: languageManager.t("monitor.decodeFailed")])
                 }
             } catch {
                 await MainActor.run {
@@ -260,6 +259,7 @@ struct DashboardView: View {
 struct ScreenshotPreviewView: View {
     let image: UIImage
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppLanguageManager.self) private var languageManager
     
     @State private var scale: CGFloat = 1.0
     @State private var lastScale: CGFloat = 1.0
@@ -324,7 +324,7 @@ struct ScreenshotPreviewView: View {
                 .cornerRadius(12)
                 .padding()
             }
-            .navigationTitle("屏幕快照")
+            .navigationTitle(languageManager.t("monitor.screenshot"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -339,7 +339,7 @@ struct ScreenshotPreviewView: View {
                 
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 20) {
-                        ShareLink(item: Image(uiImage: image), preview: SharePreview("屏幕快照", image: Image(uiImage: image))) {
+                        ShareLink(item: Image(uiImage: image), preview: SharePreview(languageManager.t("monitor.screenshot"), image: Image(uiImage: image))) {
                             Image(systemName: "square.and.arrow.up")
                         }
                     }
@@ -351,6 +351,7 @@ struct ScreenshotPreviewView: View {
 
 
 struct ChartTile: View {
+    @Environment(AppLanguageManager.self) private var languageManager
     let title: String
     let value: String
     let subValue: String
@@ -411,13 +412,13 @@ struct ChartTile: View {
                 Chart(data) { point in
                     AreaMark(
                         x: .value("Time", point.date),
-                        y: .value("下载", point.netIn)
+                        y: .value(languageManager.t("monitor.download"), point.netIn)
                     )
                     .foregroundStyle(.blue.opacity(0.18))
                     .interpolationMethod(.monotone)
                     LineMark(
                         x: .value("Time", point.date),
-                        y: .value("下载", point.netIn)
+                        y: .value(languageManager.t("monitor.download"), point.netIn)
                     )
                     .foregroundStyle(.blue)
                     .lineStyle(StrokeStyle(lineWidth: 2))
@@ -434,13 +435,13 @@ struct ChartTile: View {
                 Chart(data) { point in
                     AreaMark(
                         x: .value("Time", point.date),
-                        y: .value("上传", point.netOut)
+                        y: .value(languageManager.t("monitor.upload"), point.netOut)
                     )
                     .foregroundStyle(.green.opacity(0.18))
                     .interpolationMethod(.monotone)
                     LineMark(
                         x: .value("Time", point.date),
-                        y: .value("上传", point.netOut)
+                        y: .value(languageManager.t("monitor.upload"), point.netOut)
                     )
                     .foregroundStyle(.green)
                     .lineStyle(StrokeStyle(lineWidth: 2))

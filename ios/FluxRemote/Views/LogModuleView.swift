@@ -6,12 +6,13 @@ struct LogModuleView: View {
 
         // Add categoryCount function
         func categoryCount(_ category: String) -> Int {
-            if category == "全部" { return logs.count }
+            if category == "All" { return logs.count }
             return logs.filter { $0.category == category }.count
         }
     @Environment(RemoteAPIClient.self) private var apiClient
+    @Environment(AppLanguageManager.self) private var languageManager
     @State private var logs: [LogItem] = []
-    @State private var selectedCategory: String = "全部"
+    @State private var selectedCategory: String = "All"
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var selectedLog: LogItem?
@@ -19,18 +20,18 @@ struct LogModuleView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var searchText = ""
     
-    let categories = ["全部", "system", "service", "app", "other"]
+    let categories = ["All", "system", "service", "app", "other"]
     
     var filteredFiles: [LogItem] {
-        let categoryFiltered = selectedCategory == "全部" ? logs : logs.filter { $0.category == selectedCategory }
+        let categoryFiltered = selectedCategory == "All" ? logs : logs.filter { $0.category == selectedCategory }
         if searchText.isEmpty { return categoryFiltered }
         return categoryFiltered.filter { $0.name.localizedCaseInsensitiveContains(searchText) || $0.path.localizedCaseInsensitiveContains(searchText) }
     }
     
     var body: some View {
         fileList
-            .navigationTitle("日志分析")
-            .searchable(text: $searchText, prompt: "搜索日志文件...")
+            .navigationTitle(languageManager.t("logs.title"))
+            .searchable(text: $searchText, prompt: languageManager.t("logs.searchPlaceholder"))
             .sheet(item: $selectedLog) { log in
                 NavigationStack {
                     LogDetailView(file: log)
@@ -50,15 +51,15 @@ struct LogModuleView: View {
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Menu {
-                        Picker("系统分类", selection: $selectedCategory) {
+                        Picker(languageManager.t("common.category"), selection: $selectedCategory) {
                             ForEach(categories, id: \.self) { category in
-                                Text("\(category) (\(categoryCount(category)))").tag(category)
+                                Text("\(category == "All" ? languageManager.t("common.all") : languageManager.t(categoryDisplay(category))) (\(categoryCount(category)))").tag(category)
                             }
                         }
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "tag")
-                            Text("\(selectedCategory) (\(categoryCount(selectedCategory)))").lineLimit(1)
+                            Text("\(selectedCategory == "All" ? languageManager.t("common.all") : languageManager.t(categoryDisplay(selectedCategory))) (\(categoryCount(selectedCategory)))").lineLimit(1)
                                 .font(.caption2)
                         }
                     }
@@ -66,13 +67,13 @@ struct LogModuleView: View {
                     Button {
                         showingAddLog = true
                     } label: {
-                        Image(systemName: "plus")
+                        Label(languageManager.t("logs.addPath"), systemImage: "plus")
                     }
                 }
             }
             .sheet(isPresented: $showingAddLog) {
                 NavigationStack {
-                    AddPathView(title: "添加日志路径") { path, name in
+                    AddPathView(title: languageManager.t("logs.addPath")) { path, name in
                         let _: ActionResponse = try await apiClient.request("/api/logs", method: "POST", body: ["path": path, "name": name])
                         await fetchData()
                     }
@@ -87,7 +88,7 @@ struct LogModuleView: View {
                     Button {
                         selectedCategory = category
                     } label: {
-                        Text(categoryDisplay(category))
+                        Text(category == "All" ? languageManager.t("common.all") : languageManager.t(categoryDisplay(category)))
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
                             .background(selectedCategory == category ? Color.blue : Color.secondary.opacity(0.1))
@@ -105,14 +106,18 @@ struct LogModuleView: View {
         List {
             Section {
                 if isLoading && logs.isEmpty {
-                    ProgressView("正在同步日志...")
+                    ProgressView(languageManager.t("logs.syncing"))
                         .frame(maxWidth: .infinity)
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                 } else if let error = errorMessage {
-                    ContentUnavailableView("同步失败", systemImage: "exclamationmark.triangle.fill", description: Text(error))
+                    ContentUnavailableView(languageManager.t("logs.syncFailed"), systemImage: "exclamationmark.triangle.fill", description: Text(error))
                 } else if logs.isEmpty {
-                    ContentUnavailableView("无日志文件", systemImage: "doc.text.fill")
+                    ContentUnavailableView {
+                        Label(languageManager.t("logs.noLogs"), systemImage: "doc.text.magnifyingglass")
+                    } description: {
+                        Text(languageManager.t("logs.noLogsDesc"))
+                    }
                 } else {
                     ForEach(filteredFiles) { file in
                         Button {
@@ -127,7 +132,7 @@ struct LogModuleView: View {
                                     .foregroundStyle(.secondary)
                                     .lineLimit(1)
                                 HStack {
-                                    Text(categoryDisplay(file.category))
+                                    Text(languageManager.t(categoryDisplay(file.category)))
                                         .font(.system(size: 10, weight: .bold))
                                         .padding(.horizontal, 4)
                                         .padding(.vertical, 2)
@@ -166,7 +171,7 @@ struct LogModuleView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             HStack {
-                Text(categoryDisplay(file.category))
+                Text(languageManager.t(categoryDisplay(file.category)))
                     .font(.system(size: 10, weight: .bold))
                     .padding(.horizontal, 4)
                     .padding(.vertical, 2)
@@ -187,10 +192,10 @@ struct LogModuleView: View {
     
     func categoryDisplay(_ cat: String) -> String {
         switch cat {
-        case "system": return "系统"
-        case "service": return "服务"
-        case "app": return "应用"
-        case "other": return "其他"
+        case "system": return "common.system"
+        case "service": return "common.service"
+        case "app": return "common.app"
+        case "other": return "common.other"
         default: return cat
         }
     }
@@ -234,6 +239,7 @@ struct LogDetailView: View {
         var autoRefresh: Bool { true }
     let file: LogItem
     @Environment(RemoteAPIClient.self) private var apiClient
+    @Environment(AppLanguageManager.self) private var languageManager
     @State private var logContent: String = ""
     @State private var isReading = false
     @State private var refreshTask: Task<Void, Never>? = nil
@@ -243,14 +249,14 @@ struct LogDetailView: View {
         ScrollViewReader { proxy in
             Group {
                 if logContent.isEmpty && (isReading || isSilentRefresh) {
-                    ProgressView("正在读取...")
+                    ProgressView(languageManager.t("common.loading"))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if !logContent.isEmpty {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 0) {
                             let lines = logContent.components(separatedBy: .newlines)
                             let displayLines = lines.suffix(5000)
-                            ForEach(Array(displayLines.enumerated()), id: \ .offset) { index, line in
+                            ForEach(Array(displayLines.enumerated()), id: \.offset) { index, line in
                                 Text(line)
                                     .font(.system(.caption2, design: .monospaced))
                                     .padding(.horizontal, 8)
@@ -262,7 +268,7 @@ struct LogDetailView: View {
                         }
                     }
                 } else if !isReading && !isSilentRefresh {
-                    ContentUnavailableView("无日志内容", systemImage: "doc.text.fill")
+                    ContentUnavailableView(languageManager.t("logs.noContent"), systemImage: "doc.text.fill")
                 }
             }
             .onChange(of: logContent) {
@@ -329,6 +335,7 @@ struct LogDetailView: View {
 
 struct AddPathView: View {
     @Environment(\.dismiss) var dismiss
+    @Environment(AppLanguageManager.self) private var languageManager
     @State private var path: String = ""
     @State private var name: String = ""
     @State private var isSaving = false
@@ -340,11 +347,11 @@ struct AddPathView: View {
     var body: some View {
         Form {
             Section {
-                TextField("路径 (绝对路径)", text: $path)
+                TextField(languageManager.t("logs.pathPlaceholder"), text: $path)
                     .autocapitalization(.none)
                     .disableAutocorrection(true)
                 
-                TextField("显示名称 (可选)", text: $name)
+                TextField(languageManager.t("logs.namePlaceholder"), text: $name)
             } footer: {
                 if let error = errorMessage {
                     Text(error)
@@ -357,13 +364,13 @@ struct AddPathView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("取消") { dismiss() }
+                Button(languageManager.t("common.cancel")) { dismiss() }
             }
             ToolbarItem(placement: .confirmationAction) {
                 if isSaving {
                     ProgressView()
                 } else {
-                    Button("添加") {
+                    Button(languageManager.t("common.add")) {
                         Task {
                             isSaving = true
                             errorMessage = nil
