@@ -3312,6 +3312,27 @@
         "zh-Hans": { "stringUnit": { "state": "translated", "value": "资源占用" } }
       }
     },
+    "monitor.accumulated": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Accumulated" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "累计" } }
+      }
+    },
+    "monitor.user": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "User" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "用户态" } }
+      }
+    },
+    "monitor.sys": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "System" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "内核态" } }
+      }
+    },
   },
   "version": "1.0"
 }
