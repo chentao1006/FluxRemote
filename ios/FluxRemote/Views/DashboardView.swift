@@ -6,6 +6,7 @@ struct DashboardView: View {
     @Environment(RemoteAPIClient.self) private var apiClient
     @Environment(AppLanguageManager.self) private var languageManager
     @State private var stats: RemoteSystemStats?
+    @State private var errorMessage: String?
     @State private var history: [MetricPoint] = []
     @State private var timer: Timer?
     @State private var prevNetBytes: RemoteNetBytes?
@@ -44,6 +45,40 @@ struct DashboardView: View {
     }
     
     var body: some View {
+        ZStack {
+            Color(.systemGroupedBackground).ignoresSafeArea()
+            
+            mainContent
+        }
+        .navigationTitle(languageManager.t("sidebar.monitor"))
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(action: takeScreenshot) {
+                    if isCapturingScreenshot {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "camera")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                }
+                .disabled(isCapturingScreenshot)
+            }
+        }
+        .sheet(isPresented: $showScreenshotSheet) {
+            if let image = capturedImage {
+                ScreenshotPreviewView(image: image)
+            }
+        }
+        .onAppear {
+            startTimer()
+        }
+        .onDisappear {
+            stopTimer()
+        }
+    }
+    
+    @ViewBuilder
+    private var mainContent: some View {
         Group {
             if let stats {
                 ScrollView {
@@ -81,7 +116,7 @@ struct DashboardView: View {
                         
                         // System Details Tiles Section
                         VStack(alignment: .leading, spacing: 12) {
-                            Text(languageManager.t("monitor.summary"))
+                            Text(languageManager.t("monitor.info"))
                                 .font(.headline)
                                 .padding(.horizontal)
                             
@@ -112,39 +147,16 @@ struct DashboardView: View {
                         await fetchData()
                     }
                 }
+            } else if let error = errorMessage {
+                ContentUnavailableView(languageManager.t("common.error"), systemImage: "wifi.exclamationmark.fill", description: Text(error))
             } else {
-                ContentUnavailableView {
-                    Label(languageManager.t("common.loading"), systemImage: "waveform.path.ecg.rectangle")
-                } actions: {
-                    ProgressView().controlSize(.large)
+                VStack {
+                    Spacer()
+                    LoadingView()
+                    Spacer()
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-        }
-        .navigationTitle(languageManager.t("sidebar.monitor"))
-        .background(Color(.systemGroupedBackground))
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button(action: takeScreenshot) {
-                    if isCapturingScreenshot {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Image(systemName: "camera")
-                            .font(.system(size: 16, weight: .semibold))
-                    }
-                }
-                .disabled(isCapturingScreenshot)
-            }
-        }
-        .sheet(isPresented: $showScreenshotSheet) {
-            if let image = capturedImage {
-                ScreenshotPreviewView(image: image)
-            }
-        }
-        .onAppear {
-            startTimer()
-        }
-        .onDisappear {
-            stopTimer()
         }
     }
     
@@ -153,10 +165,14 @@ struct DashboardView: View {
             let response: RemoteStatsResponse = try await apiClient.request("/api/system/stats")
             await MainActor.run {
                 self.stats = response.data
+                self.errorMessage = nil
                 updateHistory(with: response.data)
             }
         } catch {
             print("Fetch stats error: \(error)")
+            await MainActor.run {
+                self.errorMessage = error.localizedDescription
+            }
         }
     }
     

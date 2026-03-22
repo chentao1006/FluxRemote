@@ -9,69 +9,69 @@ struct LaunchAgentModuleView: View {
     @State private var selectedAgent: LaunchAgentItem?
     @State private var loadingAction: [String: String] = [:] // [agent.path: action]
     @State private var confirmDeleteAgent: LaunchAgentItem? = nil
+    @State private var searchText = ""
+    @State private var showingAddAgent = false
+    
+    var filteredAgents: [LaunchAgentItem] {
+        if searchText.isEmpty { return launchAgents }
+        return launchAgents.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+    }
     
     var body: some View {
-        List {
-            if isLoading && launchAgents.isEmpty {
-                HStack {
-                    Spacer()
-                    ProgressView(languageManager.t("launchagent.loading"))
-                    Spacer()
-                }
-                .listRowSeparator(.hidden)
-            } else if let error = errorMessage {
-                ContentUnavailableView(languageManager.t("common.error"), systemImage: "wifi.exclamationmark.fill", description: Text(error))
-            } else {
-                ForEach(launchAgents) { agent in
-                    VStack(alignment: .leading, spacing: 10) {
-                        Button {
-                            selectedAgent = agent
-                        } label: {
-                            HStack {
-                                Image(systemName: "circle.fill")
-                                    .foregroundStyle(agent.isLoaded ? Color.green : Color.red)
-                                    .font(.subheadline)
-                                VStack(alignment: .leading, spacing: 2) {
+        ZStack {
+            List {
+                if let error = errorMessage {
+                    ContentUnavailableView(languageManager.t("common.error"), systemImage: "wifi.exclamationmark.fill", description: Text(error))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                } else if launchAgents.isEmpty && !isLoading {
+                    ContentUnavailableView(languageManager.t("launchagent.noAgents"), systemImage: "circle.grid.3x3")
+                } else {
+                    ForEach(filteredAgents) { agent in
+                        HStack {
+                            Button {
+                                selectedAgent = agent
+                            } label: {
+                                HStack(spacing: 12) {
+                                    StatusBadge(status: agent.isLoaded ? "running" : "stopped", size: 14)
+                                    
                                     Text(agent.name.replacingOccurrences(of: ".plist", with: ""))
-                                        .font(.subheadline)
+                                        .font(.headline)
                                         .fontWeight(.medium)
+                                    Spacer()
                                 }
-                                Spacer()
+                                .contentShape(Rectangle())
                             }
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        
-                        HStack(spacing: 16) {
-                            actionButton(
-                                icon: agent.isLoaded ? "stop" : "play",
-                                color: agent.isLoaded ? .orange : .green,
-                                isLoading: loadingAction[agent.path] == (agent.isLoaded ? "unload" : "load")
-                            ) {
-                                loadingAction[agent.path] = agent.isLoaded ? "unload" : "load"
-                                await performAction(agent.isLoaded ? "unload" : "load", path: agent.path)
-                                loadingAction[agent.path] = nil
-                            }
+                            .buttonStyle(.plain)
+                            
+                            HStack(spacing: 10) {
+                                actionButton(
+                                    icon: agent.isLoaded ? "stop" : "play",
+                                    color: agent.isLoaded ? .orange : .green,
+                                    isLoading: loadingAction[agent.path] == (agent.isLoaded ? "unload" : "load")
+                                ) {
+                                    loadingAction[agent.path] = agent.isLoaded ? "unload" : "load"
+                                    await performAction(agent.isLoaded ? "unload" : "load", path: agent.path)
+                                    loadingAction[agent.path] = nil
+                                }
 
-                            actionButton(
-                                icon: "arrow.clockwise",
-                                color: .blue,
-                                isLoading: loadingAction[agent.path] == "reload"
-                            ) {
-                                loadingAction[agent.path] = "reload"
-                                await performAction("reload", path: agent.path)
-                                loadingAction[agent.path] = nil
-                            }
+                                actionButton(
+                                    icon: "arrow.clockwise",
+                                    color: .blue,
+                                    isLoading: loadingAction[agent.path] == "reload"
+                                ) {
+                                    loadingAction[agent.path] = "reload"
+                                    await performAction("reload", path: agent.path)
+                                    loadingAction[agent.path] = nil
+                                }
 
-                            Spacer()
-
-                            actionButton(
-                                icon: "trash",
-                                color: .red,
-                                isLoading: loadingAction[agent.path] == "remove"
-                            ) {
-                                confirmDeleteAgent = agent
-                            }
+                                actionButton(
+                                    icon: "trash",
+                                    color: .red,
+                                    isLoading: loadingAction[agent.path] == "remove"
+                                ) {
+                                    confirmDeleteAgent = agent
+                                }
                                 .alert(item: $confirmDeleteAgent) { agent in
                                     Alert(
                                         title: Text(languageManager.t("launchagent.deleteConfirmTitle")),
@@ -86,27 +86,63 @@ struct LaunchAgentModuleView: View {
                                         secondaryButton: .cancel(Text(languageManager.t("common.cancel")))
                                     )
                                 }
+                            }
                         }
+                        .padding(.vertical, 4)
                     }
-                    .padding(.vertical, 8)
                 }
+            }
+            .listStyle(.insetGrouped)
+            
+            if isLoading && launchAgents.isEmpty {
+                LoadingView()
             }
         }
         .navigationTitle(languageManager.t("launchagent.title"))
+        .searchable(text: $searchText, prompt: languageManager.t("configs.searchPlaceholder"))
         .refreshable {
             await fetchData()
         }
         .onAppear {
             Task { await fetchData() }
         }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showingAddAgent = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+            }
+        }
+        .sheet(isPresented: $showingAddAgent) {
+            NavigationStack {
+                AddAgentNameView { name in
+                    let firstPath = launchAgents.first?.path ?? "/Users/chentao/Library/LaunchAgents/placeholder.plist"
+                    let basePath = firstPath.components(separatedBy: "/").dropLast().joined(separator: "/") + "/"
+                    let fullName = name.hasSuffix(".plist") ? name : name + ".plist"
+                    
+                    selectedAgent = LaunchAgentItem(
+                        name: fullName,
+                        label: fullName.replacingOccurrences(of: ".plist", with: ""),
+                        path: basePath + fullName,
+                        isLoaded: false,
+                        size: 0,
+                        mtime: Int64(Date().timeIntervalSince1970 * 1000)
+                    )
+                }
+            }
+        }
         .sheet(item: $selectedAgent) { agent in
             NavigationStack {
-                LaunchAgentDetailView(agent: agent)
-                    .toolbar {
-                        ToolbarItem(placement: .topBarLeading) {
-                            Button(action: { selectedAgent = nil }) { Image(systemName: "xmark") }
-                        }
+                LaunchAgentDetailView(agent: agent, isNew: !launchAgents.contains(where: { $0.path == agent.path })) {
+                    await fetchData()
+                }
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button(action: { selectedAgent = nil }) { Image(systemName: "xmark") }
                     }
+                }
             }
         }
     }
@@ -145,7 +181,7 @@ struct LaunchAgentModuleView: View {
                     Task { await action() }
                 } label: {
                     Image(systemName: icon)
-                        .font(.caption)
+                        .font(.subheadline)
                         .foregroundStyle(color)
                         .frame(width: 32, height: 32)
                         .background(color.opacity(0.1))
@@ -157,19 +193,67 @@ struct LaunchAgentModuleView: View {
     }
 }
 
+struct AddAgentNameView: View {
+    @Environment(\.dismiss) var dismiss
+    @Environment(AppLanguageManager.self) private var languageManager
+    @State private var name: String = ""
+    var onAdd: (String) -> Void
+    
+    var body: some View {
+        Form {
+            Section {
+                TextField(languageManager.t("launchagent.newConfigPrompt"), text: $name)
+                    .autocapitalization(.none)
+                    .disableAutocorrection(true)
+            }
+        }
+        .navigationTitle(languageManager.t("launchagent.addConfig"))
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button(languageManager.t("common.cancel")) { dismiss() }
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button(languageManager.t("common.add")) {
+                    onAdd(name)
+                    dismiss()
+                }
+                .disabled(name.isEmpty)
+            }
+        }
+    }
+}
+
 struct LaunchAgentDetailView: View {
     let agent: LaunchAgentItem
+    let isNew: Bool
+    var onSave: () async -> Void = {}
+    
     @Environment(RemoteAPIClient.self) private var apiClient
     @Environment(AppLanguageManager.self) private var languageManager
+    @Environment(\.dismiss) private var dismiss
     @State private var content: String = ""
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var isSaving = false
+    @State private var showingError = false
     
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text(agent.path)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .monospaced()
+                    .lineLimit(1)
+                Spacer()
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 4)
+            .background(Color.secondary.opacity(0.05))
+            
             if isLoading {
-                ProgressView().padding()
+                LoadingView()
             } else if let error = errorMessage {
                 ContentUnavailableView(languageManager.t("common.error"), systemImage: "exclamationmark.triangle", description: Text(error))
             } else {
@@ -177,6 +261,7 @@ struct LaunchAgentDetailView: View {
                     .font(.system(.caption2, design: .monospaced))
                     .padding(4)
             }
+            Spacer()
         }
         .navigationTitle(agent.name)
         .navigationBarTitleDisplayMode(.inline)
@@ -195,9 +280,38 @@ struct LaunchAgentDetailView: View {
         .onAppear {
             Task { await fetchContent() }
         }
+        .alert(languageManager.t("common.error"), isPresented: $showingError) {
+            Button(languageManager.t("common.ok"), role: .cancel) { }
+        } message: {
+            if let error = errorMessage {
+                Text(error)
+            }
+        }
     }
     
     func fetchContent() async {
+        if isNew {
+            let label = agent.name.replacingOccurrences(of: ".plist", with: "")
+            self.content = """
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>\(label)</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/path/to/executable</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+</dict>
+</plist>
+"""
+            self.isLoading = false
+            return
+        }
+        
         isLoading = true
         do {
             let response: ConfigResponse = try await apiClient.request("/api/configs", method: "POST", body: ["action": "read", "id": agent.path])
@@ -216,13 +330,22 @@ struct LaunchAgentDetailView: View {
     
     func saveConfig() async {
         isSaving = true
+        errorMessage = nil
         do {
             // Reusing configs API for saving plist
-            let _: ActionResponse = try await apiClient.request("/api/configs", method: "POST", body: ["path": agent.path, "content": content])
-            await MainActor.run { self.isSaving = false }
+            let _: ActionResponse = try await apiClient.request("/api/configs", method: "POST", body: ["action": "write", "id": agent.path, "content": content])
+            await onSave()
+            await MainActor.run { 
+                self.isSaving = false
+                dismiss()
+            }
         } catch {
             print("Save agent plist failed: \(error)")
-            await MainActor.run { self.isSaving = false }
+            await MainActor.run { 
+                self.errorMessage = error.localizedDescription
+                self.showingError = true
+                self.isSaving = false 
+            }
         }
     }
 }

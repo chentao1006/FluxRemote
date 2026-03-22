@@ -87,7 +87,7 @@ struct AppContainerView: View {
                         contentView(for: selection)
                     }
                 } else {
-                    Text(languageManager.t("common.loading"))
+                    LoadingView()
                 }
             }
         } else {
@@ -125,7 +125,7 @@ struct AppContainerView: View {
     
     private var moreView: some View {
         List {
-            Section(languageManager.t("sidebar.launchagent")) {
+            Section(languageManager.t("sidebar.serviceManagement")) {
                 if isFeatureEnabled(for: .launchagent) { tabRow(for: .launchagent) }
                 if isFeatureEnabled(for: .docker) { tabRow(for: .docker) }
                 if isFeatureEnabled(for: .nginx) { tabRow(for: .nginx) }
@@ -135,6 +135,7 @@ struct AppContainerView: View {
                 tabRow(for: .settings)
             }
         }
+        .listStyle(.insetGrouped)
         .navigationTitle(languageManager.t("common.more"))
     }
     
@@ -287,29 +288,45 @@ struct QuickTerminalView: View {
                     Divider()
                 }
                 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        SectionHeader(title: languageManager.t("terminal.output"))
-                        
-                        if output.isEmpty {
-                            Text(languageManager.t("terminal.waiting"))
-                                .font(.system(.caption, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .frame(maxWidth: .infinity, minHeight: 100, alignment: .center)
-                                .background(Color.black.opacity(0.02))
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                                .padding(.horizontal)
-                        } else {
-                            Text(output)
-                                .font(.system(.caption2, design: .monospaced))
-                                .padding()
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color.black.opacity(0.05))
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                                .padding(.horizontal)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 0) {
+                            SectionHeader(title: languageManager.t("terminal.output"))
+                                .padding(.top)
+                            
+                            if output.isEmpty {
+                                Text(languageManager.t("terminal.waiting"))
+                                    .font(.system(.caption, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity, minHeight: 100, alignment: .center)
+                                    .background(Color.black.opacity(0.02))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .padding(.horizontal)
+                            } else {
+                                LazyVStack(alignment: .leading, spacing: 0) {
+                                    let lines = output.components(separatedBy: .newlines)
+                                    ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+                                        Text(line)
+                                            .font(.system(.caption2, design: .monospaced))
+                                            .padding(.horizontal, 16)
+                                            .padding(.vertical, 1)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .background(index % 2 == 0 ? Color.clear : Color.black.opacity(0.04))
+                                            .id(index)
+                                    }
+                                }
+                                .textSelection(.enabled)
+                            }
                         }
                     }
-                    .padding(.vertical)
+                    .onChange(of: output) {
+                        let linesCount = output.components(separatedBy: .newlines).count
+                        if linesCount > 0 {
+                            withAnimation {
+                                proxy.scrollTo(linesCount - 1, anchor: .bottom)
+                            }
+                        }
+                    }
                 }
             }
             .navigationTitle(languageManager.t("terminal.title"))
@@ -343,6 +360,10 @@ struct QuickTerminalView: View {
             let (result, response) = try await apiClient.session.bytes(for: request)
             
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                if let httpRes = response as? HTTPURLResponse, httpRes.statusCode == 401 {
+                    apiClient.logout()
+                    throw NSError(domain: "Terminal", code: 401, userInfo: [NSLocalizedDescriptionKey: "Unauthorized"])
+                }
                 let errorData = try await result.reduce(into: Data(), { @Sendable (data, byte) in data.append(byte) })
                 throw NSError(domain: "Terminal", code: 1, userInfo: [NSLocalizedDescriptionKey: String(data: errorData, encoding: .utf8) ?? "Server Error"])
             }

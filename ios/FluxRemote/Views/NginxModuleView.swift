@@ -17,12 +17,9 @@ struct NginxModuleView: View {
     var body: some View {
         List {
             if isLoading && sites.isEmpty {
-                HStack {
-                    Spacer()
-                    ProgressView(languageManager.t("common.loading"))
-                    Spacer()
-                }
-                .listRowBackground(Color.clear)
+                LoadingView()
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
             } else if let error = errorMessage {
                 ContentUnavailableView(languageManager.t("common.error"), systemImage: "wifi.exclamationmark.fill", description: Text(error))
                     .listRowBackground(Color.clear)
@@ -72,7 +69,7 @@ struct NginxModuleView: View {
         Section {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top) {
-                    StatusBadge(status: serviceStatus?.running == true ? "running" : "stopped")
+                    StatusBadge(status: serviceStatus?.running == true ? "running" : "stopped", size: 14)
                         .padding(.top, 2)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(languageManager.t("nginx.runningStatus"))
@@ -129,7 +126,7 @@ struct NginxModuleView: View {
             ForEach($sites) { $site in
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        StatusBadge(status: site.status == "enabled" ? "running" : "stopped")
+                        StatusBadge(status: site.status == "enabled" ? "running" : "stopped", size: 14)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(site.name)
                                 .font(.headline)
@@ -286,6 +283,8 @@ struct NginxSiteEditView: View {
     @State private var content: String = ""
     @State private var isLoading = false
     @State private var isSaving = false
+    @State private var errorMessage: String?
+    @State private var showingError = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -342,6 +341,13 @@ server {
 """
             }
         }
+        .alert(languageManager.t("common.error"), isPresented: $showingError) {
+            Button(languageManager.t("common.ok"), role: .cancel) { }
+        } message: {
+            if let error = errorMessage {
+                Text(error)
+            }
+        }
     }
     
     func fetchContent() async {
@@ -360,6 +366,7 @@ server {
     
     func save() async {
         isSaving = true
+        errorMessage = nil
         do {
             let _: ActionResponse = try await apiClient.request("/api/nginx/sites", method: "POST", body: [
                 "action": "write",
@@ -367,10 +374,17 @@ server {
                 "content": content
             ])
             await onSave()
-            dismiss()
+            await MainActor.run { 
+                self.isSaving = false
+                dismiss() 
+            }
         } catch {
             print("Save nginx site failed: \(error)")
-            await MainActor.run { self.isSaving = false }
+            await MainActor.run { 
+                self.errorMessage = error.localizedDescription
+                self.showingError = true
+                self.isSaving = false 
+            }
         }
     }
 }
@@ -389,16 +403,39 @@ struct NginxErrorLogView: View {
     @State private var isLoading = true
     
     var body: some View {
-        ScrollView {
-            if isLoading {
-                ProgressView().padding()
+        ScrollViewReader { proxy in
+            ZStack {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        let lines = logs.components(separatedBy: .newlines)
+                        let displayLines = lines.suffix(5000)
+                        ForEach(Array(displayLines.enumerated()), id: \.offset) { index, line in
+                            Text(line)
+                                .font(.system(.caption2, design: .monospaced))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 1)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(index % 2 == 0 ? Color.clear : Color.black.opacity(0.04))
+                                .id(index)
+                        }
+                    }
+                    .textSelection(.enabled)
+                }
+                .background(Color.black.opacity(0.02))
+                
+                if isLoading && logs.isEmpty {
+                    LoadingView()
+                }
             }
-            Text(logs.isEmpty ? languageManager.t("nginx.noLogData") : logs)
-                .font(.system(.caption2, design: .monospaced))
-                .padding()
-                .frame(maxWidth: .infinity, alignment: .leading)
+            .onChange(of: logs) {
+                let linesCount = logs.components(separatedBy: .newlines).suffix(5000).count
+                if linesCount > 0 {
+                    withAnimation {
+                        proxy.scrollTo(linesCount - 1, anchor: .bottom)
+                    }
+                }
+            }
         }
-        .background(Color.black.opacity(0.02))
         .refreshable {
             await fetchLogs()
         }

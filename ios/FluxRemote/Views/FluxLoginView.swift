@@ -13,96 +13,179 @@ struct FluxLoginView: View {
         case url, username, password
     }
     
+    private var appVersionString: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
+        return "v\(version) (\(languageManager.t("app.build_type")))"
+    }
+    
     var body: some View {
-        VStack(spacing: 32) {
-            Spacer()
-            
-            // Header
-            VStack(spacing: 12) {
-                Image("logo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 80, height: 80)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                    .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
+        NavigationStack {
+            ZStack {
+                Color(uiColor: .systemGroupedBackground)
+                    .ignoresSafeArea()
                 
-                Text(languageManager.t("appTitle"))
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
-                
-                Text(languageManager.t("login.safeConnection"))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            
-            // Login Form
-            VStack(spacing: 20) {
-                VStack(alignment: .leading, spacing: 12) {
-                    TextField(languageManager.t("login.serverURL"), text: $panelURL)
-                        .textFieldStyle(.roundedBorder)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.URL)
-                        .focused($focusedField, equals: .url)
-                        .submitLabel(.next)
-                    
-                    TextField(languageManager.t("login.username"), text: $username)
-                        .textFieldStyle(.roundedBorder)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .focused($focusedField, equals: .username)
-                        .submitLabel(.next)
-                    
-                    SecureField(languageManager.t("login.accessKey"), text: $password)
-                        .textFieldStyle(.roundedBorder)
-                        .focused($focusedField, equals: .password)
-                        .submitLabel(.go)
-                }
-                .onSubmit {
-                    switch focusedField {
-                    case .url: focusedField = .username
-                    case .username: focusedField = .password
-                    default: login()
+                VStack(spacing: 0) {
+                    ScrollView {
+                        VStack(spacing: 32) {
+                            // Header Section
+                            VStack(spacing: 24) {
+                                Image("logo")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 90, height: 90)
+                                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                                    .shadow(color: .black.opacity(0.1), radius: 15, x: 0, y: 8)
+                                
+                                VStack(spacing: 8) {
+                                    Text(languageManager.t("appTitle"))
+                                        .font(.title)
+                                        .fontWeight(.bold)
+                                    
+                                    Text(languageManager.t("login.safeConnection"))
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .padding(.top, 40)
+                            
+                            // Form Section
+                            VStack(alignment: .leading, spacing: 24) {
+                                // Server Info
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text(languageManager.t("settings.server"))
+                                        .font(.caption2)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(.secondary)
+                                        .padding(.leading, 8)
+                                    
+                                    HStack(spacing: 12) {
+                                        Image(systemName: "link")
+                                            .foregroundStyle(.blue)
+                                            .frame(width: 20)
+                                        TextField(languageManager.t("login.serverURL"), text: $panelURL)
+                                            .keyboardType(.URL)
+                                            .autocorrectionDisabled()
+                                            .textInputAutocapitalization(.never)
+                                            .focused($focusedField, equals: .url)
+                                            .submitLabel(.next)
+                                    }
+                                    .padding()
+                                    .background(Color(.secondarySystemGroupedBackground))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                }
+                                
+                                // Credentials
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text(languageManager.t("settings.account"))
+                                        .font(.caption2)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(.secondary)
+                                        .padding(.leading, 8)
+                                    
+                                    VStack(spacing: 0) {
+                                        HStack(spacing: 12) {
+                                            Image(systemName: "person")
+                                                .foregroundStyle(.blue)
+                                                .frame(width: 20)
+                                            TextField(languageManager.t("login.username"), text: $username)
+                                                .autocorrectionDisabled()
+                                                .textInputAutocapitalization(.never)
+                                                .focused($focusedField, equals: .username)
+                                                .submitLabel(.next)
+                                        }
+                                        .padding()
+                                        
+                                        Divider()
+                                            .padding(.leading, 48)
+                                        
+                                        HStack(spacing: 12) {
+                                            Image(systemName: "key")
+                                                .foregroundStyle(.blue)
+                                                .frame(width: 20)
+                                            SecureField(languageManager.t("login.password"), text: $password)
+                                                .focused($focusedField, equals: .password)
+                                                .submitLabel(.go)
+                                        }
+                                        .padding()
+                                    }
+                                    .background(Color(.secondarySystemGroupedBackground))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                }
+                            }
+                            .padding(.horizontal)
+                            
+                            if let error = apiClient.errorMessage {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "exclamationmark.circle.fill")
+                                    Text(error)
+                                }
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                                .padding(.horizontal)
+                                .transition(.move(edge: .top).combined(with: .opacity))
+                            }
+                            
+                            Button(action: login) {
+                                Group {
+                                    if apiClient.isLoading {
+                                        ProgressView()
+                                            .tint(.white)
+                                    } else {
+                                        Text(languageManager.t("login.loginBtn"))
+                                            .fontWeight(.bold)
+                                            .frame(maxWidth: .infinity)
+                                            .frame(height: 44)
+                                    }
+                                }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.regular)
+                            .padding(.horizontal)
+                            .padding(.top, 10)
+                            .disabled(apiClient.isLoading || panelURL.isEmpty || username.isEmpty || password.isEmpty)
+                            Text(appVersionString)
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                                .padding(.top, 20)
+                                .padding(.bottom, 16)
+                        }
+                        .frame(maxWidth: 400)
+                        .frame(maxWidth: .infinity, alignment: .center)
                     }
+                    .scrollDismissesKeyboard(.immediately)
                 }
-                .padding(.horizontal)
-                
-                if let error = apiClient.errorMessage {
-                    Text(error)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .padding(.horizontal)
-                }
-                
-                Button(action: login) {
-                    if apiClient.isLoading {
-                        ProgressView()
-                            .tint(.white)
-                    } else {
-                        Text(languageManager.t("login.loginBtn"))
-                            .fontWeight(.semibold)
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .disabled(apiClient.isLoading || panelURL.isEmpty || username.isEmpty || password.isEmpty)
             }
-            .frame(maxWidth: 400)
-            
-            Spacer()
-            
-            Text("v1.0.0 (Native Build)")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
+            .onSubmit {
+                switch focusedField {
+                case .url: focusedField = .username
+                case .username: focusedField = .password
+                default: login()
+                }
+            }
+            .onAppear {
+                if let savedURL = UserDefaults.standard.string(forKey: "flux_remote_url") {
+                    panelURL = savedURL
+                }
+                
+                // Set initial focus if URL is empty
+                if panelURL.isEmpty {
+                    focusedField = .url
+                } else if username.isEmpty {
+                    focusedField = .username
+                }
+            }
         }
-        .padding()
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(uiColor: .systemGroupedBackground))
     }
     
     func login() {
+        // Auto-fix URL if missing protocol
+        var finalURL = panelURL
+        if !finalURL.lowercased().hasPrefix("http://") && !finalURL.lowercased().hasPrefix("https://") {
+            finalURL = "https://" + finalURL
+        }
+        
         Task {
-            await apiClient.login(urlString: panelURL, credentials: [
+            await apiClient.login(urlString: finalURL, credentials: [
                 "username": username,
                 "password": password
             ])

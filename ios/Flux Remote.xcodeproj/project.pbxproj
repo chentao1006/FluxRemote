@@ -23,6 +23,8 @@
 		110000000000000000000301 /* Views/ConfigsModuleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000311 /* Views/ConfigsModuleView.swift */; };
 		110000000000000000000302 /* Views/LaunchAgentModuleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000312 /* Views/LaunchAgentModuleView.swift */; };
 		C6C798322F6FC0F50036158B /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = C6C798312F6FC0F50036158B /* InfoPlist.strings */; };
+		C6C798412F6FC1170036158B /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = C6C798402F6FC1170036158B /* Localizable.xcstrings */; };
+		C6C798512F6FC1170036158B /* Components/LoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6C798502F6FC1170036158B /* Components/LoadingView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -44,6 +46,8 @@
 		110000000000000000000312 /* Views/LaunchAgentModuleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/LaunchAgentModuleView.swift; sourceTree = "<group>"; };
 		C6C798302F6FC0F50036158B /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		C6C798332F6FC1170036158B /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
+		C6C798402F6FC1170036158B /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		C6C798502F6FC1170036158B /* Components/LoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components/LoadingView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -68,6 +72,8 @@
 		110000000000000000000051 /* FluxRemote */ = {
 			isa = PBXGroup;
 			children = (
+				C6C798502F6FC1170036158B /* Components/LoadingView.swift */,
+				C6C798402F6FC1170036158B /* Localizable.xcstrings */,
 				C6C798312F6FC0F50036158B /* InfoPlist.strings */,
 				110000000000000000000011 /* FluxRemoteApp.swift */,
 				110000000000000000000012 /* Core/RemoteAPIClient.swift */,
@@ -157,6 +163,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C6C798412F6FC1170036158B /* Localizable.xcstrings in Resources */,
 				11000000000000000000000A /* Assets.xcassets in Resources */,
 				C6C798322F6FC0F50036158B /* InfoPlist.strings in Resources */,
 			);
@@ -169,6 +176,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C6C798512F6FC1170036158B /* Components/LoadingView.swift in Sources */,
 				110000000000000000000001 /* FluxRemoteApp.swift in Sources */,
 				110000000000000000000002 /* Core/RemoteAPIClient.swift in Sources */,
 				110000000000000000000004 /* Views/FluxLoginView.swift in Sources */,

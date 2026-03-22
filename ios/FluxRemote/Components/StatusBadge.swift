@@ -3,6 +3,7 @@ import SwiftUI
 struct StatusBadge: View {
     let status: String
     var showLabel: Bool = false
+    var size: CGFloat = 8
     
     var color: Color {
         let s = status.lowercased()
@@ -18,9 +19,9 @@ struct StatusBadge: View {
     
     var body: some View {
         HStack(spacing: 4) {
-            Circle()
-                .fill(color)
-                .frame(width: 8, height: 8)
+            Image(systemName: "circle.fill")
+                .foregroundStyle(color)
+                .font(.system(size: size))
             
             if showLabel {
                 Text(status.uppercased())

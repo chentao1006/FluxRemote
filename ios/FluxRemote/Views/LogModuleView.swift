@@ -19,6 +19,13 @@ struct LogModuleView: View {
     @State private var showingAddLog = false
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var searchText = ""
+    @State private var actionTarget: LogItem?
+    @State private var actionType: String?
+    @State private var showingActionConfirm = false
+    @State private var sudoPassword = ""
+    @State private var showingSudoPrompt = false
+    @State private var isActioning = false
+
     
     let categories = ["All", "system", "service", "app", "other"]
     
@@ -34,7 +41,9 @@ struct LogModuleView: View {
             .searchable(text: $searchText, prompt: languageManager.t("logs.searchPlaceholder"))
             .sheet(item: $selectedLog) { log in
                 NavigationStack {
-                    LogDetailView(file: log)
+                    LogDetailView(file: log, onAction: { action in
+                        Task { await performAction(file: log, action: action) }
+                    })
                         .toolbar {
                             ToolbarItem(placement: .topBarLeading) {
                                 Button(action: { selectedLog = nil }) { Image(systemName: "xmark") }
@@ -42,6 +51,34 @@ struct LogModuleView: View {
                         }
                 }
             }
+            .confirmationDialog(
+                (actionType == "delete" ? languageManager.t("common.delete") : (actionType == "remove" ? languageManager.t("common.remove") : languageManager.t("common.clear"))),
+                isPresented: $showingActionConfirm,
+                titleVisibility: .visible
+            ) {
+                Button(role: .destructive) {
+                    if let file = actionTarget, let action = actionType {
+                        Task { await performAction(file: file, action: action) }
+                    }
+                } label: {
+                    Text(actionType == "delete" ? languageManager.t("common.delete") : (actionType == "remove" ? languageManager.t("common.remove") : languageManager.t("common.clear")))
+                }
+                Button(languageManager.t("common.cancel"), role: .cancel) {}
+            } message: {
+                if let action = actionType, let file = actionTarget {
+                    Text(action == "delete" ? languageManager.t("logs.deleteConfirm") : (action == "remove" ? languageManager.t("logs.removeConfirm") : languageManager.t("logs.clearConfirm")))
+                }
+            }
+            .sheet(isPresented: $showingSudoPrompt) {
+                SudoPasswordView(password: $sudoPassword) {
+                    if let file = actionTarget, let action = actionType {
+                        let pwd = sudoPassword
+                        sudoPassword = ""
+                        Task { await performAction(file: file, action: action, password: pwd) }
+                    }
+                }
+            }
+
             .onAppear {
                 Task { await fetchData() }
             }
@@ -74,7 +111,7 @@ struct LogModuleView: View {
             .sheet(isPresented: $showingAddLog) {
                 NavigationStack {
                     AddPathView(title: languageManager.t("logs.addPath")) { path, name in
-                        let _: ActionResponse = try await apiClient.request("/api/logs", method: "POST", body: ["path": path, "name": name])
+                        let _: ActionResponse = try await apiClient.request("/api/logs", method: "POST", body: ["file": path, "action": "add"])
                         await fetchData()
                     }
                 }
@@ -103,62 +140,126 @@ struct LogModuleView: View {
     }
     
     var fileList: some View {
-        List {
-            Section {
-                if isLoading && logs.isEmpty {
-                    ProgressView(languageManager.t("logs.syncing"))
-                        .frame(maxWidth: .infinity)
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                } else if let error = errorMessage {
-                    ContentUnavailableView(languageManager.t("logs.syncFailed"), systemImage: "exclamationmark.triangle.fill", description: Text(error))
-                } else if logs.isEmpty {
-                    ContentUnavailableView {
-                        Label(languageManager.t("logs.noLogs"), systemImage: "doc.text.magnifyingglass")
-                    } description: {
-                        Text(languageManager.t("logs.noLogsDesc"))
-                    }
-                } else {
-                    ForEach(filteredFiles) { file in
-                        Button {
-                            selectedLog = file
-                        } label: {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(file.name)
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                Text(file.path)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                                HStack {
-                                    Text(languageManager.t(categoryDisplay(file.category)))
-                                        .font(.system(size: 10, weight: .bold))
-                                        .padding(.horizontal, 4)
-                                        .padding(.vertical, 2)
-                                        .background(Color.blue.opacity(0.1))
-                                        .foregroundStyle(.blue)
-                                        .clipShape(RoundedRectangle(cornerRadius: 4))
-                                    Text(formatSize(file.size))
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                        .monospacedDigit()
-                                    Spacer(minLength: 0)
-                                    Text(formatDate(file.mtime))
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
+        ZStack {
+            List {
+                Section {
+                    if let error = errorMessage {
+                        ContentUnavailableView(languageManager.t("logs.syncFailed"), systemImage: "exclamationmark.triangle.fill", description: Text(error))
+                    } else if logs.isEmpty && !isLoading {
+                        ContentUnavailableView {
+                            Label(languageManager.t("logs.noLogs"), systemImage: "doc.text.magnifyingglass")
+                        } description: {
+                            Text(languageManager.t("logs.noLogsDesc"))
+                        }
+                    } else {
+                        ForEach(filteredFiles) { file in
+                                HStack(spacing: 12) {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(file.name)
+                                            .font(.subheadline)
+                                            .fontWeight(.medium)
+                                        Text(file.path)
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                        HStack {
+                                            Text(languageManager.t(categoryDisplay(file.category)))
+                                                .font(.system(size: 10, weight: .bold))
+                                                .padding(.horizontal, 4)
+                                                .padding(.vertical, 2)
+                                                .background(Color.blue.opacity(0.1))
+                                                .foregroundStyle(.blue)
+                                                .clipShape(RoundedRectangle(cornerRadius: 4))
+                                            Text(formatSize(file.size))
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                                .monospacedDigit()
+                                            Spacer(minLength: 0)
+                                            Text(formatDate(file.mtime))
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        selectedLog = file
+                                    }
+                                    
+                                    HStack(spacing: 8) {
+                                        Button {
+                                            actionTarget = file
+                                            actionType = "clear"
+                                            showingActionConfirm = true
+                                        } label: {
+                                            Image(systemName: "eraser")
+                                                .font(.system(size: 14))
+                                                .padding(6)
+                                                .background(Color.orange.opacity(0.1))
+                                                .foregroundStyle(.orange)
+                                                .clipShape(Circle())
+                                        }
+                                        .buttonStyle(.plain)
+                                        
+                                        Button {
+                                            actionTarget = file
+                                            actionType = file.isCustom ? "remove" : "delete"
+                                            showingActionConfirm = true
+                                        } label: {
+                                            Image(systemName: file.isCustom ? "minus.circle" : "trash")
+                                                .font(.system(size: 14))
+                                                .padding(6)
+                                                .background(Color.red.opacity(0.1))
+                                                .foregroundStyle(.red)
+                                                .clipShape(Circle())
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                                .padding(.vertical, 4)
+                                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                if file.isCustom {
+                                    Button(role: .destructive) {
+                                        actionTarget = file
+                                        actionType = "remove"
+                                        showingActionConfirm = true
+                                    } label: {
+                                        Label(languageManager.t("common.remove"), systemImage: "minus.circle")
+                                    }
+                                    .disabled(isActioning)
+                                } else {
+                                    Button(role: .destructive) {
+                                        actionTarget = file
+                                        actionType = "delete"
+                                        showingActionConfirm = true
+                                    } label: {
+                                        Label(languageManager.t("common.delete"), systemImage: "trash")
+                                    }
+                                    .disabled(isActioning)
+                                }
+                                
+                                Button {
+                                    actionTarget = file
+                                    actionType = "clear"
+                                    showingActionConfirm = true
+                                } label: {
+                                    Label(languageManager.t("common.clear"), systemImage: "eraser")
+                                }
+                                .tint(.orange)
+                                .disabled(isActioning)
                                 }
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .listRowSeparator(.hidden)
+                            .buttonStyle(.plain)
+                            .listRowSeparator(.hidden)
                     }
                 }
             }
+            .listStyle(.insetGrouped)
+            
+            if isLoading && logs.isEmpty {
+                LoadingView()
+            }
         }
-        .listStyle(.plain)
     }
     
     private func fileRow(for file: LogItem) -> some View {
@@ -232,12 +333,52 @@ struct LogModuleView: View {
             }
         }
     }
+
+    func performAction(file: LogItem, action: String, password: String? = nil) async {
+        await MainActor.run { isActioning = true }
+        do {
+            var body: [String: Any] = ["file": file.path, "action": action]
+            if let password = password {
+                body["password"] = password
+            }
+            
+            let response: ActionResponse = try await apiClient.request("/api/logs", method: "POST", body: body)
+            
+            if response.requiresPassword == true {
+                await MainActor.run {
+                    self.actionTarget = file
+                    self.actionType = action
+                    self.showingSudoPrompt = true
+                    self.isActioning = false
+                }
+                return
+            }
+            
+            if response.success {
+                await fetchData()
+                if action == "delete" || action == "remove" {
+                    await MainActor.run {
+                        if selectedLog?.path == file.path {
+                            selectedLog = nil
+                        }
+                    }
+                }
+            } else if let error = response.error {
+                await MainActor.run { self.errorMessage = error }
+            }
+        } catch {
+            await MainActor.run { self.errorMessage = error.localizedDescription }
+        }
+        await MainActor.run { isActioning = false }
+    }
 }
 
 struct LogDetailView: View {
         // Add autoRefresh property (always enabled)
         var autoRefresh: Bool { true }
     let file: LogItem
+    let onAction: (String) -> Void
+
     @Environment(RemoteAPIClient.self) private var apiClient
     @Environment(AppLanguageManager.self) private var languageManager
     @State private var logContent: String = ""
@@ -249,8 +390,7 @@ struct LogDetailView: View {
         ScrollViewReader { proxy in
             Group {
                 if logContent.isEmpty && (isReading || isSilentRefresh) {
-                    ProgressView(languageManager.t("common.loading"))
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    LoadingView()
                 } else if !logContent.isEmpty {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 0) {
@@ -262,10 +402,11 @@ struct LogDetailView: View {
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 1)
                                     .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(index % 2 == 0 ? Color.clear : Color.black.opacity(0.02))
+                                    .background(index % 2 == 0 ? Color.clear : Color.black.opacity(0.04))
                                     .id(index) // Add ID for scrolling
                             }
                         }
+                        .textSelection(.enabled)
                     }
                 } else if !isReading && !isSilentRefresh {
                     ContentUnavailableView(languageManager.t("logs.noContent"), systemImage: "doc.text.fill")
@@ -282,6 +423,26 @@ struct LogDetailView: View {
                 }
             }
         }
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button {
+                    onAction("clear")
+                } label: {
+                    Label(languageManager.t("common.clear"), systemImage: "eraser")
+                }
+                .tint(.orange)
+                
+                Button(role: .destructive) {
+                    onAction(file.isCustom ? "remove" : "delete")
+                } label: {
+                    Label(file.isCustom ? languageManager.t("common.remove") : languageManager.t("common.delete"), systemImage: file.isCustom ? "minus.circle" : "trash")
+                }
+                .tint(.red)
+            }
+        }
+
+
+
         .navigationTitle(file.name)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
@@ -389,3 +550,41 @@ struct AddPathView: View {
         }
     }
 }
+
+struct SudoPasswordView: View {
+    @Binding var password: String
+    @Environment(\.dismiss) var dismiss
+    @Environment(AppLanguageManager.self) private var languageManager
+    var onConfirm: () -> Void
+    
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    SecureField(languageManager.t("logs.sudoPlaceholder"), text: $password)
+                        .textContentType(.password)
+                } header: {
+                    Text(languageManager.t("logs.requireSudo"))
+                } footer: {
+                    Text(languageManager.t("nginx.sudoRequired"))
+                }
+            }
+            .navigationTitle(languageManager.t("logs.requireSudo"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(languageManager.t("common.cancel")) { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(languageManager.t("common.confirm")) {
+                        onConfirm()
+                        dismiss()
+                    }
+                    .disabled(password.isEmpty)
+                }
+            }
+        }
+        .presentationDetents([.height(250)])
+    }
+}
+

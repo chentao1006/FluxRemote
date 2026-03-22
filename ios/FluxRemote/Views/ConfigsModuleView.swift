@@ -73,7 +73,7 @@ struct ConfigsModuleView: View {
             .sheet(isPresented: $showingAddConfig) {
                 NavigationStack {
                     AddPathView(title: languageManager.t("configs.addPath")) { path, name in
-                        let _: ActionResponse = try await apiClient.request("/api/configs", method: "POST", body: ["path": path, "name": name])
+                        let _: ActionResponse = try await apiClient.request("/api/configs", method: "POST", body: ["action": "add", "id": path])
                         await fetchData()
                     }
                 }
@@ -102,37 +102,63 @@ struct ConfigsModuleView: View {
     }
     
     private var fileList: some View {
-        List(selection: $selectedConfig) {
-            Section {
-                if isLoading && configs.isEmpty {
-                    ProgressView(languageManager.t("configs.loading"))
-                        .frame(maxWidth: .infinity)
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                } else if let error = errorMessage {
-                    ContentUnavailableView(languageManager.t("common.error"), systemImage: "exclamationmark.triangle.fill", description: Text(error))
-                } else if configs.isEmpty {
-                    ContentUnavailableView(languageManager.t("configs.noConfigs"), systemImage: "gearshape")
-                } else {
-                    ForEach(filteredConfigs) { config in
-                        Button {
-                            selectedConfig = config
-                        } label: {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(config.name)
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                Text(config.path)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
+        ZStack {
+            List(selection: $selectedConfig) {
+                Section {
+                    if let error = errorMessage {
+                        ContentUnavailableView(languageManager.t("common.error"), systemImage: "exclamationmark.triangle.fill", description: Text(error))
+                    } else if configs.isEmpty && !isLoading {
+                        ContentUnavailableView(languageManager.t("configs.noConfigs"), systemImage: "gearshape")
+                    } else {
+                        ForEach(filteredConfigs) { config in
+                            Button {
+                                selectedConfig = config
+                            } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(config.name)
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                    Text(config.path)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                    HStack(spacing: 8) {
+                                        Text(languageManager.t(config.category))
+                                            .font(.system(size: 10, weight: .bold))
+                                            .padding(.horizontal, 4)
+                                            .padding(.vertical, 2)
+                                            .background(Color.blue.opacity(0.1))
+                                            .foregroundStyle(.blue)
+                                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                                        
+                                        if let size = config.size {
+                                            Text(formatSize(size))
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                                .monospacedDigit()
+                                        }
+                                        
+                                        Spacer(minLength: 0)
+                                        
+                                        if let mtime = config.mtime {
+                                            Text(formatDate(mtime))
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
+            }
+            .listStyle(.insetGrouped)
+            
+            if isLoading && configs.isEmpty {
+                LoadingView()
             }
         }
     }
@@ -148,6 +174,19 @@ struct ConfigsModuleView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
+    }
+
+    func formatSize(_ bytes: Int) -> String {
+        if bytes < 1024 { return "\(bytes) B" }
+        if bytes < 1024 * 1024 { return String(format: "%.1f KB", Double(bytes) / 1024) }
+        return String(format: "%.1f MB", Double(bytes) / (1024 * 1024))
+    }
+    
+    func formatDate(_ timestamp: Double) -> String {
+        let date = Date(timeIntervalSince1970: timestamp / 1000.0)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM-dd HH:mm:ss"
+        return formatter.string(from: date)
     }
 
 
@@ -173,19 +212,34 @@ struct ConfigsModuleView: View {
 struct ConfigDetailView: View {
     let config: ConfigItem
     @Environment(RemoteAPIClient.self) private var apiClient
+    @Environment(AppLanguageManager.self) private var languageManager
+    @Environment(\.dismiss) private var dismiss
     @State private var content: String = ""
     @State private var isLoading = true
     @State private var isSaving = false
+    @State private var errorMessage: String?
+    @State private var showingError = false
     
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text(config.path)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .monospaced()
+                    .lineLimit(1)
+                Spacer()
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 4)
+            
             if isLoading {
-                ProgressView()
-                    .padding()
+                LoadingView()
             }
             TextEditor(text: $content)
                 .font(.system(.caption2, design: .monospaced))
                 .padding(4)
+            Spacer()
         }
         .navigationTitle(config.name)
         .toolbar {
@@ -202,6 +256,13 @@ struct ConfigDetailView: View {
         }
         .onAppear {
             Task { await fetchContent() }
+        }
+        .alert(languageManager.t("common.error"), isPresented: $showingError) {
+            Button(languageManager.t("common.ok"), role: .cancel) { }
+        } message: {
+            if let error = errorMessage {
+                Text(error)
+            }
         }
     }
     
@@ -221,12 +282,20 @@ struct ConfigDetailView: View {
     
     func saveConfig() async {
         isSaving = true
+        errorMessage = nil
         do {
-            let _: ActionResponse = try await apiClient.request("/api/configs", method: "POST", body: ["path": config.path, "content": content])
-            await MainActor.run { self.isSaving = false }
+            let _: ActionResponse = try await apiClient.request("/api/configs", method: "POST", body: ["action": "write", "id": config.path, "content": content])
+            await MainActor.run { 
+                self.isSaving = false
+                dismiss()
+            }
         } catch {
             print("Save config failed: \(error)")
-            await MainActor.run { self.isSaving = false }
+            await MainActor.run { 
+                self.errorMessage = error.localizedDescription
+                self.showingError = true
+                self.isSaving = false 
+            }
         }
     }
 }

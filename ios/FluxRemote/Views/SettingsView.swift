@@ -34,7 +34,7 @@ struct SettingsView: View {
                         get: { serverSettings?.ai?.url ?? "" },
                         set: { serverSettings?.ai?.url = $0; triggerAutoSave() }
                     ))
-                    SecureField(languageManager.t("login.accessKey"), text: Binding(
+                    SecureField(languageManager.t("login.password"), text: Binding(
                         get: { serverSettings?.ai?.key ?? "" },
                         set: { serverSettings?.ai?.key = $0; triggerAutoSave() }
                     ))

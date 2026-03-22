@@ -129,6 +129,7 @@ struct DockerImage: Codable, Identifiable {
     let tag: String
     let size: String
     let created: String
+    let inUse: Bool?
     
     enum CodingKeys: String, CodingKey {
         case id = "ID"
@@ -136,6 +137,7 @@ struct DockerImage: Codable, Identifiable {
         case tag = "Tag"
         case size = "Size"
         case created = "CreatedAt"
+        case inUse = "InUse"
     }
 }
 

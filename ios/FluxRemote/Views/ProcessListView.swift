@@ -18,7 +18,7 @@ struct ProcessListView: View {
         case cpu = "CPU"
         case mem = "MEM"
         case pid = "PID"
-        case command = "common.command"
+        case command = "process.command"
     }
     
     var filteredAndSortedProcesses: [RemoteProcess] {
@@ -47,14 +47,10 @@ struct ProcessListView: View {
     }
     
     var body: some View {
-        List {
-            Section {
-                    if isLoading && processes.isEmpty {
-                        ProgressView(languageManager.t("common.loading"))
-                            .frame(maxWidth: .infinity)
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
-                    } else if let error = errorMessage {
+        ZStack {
+            List {
+                Section {
+                    if let error = errorMessage {
                         ContentUnavailableView(languageManager.t("processes.fetchFailed"), systemImage: "exclamationmark.triangle", description: Text(error))
                     } else if processes.isEmpty && !isLoading {
                         ContentUnavailableView(languageManager.t("processes.noData"), systemImage: "cpu.fill")
@@ -104,7 +100,12 @@ struct ProcessListView: View {
                     }
                 }
             }
-        .listStyle(.plain)
+            .listStyle(.insetGrouped)
+            
+            if isLoading && processes.isEmpty {
+                LoadingView()
+            }
+        }
         .navigationTitle(languageManager.t("processes.title"))
         .searchable(text: $searchText, prompt: languageManager.t("processes.searchPlaceholder"))
         // 自动静默刷新
@@ -270,7 +271,7 @@ struct ProcessDetailView: View {
                     Button {
                         showingStopConfirmation = true
                     } label: {
-                        Image(systemName: "stop")
+                        Image(systemName: "stop.circle")
                             .font(.system(size: 18, weight: .semibold))
                             .foregroundStyle(.orange)
                     }
@@ -278,7 +279,7 @@ struct ProcessDetailView: View {
                     Button(role: .destructive) {
                         showingKillConfirmation = true
                     } label: {
-                        Image(systemName: "xmark")
+                        Image(systemName: "xmark.circle")
                             .font(.system(size: 18, weight: .semibold))
                             .foregroundStyle(.red)
                     }
