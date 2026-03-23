@@ -2043,7 +2043,24 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "内容过长或为空，无法分析。"
+            "value" : "内容过长或为空，无法进行分析。"
+          }
+        }
+      }
+    },
+    "monitor.aiAnalysisReady" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ready. Click the button to start."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待分析，点击右上角图标开始。"
           }
         }
       }

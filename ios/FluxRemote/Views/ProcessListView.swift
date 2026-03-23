@@ -13,6 +13,9 @@ struct ProcessListView: View {
     @State private var selectedProcess: RemoteProcess?
     @State private var errorMessage: String?
     @State private var loadingAction: [String: String] = [:] // pid: action
+    @State private var processToActOn: RemoteProcess?
+    @State private var showingStopConfirmation = false
+    @State private var showingKillConfirmation = false
     
     enum SortOrder: String, CaseIterable {
         case cpu = "CPU"
@@ -50,45 +53,91 @@ struct ProcessListView: View {
         ZStack {
             List {
                 Section {
-                    if let error = errorMessage {
+                    if let error = errorMessage, processes.isEmpty {
                         ContentUnavailableView(languageManager.t("processes.fetchFailed"), systemImage: "exclamationmark.triangle", description: Text(error))
                     } else if processes.isEmpty && !isLoading {
                         ContentUnavailableView(languageManager.t("processes.noData"), systemImage: "cpu.fill")
                     } else {
                         ForEach(filteredAndSortedProcesses) { process in
-                            Button {
-                                selectedProcess = process
-                            } label: {
-                                HStack {
-                                    Circle()
-                                        .fill(Color.green)
-                                        .frame(width: 8, height: 8)
-                                        .padding(.trailing, 4)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(process.command)
-                                            .font(.subheadline)
-                                            .fontWeight(.medium)
-                                            .lineLimit(1)
-                                        Text("\(languageManager.t("processes.pid")): \(process.pid) · \(languageManager.t("processes.user")): \(process.user)")
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
+                            HStack {
+                                Button {
+                                    selectedProcess = process
+                                } label: {
+                                    HStack {
+                                        Circle()
+                                            .fill(Color.green)
+                                            .frame(width: 8, height: 8)
+                                            .padding(.trailing, 4)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(process.command)
+                                                .font(.subheadline)
+                                                .fontWeight(.medium)
+                                                .lineLimit(1)
+                                            Text("\(languageManager.t("processes.pid")): \(process.pid) · \(languageManager.t("processes.user")): \(process.user)")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
                                     }
-                                    Spacer()
-                                    VStack(alignment: .trailing, spacing: 2) {
-                                        Text("\(process.cpu)% \(languageManager.t("processes.cpu"))")
-                                            .font(.caption)
-                                            .foregroundStyle(.blue)
-                                            .monospacedDigit()
-                                        Text("\(process.mem)% \(languageManager.t("processes.mem"))")
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                            .monospacedDigit()
-                                    }
+                                    .padding(.vertical, 8)
+                                    .contentShape(Rectangle())
                                 }
-                                .padding(.vertical, 8)
-                                .contentShape(Rectangle())
+                                .buttonStyle(.plain)
+                                
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    Text("\(process.cpu)% \(languageManager.t("processes.cpu"))")
+                                        .font(.caption2)
+                                        .foregroundStyle(.blue)
+                                        .lineLimit(1)
+                                        .monospacedDigit()
+                                        .minimumScaleFactor(0.8)
+                                    Text("\(process.mem)% \(languageManager.t("processes.mem"))")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                        .monospacedDigit()
+                                        .minimumScaleFactor(0.8)
+                                }
+                                .frame(width: 100, alignment: .trailing)
+
+                                HStack(spacing: 12) {
+                                    Button {
+                                        if loadingAction[process.pid] == nil {
+                                            processToActOn = process
+                                            showingStopConfirmation = true
+                                        }
+                                    } label: {
+                                        if loadingAction[process.pid] == "stop" {
+                                            ProgressView()
+                                                .controlSize(.small)
+                                        } else {
+                                            Image(systemName: "stop")
+                                                .foregroundStyle(.orange)
+                                        }
+                                    }
+                                    .disabled(loadingAction[process.pid] != nil)
+                                    
+                                    Button {
+                                        if loadingAction[process.pid] == nil {
+                                            processToActOn = process
+                                            showingKillConfirmation = true
+                                        }
+                                    } label: {
+                                        if loadingAction[process.pid] == "kill" {
+                                            ProgressView()
+                                                .controlSize(.small)
+                                        } else {
+                                            Image(systemName: "xmark")
+                                                .foregroundStyle(.red)
+                                        }
+                                    }
+                                    .disabled(loadingAction[process.pid] != nil)
+                                }
+                                .buttonStyle(.borderless)
+                                .font(.system(size: 16, weight: .semibold))
+                                .padding(.leading, 8)
+                                .frame(width: 65)
                             }
-                            .buttonStyle(.plain)
                             .swipeActions(edge: .trailing) {
                                 Button(role: .destructive) {
                                     Task { await killProcess(pid: process.pid) }
@@ -170,9 +219,28 @@ struct ProcessListView: View {
                     }
             }
         }
+        .alert(languageManager.t("processes.terminateConfirm"), isPresented: $showingStopConfirmation) {
+            Button(languageManager.t("processes.terminate"), role: .destructive) {
+                if let pid = processToActOn?.pid {
+                    Task { await stopProcess(pid: pid) }
+                }
+            }
+            Button(languageManager.t("common.cancel"), role: .cancel) {}
+        } message: {
+            Text(processToActOn?.command ?? "")
+        }
+        .alert(languageManager.t("processes.forceKillConfirm"), isPresented: $showingKillConfirmation) {
+            Button(languageManager.t("processes.forceKill"), role: .destructive) {
+                if let pid = processToActOn?.pid {
+                    Task { await killProcess(pid: pid) }
+                }
+            }
+            Button(languageManager.t("common.cancel"), role: .cancel) {}
+        } message: {
+            Text(processToActOn?.command ?? "")
+        }
     }
     
-    // ...existing code...
     func fetchData(silent: Bool = false) async {
         if !silent { isLoading = processes.isEmpty }
         errorMessage = nil
@@ -202,11 +270,23 @@ struct ProcessListView: View {
         }
         loadingAction[pid] = nil
     }
+
+    func stopProcess(pid: String) async {
+        loadingAction[pid] = "stop"
+        do {
+            let _: ActionResponse = try await apiClient.request("/api/system/processes", method: "POST", body: ["action": "stop", "pid": pid])
+            await fetchData()
+        } catch {
+            print("Stop process error: \(error)")
+        }
+        loadingAction[pid] = nil
+    }
 }
 struct ProcessDetailView: View {
     let process: RemoteProcess
     @Environment(RemoteAPIClient.self) private var apiClient
     @Environment(AppLanguageManager.self) private var languageManager
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var detailedProcess: DetailedProcess?
     @State private var isLoading = true
     @State private var isExecutingAction = false
@@ -277,15 +357,8 @@ struct ProcessDetailView: View {
                 }
                 .padding(.bottom, 20)
             } else if !isLoading {
-                Button(action: analyzeProcess) {
-                    Label(languageManager.t("common.aiAnalyze"), systemImage: "sparkles")
-                        .font(.system(.subheadline, weight: .semibold))
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
-                        .background(Color.purple.opacity(0.15))
-                        .foregroundStyle(.purple)
-                        .clipShape(Capsule())
-                        .shadow(color: Color.purple.opacity(0.2), radius: 8, x: 0, y: 4)
+                AIActionButton(languageManager.t("common.aiAnalyze"), systemImage: "sparkles", isLoading: isAnalyzing) {
+                    analyzeProcess()
                 }
                 .padding(.bottom, 30)
             }
@@ -315,17 +388,21 @@ struct ProcessDetailView: View {
                 }
             }
         }
-        .confirmationDialog(languageManager.t("processes.terminateConfirm"), isPresented: $showingStopConfirmation, titleVisibility: .visible) {
+        .alert(languageManager.t("processes.terminateConfirm"), isPresented: $showingStopConfirmation) {
             Button(languageManager.t("processes.terminate"), role: .destructive) {
                 Task { await stopProcess() }
             }
             Button(languageManager.t("common.cancel"), role: .cancel) {}
+        } message: {
+            Text(process.command)
         }
-        .confirmationDialog(languageManager.t("processes.forceKillConfirm"), isPresented: $showingKillConfirmation, titleVisibility: .visible) {
+        .alert(languageManager.t("processes.forceKillConfirm"), isPresented: $showingKillConfirmation) {
             Button(languageManager.t("processes.forceKill"), role: .destructive) {
                 Task { await killProcess() }
             }
             Button(languageManager.t("common.cancel"), role: .cancel) {}
+        } message: {
+            Text(process.command)
         }
         .onAppear {
             Task { await fetchDetails() }

@@ -256,11 +256,20 @@ struct AIAnalyzeView: View {
                         Spacer()
                     }
                 } else {
-                    Text(languageManager.t("monitor.aiAnalysisPrompt"))
-                        .foregroundStyle(.secondary)
-                        .font(.caption)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.vertical, 20)
+                    VStack(spacing: 12) {
+                        Image(systemName: originalContent.isEmpty ? "hourglass" : "sparkles")
+                            .font(.system(size: 32))
+                            .foregroundStyle(.purple.opacity(0.5))
+                            .padding(.bottom, 8)
+                        
+                        Text(originalContent.isEmpty 
+                             ? languageManager.t("common.loading") 
+                             : languageManager.t("monitor.aiAnalysisReady"))
+                            .foregroundStyle(.secondary)
+                            .font(.subheadline)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 40)
                 }
             }
             
@@ -301,8 +310,19 @@ struct AIAnalyzeView: View {
         
         Task {
             do {
-                let prompt = "Explain the following configuration and provide optimization suggestions in \(languageManager.aiResponseLanguage):\n\nContext:\n\(contextInfo)\n\nContent:\n\(originalContent)\n\nUse Markdown formatting for the response."
-                let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: ["prompt": prompt])
+                let isLog = contextInfo.lowercased().contains("log")
+                let systemPrompt = isLog 
+                    ? "You are a systems expert. Analyze the provided logs to diagnose issues and provide solutions."
+                    : "You are a configuration expert. Explain segments and suggest optimizations."
+                
+                let prompt = isLog
+                    ? "Analyze the following logs and provide diagnosis or suggestions in \(languageManager.aiResponseLanguage):\n\nContext:\n\(contextInfo)\n\nContent:\n\(originalContent)\n\nUse Markdown formatting for the response."
+                    : "Explain the following configuration and provide optimization suggestions in \(languageManager.aiResponseLanguage):\n\nContext:\n\(contextInfo)\n\nContent:\n\(originalContent)\n\nUse Markdown formatting for the response."
+                
+                let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: [
+                    "prompt": prompt,
+                    "system_prompt": systemPrompt
+                ])
                 await MainActor.run {
                     self.analysisResult = response.data
                     self.isProcessing = false
@@ -420,9 +440,11 @@ struct AIAssistView: View {
         Task {
             do {
                 let systemPrompt = """
-                You are a configuration expert. Based on the user's requirements, modify the provided configuration content.
-                Return ONLY the full modified content. Do not include any explanations or markdown code blocks like ```nginx.
-                The response must be the final text to be saved to the file.
+                You are a professional system configuration assistant. Based on the user's requirements, modify the provided configuration content.
+                CRITICAL: Return ONLY the full modified content, which will be saved directly to a file.
+                NO explanations, NO greetings, NO introductory/concluding text.
+                Do NOT use any Markdown code block delimiters (e.g., ```nginx or ```).
+                The response should be 100% ready-to-use raw file content.
                 
                 Context:
                 \(contextInfo)
@@ -451,5 +473,51 @@ struct AIAssistView: View {
                 }
             }
         }
+    }
+}
+
+struct AIActionButton: View {
+    let title: String
+    let systemImage: String
+    let color: Color
+    var isLoading: Bool = false
+    let action: () -> Void
+    
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    
+    init(_ title: String, systemImage: String, color: Color = .purple, isLoading: Bool = false, action: @escaping () -> Void) {
+        self.title = title
+        self.systemImage = systemImage
+        self.color = color
+        self.isLoading = isLoading
+        self.action = action
+    }
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                if isLoading {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(.white)
+                } else {
+                    Image(systemName: systemImage)
+                }
+                Text(title)
+                    .fontWeight(.semibold)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .font(.system(horizontalSizeClass == .compact ? .footnote : .subheadline))
+            .padding(.horizontal, horizontalSizeClass == .compact ? 14 : 20)
+            .padding(.vertical, horizontalSizeClass == .compact ? 10 : 12)
+            .background(.ultraThinMaterial)
+            .background(color.opacity(0.6))
+            .foregroundStyle(.white)
+            .clipShape(Capsule())
+            .shadow(color: color.opacity(0.3), radius: 10, x: 0, y: 5)
+        }
+        .disabled(isLoading)
+        .buttonStyle(.plain)
     }
 }

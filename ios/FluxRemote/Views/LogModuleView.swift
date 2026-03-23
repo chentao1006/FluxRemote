@@ -15,6 +15,8 @@ struct LogModuleView: View {
     @State private var selectedCategory: String = "All"
     @State private var isLoading = true
     @State private var errorMessage: String?
+    @State private var actionErrorMessage: String?
+    @State private var showingActionError = false
     @State private var selectedLog: LogItem?
     @State private var showingAddLog = false
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -41,27 +43,69 @@ struct LogModuleView: View {
             .searchable(text: $searchText, prompt: languageManager.t("logs.searchPlaceholder"))
             .sheet(item: $selectedLog) { log in
                 NavigationStack {
-                    LogDetailView(file: log, onAction: { action in
-                        Task { await performAction(file: log, action: action) }
+                    LogDetailView(file: log, isActioning: isActioning, actionType: actionType, onAction: { action in
+                        actionTarget = log
+                        actionType = action
+                        showingActionConfirm = true
                     })
                         .toolbar {
                             ToolbarItem(placement: .topBarLeading) {
                                 Button(action: { selectedLog = nil }) { Image(systemName: "xmark") }
                             }
                         }
+                        .alert(
+                            (actionType == "delete" ? languageManager.t("common.delete") : (actionType == "remove" ? languageManager.t("common.remove") : languageManager.t("common.clear"))),
+                            isPresented: Binding(
+                                get: { showingActionConfirm && selectedLog != nil },
+                                set: { if !$0 { showingActionConfirm = false } }
+                            )
+                        ) {
+                            Button(actionType == "delete" ? languageManager.t("common.delete") : (actionType == "remove" ? languageManager.t("common.remove") : languageManager.t("common.clear")), role: .destructive) {
+                                if let file = actionTarget, let action = actionType {
+                                    Task { await performAction(file: file, action: action) }
+                                }
+                            }
+                            Button(languageManager.t("common.cancel"), role: .cancel) {}
+                        } message: {
+                            if let action = actionType, let file = actionTarget {
+                                Text(action == "delete" ? languageManager.t("logs.deleteConfirm") : (action == "remove" ? languageManager.t("logs.removeConfirm") : languageManager.t("logs.clearConfirm")))
+                            }
+                        }
+                        .sheet(isPresented: Binding(
+                            get: { showingSudoPrompt && selectedLog != nil },
+                            set: { if !$0 { showingSudoPrompt = false } }
+                        )) {
+                            SudoPasswordView(password: $sudoPassword) {
+                                if let file = actionTarget, let action = actionType {
+                                    let pwd = sudoPassword
+                                    sudoPassword = ""
+                                    Task { await performAction(file: file, action: action, password: pwd) }
+                                }
+                            }
+                        }
+                        .alert(languageManager.t("common.error"), isPresented: Binding(
+                            get: { showingActionError && selectedLog != nil },
+                            set: { if !$0 { showingActionError = false } }
+                        )) {
+                            Button(languageManager.t("common.ok"), role: .cancel) { }
+                        } message: {
+                            if let error = actionErrorMessage {
+                                Text(error)
+                            }
+                        }
                 }
             }
-            .confirmationDialog(
+            .alert(
                 (actionType == "delete" ? languageManager.t("common.delete") : (actionType == "remove" ? languageManager.t("common.remove") : languageManager.t("common.clear"))),
-                isPresented: $showingActionConfirm,
-                titleVisibility: .visible
+                isPresented: Binding(
+                    get: { showingActionConfirm && selectedLog == nil },
+                    set: { if !$0 { showingActionConfirm = false } }
+                )
             ) {
-                Button(role: .destructive) {
+                Button(actionType == "delete" ? languageManager.t("common.delete") : (actionType == "remove" ? languageManager.t("common.remove") : languageManager.t("common.clear")), role: .destructive) {
                     if let file = actionTarget, let action = actionType {
                         Task { await performAction(file: file, action: action) }
                     }
-                } label: {
-                    Text(actionType == "delete" ? languageManager.t("common.delete") : (actionType == "remove" ? languageManager.t("common.remove") : languageManager.t("common.clear")))
                 }
                 Button(languageManager.t("common.cancel"), role: .cancel) {}
             } message: {
@@ -69,7 +113,10 @@ struct LogModuleView: View {
                     Text(action == "delete" ? languageManager.t("logs.deleteConfirm") : (action == "remove" ? languageManager.t("logs.removeConfirm") : languageManager.t("logs.clearConfirm")))
                 }
             }
-            .sheet(isPresented: $showingSudoPrompt) {
+            .sheet(isPresented: Binding(
+                get: { showingSudoPrompt && selectedLog == nil },
+                set: { if !$0 { showingSudoPrompt = false } }
+            )) {
                 SudoPasswordView(password: $sudoPassword) {
                     if let file = actionTarget, let action = actionType {
                         let pwd = sudoPassword
@@ -78,7 +125,16 @@ struct LogModuleView: View {
                     }
                 }
             }
-
+            .alert(languageManager.t("common.error"), isPresented: Binding(
+                get: { showingActionError && selectedLog == nil },
+                set: { if !$0 { showingActionError = false } }
+            )) {
+                Button(languageManager.t("common.ok"), role: .cancel) { }
+            } message: {
+                if let error = actionErrorMessage {
+                    Text(error)
+                }
+            }
             .onAppear {
                 Task { await fetchData() }
             }
@@ -147,7 +203,7 @@ struct LogModuleView: View {
         ZStack {
             List {
                 Section {
-                    if let error = errorMessage {
+                    if let error = errorMessage, logs.isEmpty {
                         ContentUnavailableView(languageManager.t("logs.syncFailed"), systemImage: "exclamationmark.triangle.fill", description: Text(error))
                     } else if logs.isEmpty && !isLoading {
                         ContentUnavailableView {
@@ -196,28 +252,42 @@ struct LogModuleView: View {
                                             actionType = "clear"
                                             showingActionConfirm = true
                                         } label: {
-                                            Image(systemName: "eraser")
-                                                .font(.system(size: 14))
-                                                .padding(6)
-                                                .background(Color.orange.opacity(0.1))
-                                                .foregroundStyle(.orange)
-                                                .clipShape(Circle())
+                                            if isActioning && actionTarget?.path == file.path && actionType == "clear" {
+                                                ProgressView()
+                                                    .controlSize(.small)
+                                                    .frame(width: 26, height: 26)
+                                            } else {
+                                                Image(systemName: "eraser")
+                                                    .font(.system(size: 14))
+                                                    .padding(6)
+                                                    .background(Color.orange.opacity(0.1))
+                                                    .foregroundStyle(.orange)
+                                                    .clipShape(Circle())
+                                            }
                                         }
                                         .buttonStyle(.plain)
+                                        .disabled(isActioning)
                                         
                                         Button {
                                             actionTarget = file
                                             actionType = file.isCustom ? "remove" : "delete"
                                             showingActionConfirm = true
                                         } label: {
-                                            Image(systemName: file.isCustom ? "minus.circle" : "trash")
-                                                .font(.system(size: 14))
-                                                .padding(6)
-                                                .background(Color.red.opacity(0.1))
-                                                .foregroundStyle(.red)
-                                                .clipShape(Circle())
+                                            if isActioning && actionTarget?.path == file.path && (actionType == "delete" || actionType == "remove") {
+                                                ProgressView()
+                                                    .controlSize(.small)
+                                                    .frame(width: 26, height: 26)
+                                            } else {
+                                                Image(systemName: file.isCustom ? "minus.circle" : "trash")
+                                                    .font(.system(size: 14))
+                                                    .padding(6)
+                                                    .background(Color.red.opacity(0.1))
+                                                    .foregroundStyle(.red)
+                                                    .clipShape(Circle())
+                                            }
                                         }
                                         .buttonStyle(.plain)
+                                        .disabled(isActioning)
                                     }
                                 }
                                 .padding(.vertical, 4)
@@ -305,18 +375,6 @@ struct LogModuleView: View {
         }
     }
     
-    func formatSize(_ bytes: Int) -> String {
-        if bytes < 1024 { return "\(bytes) B" }
-        if bytes < 1024 * 1024 { return String(format: "%.1f KB", Double(bytes) / 1024) }
-        return String(format: "%.1f MB", Double(bytes) / (1024 * 1024))
-    }
-    
-    func formatDate(_ timestamp: Int64) -> String {
-        let date = Date(timeIntervalSince1970: TimeInterval(timestamp) / 1000.0)
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MM-dd HH:mm:ss"
-        return formatter.string(from: date)
-    }
     
     func fetchData() async {
         isLoading = true
@@ -372,10 +430,16 @@ struct LogModuleView: View {
                     }
                 }
             } else if let error = response.error {
-                await MainActor.run { self.errorMessage = error }
+                await MainActor.run { 
+                    self.actionErrorMessage = error
+                    self.showingActionError = true
+                }
             }
         } catch {
-            await MainActor.run { self.errorMessage = error.localizedDescription }
+            await MainActor.run { 
+                self.actionErrorMessage = error.localizedDescription
+                self.showingActionError = true
+            }
         }
         await MainActor.run { isActioning = false }
     }
@@ -385,6 +449,8 @@ struct LogDetailView: View {
         // Add autoRefresh property (always enabled)
         var autoRefresh: Bool { true }
     let file: LogItem
+    let isActioning: Bool
+    let actionType: String?
     let onAction: (String) -> Void
 
     @Environment(RemoteAPIClient.self) private var apiClient
@@ -397,55 +463,83 @@ struct LogDetailView: View {
     @State private var aiAnalysis: String?
     
     var body: some View {
-        ScrollViewReader { proxy in
-            Group {
-                if logContent.isEmpty && (isReading || isSilentRefresh) {
-                    LoadingView()
-                } else if !logContent.isEmpty {
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 0) {
-                            let lines = logContent.components(separatedBy: .newlines)
-                            let displayLines = lines.suffix(5000)
-                            ForEach(Array(displayLines.enumerated()), id: \.offset) { index, line in
-                                Text(line)
-                                    .font(.system(.caption2, design: .monospaced))
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 1)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(index % 2 == 0 ? Color.clear : Color.black.opacity(0.04))
-                                    .id(index) // Add ID for scrolling
-                            }
+        VStack(alignment: .leading, spacing: 0) {
+            if !logContent.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(file.path)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    
+                    HStack(spacing: 12) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "doc.text")
+                            Text(formatSize(file.size))
                         }
-                        .textSelection(.enabled)
+                        HStack(spacing: 4) {
+                            Image(systemName: "clock")
+                            Text(formatDate(file.mtime))
+                        }
+                        Spacer()
                     }
-                } else if !isReading && !isSilentRefresh {
-                    ContentUnavailableView(languageManager.t("logs.noContent"), systemImage: "doc.text.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
                 }
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(.secondarySystemBackground).opacity(0.8))
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
-            .onChange(of: logContent) {
-                // Scroll to the bottom when content changes
-                let lines = logContent.components(separatedBy: .newlines)
-                let displayLines = lines.suffix(5000)
-                if displayLines.count > 0 {
-                    withAnimation {
-                        proxy.scrollTo(displayLines.count - 1, anchor: .bottom)
+            
+            ScrollViewReader { proxy in
+                Group {
+                    if logContent.isEmpty && (isReading || isSilentRefresh) {
+                        LoadingView()
+                    } else if !logContent.isEmpty {
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: 0) {
+                                let lines = logContent.components(separatedBy: .newlines)
+                                let displayLines = lines.suffix(5000)
+                                ForEach(Array(displayLines.enumerated()), id: \.offset) { index, line in
+                                    Text(line)
+                                        .font(.system(.caption2, design: .monospaced))
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 1)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .background(index % 2 == 0 ? Color.clear : Color.black.opacity(0.04))
+                                        .id(index) // Add ID for scrolling
+                                }
+                            }
+                            .textSelection(.enabled)
+                        }
+                    } else if !isReading && !isSilentRefresh {
+                        ContentUnavailableView(languageManager.t("logs.noContent"), systemImage: "doc.text.fill")
+                    }
+                }
+                .onChange(of: logContent) {
+                    // Scroll to the bottom when content changes
+                    let lines = logContent.components(separatedBy: .newlines)
+                    let displayLines = lines.suffix(5000)
+                    if displayLines.count > 0 {
+                        withAnimation {
+                            proxy.scrollTo(displayLines.count - 1, anchor: .bottom)
+                        }
                     }
                 }
             }
         }
         .overlay(alignment: .bottom) {
-            if !isReading && !isSilentRefresh && !logContent.isEmpty {
-                Button(action: { analyzeLogs() }) {
-                    Label(languageManager.t("common.aiAnalyze"), systemImage: "sparkle.text.clipboard")
-                        .font(.system(.subheadline, weight: .semibold))
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
-                        .background(Color.purple.opacity(0.15))
-                        .foregroundStyle(.purple)
-                        .clipShape(Capsule())
-                        .shadow(color: Color.purple.opacity(0.2), radius: 8, x: 0, y: 4)
+            if isAnalyzing || aiAnalysis != nil {
+                AIAnalysisCard(analysis: aiAnalysis, isAnalyzing: isAnalyzing) {
+                    withAnimation { aiAnalysis = nil; isAnalyzing = false }
+                }
+                .padding(.bottom, 20)
+            } else if !isReading && !logContent.isEmpty {
+                AIActionButton(languageManager.t("common.aiAnalyze"), systemImage: "sparkle.text.clipboard", isLoading: isAnalyzing) {
+                    analyzeLogs()
                 }
                 .padding(.bottom, 30)
+                .transition(.scale.combined(with: .opacity))
             }
         }
         .toolbar {
@@ -458,18 +552,26 @@ struct LogDetailView: View {
                 Button {
                     onAction("clear")
                 } label: {
-                    Image(systemName: "eraser")
+                    if isActioning && actionType == "clear" {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "eraser")
+                    }
                 }
                 .tint(.orange)
+                .disabled(isActioning)
                 
                 Button(role: .destructive) {
                     onAction(file.isCustom ? "remove" : "delete")
                 } label: {
-                    Image(systemName: file.isCustom ? "minus.circle" : "trash")
+                    if isActioning && (actionType == "delete" || actionType == "remove") {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: file.isCustom ? "minus.circle" : "trash")
+                    }
                 }
                 .tint(.red)
-                
-                .tint(.red)
+                .disabled(isActioning)
             }
         }
 
@@ -506,7 +608,9 @@ struct LogDetailView: View {
             let response: LogResponse = try await apiClient.request(path)
             if case .content(let content) = response.data {
                 await MainActor.run {
-                    self.logContent = content
+                    withAnimation {
+                        self.logContent = content
+                    }
                     self.isReading = false
                     self.isSilentRefresh = false
                 }
@@ -526,12 +630,15 @@ struct LogDetailView: View {
         aiAnalysis = nil
         
         let lines = logContent.components(separatedBy: .newlines)
-        let lastLines = lines.suffix(50).joined(separator: "\n")
+        let lastLines = lines.suffix(100).joined(separator: "\n")
         
         Task {
             do {
-                let prompt = "Analyze the following macOS logs and provide diagnosis or suggestions in \(languageManager.aiResponseLanguage):\n\n\(lastLines)\n\nUse Markdown formatting."
-                let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: ["prompt": prompt])
+                let contextInfo = "Log File: \(file.name)\nPath: \(file.path)"
+                let prompt = "Analyze the following logs and provide diagnosis or suggestions in \(languageManager.aiResponseLanguage):\n\nContext:\n\(contextInfo)\n\nContent:\n\(lastLines)\n\nUse Markdown formatting for the response."
+                let systemPrompt = "You are a systems expert. Analyze the provided logs to diagnose issues and provide solutions."
+                
+                let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: ["prompt": prompt, "system_prompt": systemPrompt])
                 
                 await MainActor.run {
                     withAnimation {
@@ -615,3 +722,16 @@ struct AddPathView: View {
 
 
 
+
+fileprivate func formatSize(_ bytes: Int) -> String {
+    if bytes < 1024 { return "\(bytes) B" }
+    if bytes < 1024 * 1024 { return String(format: "%.1f KB", Double(bytes) / 1024) }
+    return String(format: "%.1f MB", Double(bytes) / (1024 * 1024))
+}
+
+fileprivate func formatDate(_ timestamp: Int64) -> String {
+    let date = Date(timeIntervalSince1970: TimeInterval(timestamp) / 1000.0)
+    let formatter = DateFormatter()
+    formatter.dateFormat = "MM-dd HH:mm:ss"
+    return formatter.string(from: date)
+}

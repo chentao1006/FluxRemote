@@ -30,7 +30,7 @@ struct NginxModuleView: View {
                 LoadingView()
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
-            } else if let error = errorMessage {
+            } else if let error = errorMessage, sites.isEmpty {
                 ContentUnavailableView(languageManager.t("common.error"), systemImage: "wifi.exclamationmark.fill", description: Text(error))
                     .listRowBackground(Color.clear)
             } else {
@@ -82,11 +82,29 @@ struct NginxModuleView: View {
         .sheet(isPresented: $showingAddSite) {
             NavigationStack {
                 NginxSiteEditView(site: nil) { await fetchData() }
-            }
-        }
-        .sheet(item: $editingSite) { site in
-            NavigationStack {
-                NginxSiteEditView(site: site) { await fetchData() }
+                .sheet(isPresented: Binding(
+                    get: { showingSudoPrompt && showingAddSite },
+                    set: { if !$0 { showingSudoPrompt = false } }
+                )) {
+                    SudoPasswordView(password: $sudoPassword) {
+                        Task {
+                            if let site = currentSite {
+                                if currentAction == "toggle" { await toggleSite(site) }
+                                else if currentAction == "delete" { await deleteSite(site) }
+                            } else if let action = currentServiceAction {
+                                await performAction(action)
+                            }
+                        }
+                    }
+                }
+                .alert(languageManager.t("common.error"), isPresented: Binding(
+                    get: { errorMessage != nil && !showingSudoPrompt && showingAddSite },
+                    set: { _ in errorMessage = nil }
+                )) {
+                    Button(languageManager.t("common.ok"), role: .cancel) { }
+                } message: {
+                    if let error = errorMessage { Text(error) }
+                }
             }
         }
         .sheet(isPresented: $showingLogs) {
@@ -94,7 +112,38 @@ struct NginxModuleView: View {
                 NginxLogView()
             }
         }
-        .sheet(isPresented: $showingSudoPrompt) {
+        .sheet(item: $editingSite) { site in
+            NavigationStack {
+                NginxSiteEditView(site: site) { await fetchData() }
+                .sheet(isPresented: Binding(
+                    get: { showingSudoPrompt && editingSite != nil },
+                    set: { if !$0 { showingSudoPrompt = false } }
+                )) {
+                    SudoPasswordView(password: $sudoPassword) {
+                        Task {
+                            if let site = currentSite {
+                                if currentAction == "toggle" { await toggleSite(site) }
+                                else if currentAction == "delete" { await deleteSite(site) }
+                            } else if let action = currentServiceAction {
+                                await performAction(action)
+                            }
+                        }
+                    }
+                }
+                .alert(languageManager.t("common.error"), isPresented: Binding(
+                    get: { errorMessage != nil && !showingSudoPrompt && editingSite != nil },
+                    set: { _ in errorMessage = nil }
+                )) {
+                    Button(languageManager.t("common.ok"), role: .cancel) { }
+                } message: {
+                    if let error = errorMessage { Text(error) }
+                }
+            }
+        }
+        .sheet(isPresented: Binding(
+            get: { showingSudoPrompt && editingSite == nil && !showingAddSite },
+            set: { if !$0 { showingSudoPrompt = false } }
+        )) {
             SudoPasswordView(password: $sudoPassword) {
                 Task {
                     if let site = currentSite {
@@ -107,14 +156,12 @@ struct NginxModuleView: View {
             }
         }
         .alert(languageManager.t("common.error"), isPresented: Binding(
-            get: { errorMessage != nil && !showingSudoPrompt },
+            get: { errorMessage != nil && !showingSudoPrompt && editingSite == nil && !showingAddSite },
             set: { _ in errorMessage = nil }
         )) {
             Button(languageManager.t("common.ok"), role: .cancel) { }
         } message: {
-            if let error = errorMessage {
-                Text(error)
-            }
+            if let error = errorMessage { Text(error) }
         }
     }
     
@@ -180,42 +227,55 @@ struct NginxModuleView: View {
     private var siteSection: some View {
         Section {
             ForEach($sites) { $site in
-                Button {
-                    editingSite = site
-                } label: {
-                    HStack {
-                        StatusBadge(status: site.status == "enabled" ? "running" : "stopped", size: 14)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(site.name)
-                                .font(.headline)
-                            Text("\(site.serverName):\(site.port)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                HStack {
+                    Button {
+                        editingSite = site
+                    } label: {
+                        HStack {
+                            StatusBadge(status: site.status == "enabled" ? "running" : "stopped", size: 14)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(site.name)
+                                    .font(.headline)
+                                Text("\(site.serverName):\(site.port)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
                         }
-                        Spacer()
-                        HStack(spacing: 12) {
-                            let isEnabled = site.status == "enabled"
-                            actionButton(icon: isEnabled ? "stop" : "play", color: isEnabled ? .orange : .green, isLoading: loadingAction[site.name] == (isEnabled ? "disable" : "enable")) {
-                                await toggleSite(site)
-                            }
-                            actionButton(icon: "trash", color: .red, isLoading: loadingAction[site.name] == "delete") {
-                                confirmDeleteSite = site
-                            }
-                            .alert(item: $confirmDeleteSite) { site in
-                                Alert(
-                                    title: Text(languageManager.t("launchagent.deleteConfirmTitle")),
-                                    message: Text(String.localizedStringWithFormat(languageManager.t("launchagent.deleteConfirmMessage"), site.name)),
-                                    primaryButton: .destructive(Text(languageManager.t("launchagent.delete"))) {
-                                        Task { await deleteSite(site) }
-                                    },
-                                    secondaryButton: .cancel(Text(languageManager.t("common.cancel")))
-                                )
-                            }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    
+                    HStack(spacing: 12) {
+                        let isEnabled = site.status == "enabled"
+                        actionButton(icon: isEnabled ? "stop" : "play", color: isEnabled ? .orange : .green, isLoading: loadingAction[site.name] == (isEnabled ? "disable" : "enable")) {
+                            await toggleSite(site)
+                        }
+                        
+                        actionButton(icon: "trash", color: .red, isLoading: loadingAction[site.name] == "delete") {
+                            confirmDeleteSite = site
                         }
                     }
-                    .padding(.vertical, 4)
+                    .alert(languageManager.t("launchagent.deleteConfirmTitle"), isPresented: Binding(
+                        get: { confirmDeleteSite?.id == site.id },
+                        set: { if !$0 { confirmDeleteSite = nil } }
+                    )) {
+                        Button(languageManager.t("launchagent.delete"), role: .destructive) {
+                            if let site = confirmDeleteSite {
+                                Task { await deleteSite(site) }
+                            }
+                            confirmDeleteSite = nil
+                        }
+                        Button(languageManager.t("common.cancel"), role: .cancel) {
+                            confirmDeleteSite = nil
+                        }
+                    } message: {
+                        if let site = confirmDeleteSite {
+                            Text(String.localizedStringWithFormat(languageManager.t("launchagent.deleteConfirmMessage"), site.name))
+                        }
+                    }
                 }
-                .buttonStyle(.plain)
+                .padding(.vertical, 4)
             }
         } header: {
             Text(languageManager.t("nginx.siteManagement"))
@@ -400,6 +460,7 @@ struct NginxSiteEditView: View {
     @Environment(RemoteAPIClient.self) private var apiClient
     @Environment(AppLanguageManager.self) private var languageManager
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var filename: String = ""
     @State private var content: String = ""
     @State private var isLoading = false
@@ -408,15 +469,25 @@ struct NginxSiteEditView: View {
     @State private var showingError = false
     @State private var showingSudoPrompt = false
     @State private var sudoPassword = ""
-    @State private var showingAIAnalyze = false
+    @State private var isAnalyzing = false
+    @State private var aiAnalysis: String?
     @State private var showingAIAssist = false
     
     var body: some View {
         VStack(spacing: 0) {
             if site == nil {
-                TextField(languageManager.t("nginx.filenamePlaceholder"), text: $filename)
-                    .textFieldStyle(.roundedBorder)
-                    .padding()
+                HStack(spacing: 12) {
+                    Image(systemName: "doc.badge.plus")
+                        .foregroundStyle(.blue)
+                    TextField(languageManager.t("nginx.filenamePlaceholder"), text: $filename)
+                        .font(.body)
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 12)
+                .background(Color(uiColor: .secondarySystemGroupedBackground))
+                Divider()
             }
             
             if isLoading {
@@ -445,36 +516,22 @@ struct NginxSiteEditView: View {
             }
         }
         .overlay(alignment: .bottom) {
-            if !isLoading && !content.isEmpty {
-                HStack(spacing: 12) {
-                    Button(action: { showingAIAnalyze = true }) {
-                        Label(languageManager.t("common.aiAnalyze"), systemImage: "sparkle.text.clipboard")
-                            .font(.system(.subheadline, weight: .semibold))
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(Color.purple.opacity(0.15))
-                            .foregroundStyle(.purple)
-                            .clipShape(Capsule())
-                            .shadow(color: Color.purple.opacity(0.2), radius: 8, x: 0, y: 4)
+            if isAnalyzing || aiAnalysis != nil {
+                AIAnalysisCard(analysis: aiAnalysis, isAnalyzing: isAnalyzing) {
+                    withAnimation { aiAnalysis = nil; isAnalyzing = false }
+                }
+                .padding(.bottom, 20)
+            } else if !isLoading && !content.isEmpty {
+                HStack(spacing: horizontalSizeClass == .compact ? 8 : 12) {
+                    AIActionButton(languageManager.t("common.aiAnalyze"), systemImage: "sparkle.text.clipboard", isLoading: isAnalyzing) {
+                        analyzeNginx()
                     }
                     
-                    Button(action: { showingAIAssist = true }) {
-                        Label(languageManager.t("common.aiGenerate"), systemImage: "wand.and.sparkles")
-                            .font(.system(.subheadline, weight: .semibold))
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(Color.purple.opacity(0.15))
-                            .foregroundStyle(.purple)
-                            .clipShape(Capsule())
-                            .shadow(color: Color.purple.opacity(0.2), radius: 8, x: 0, y: 4)
+                    AIActionButton(languageManager.t("common.aiGenerate"), systemImage: "wand.and.sparkles") {
+                        showingAIAssist = true
                     }
                 }
                 .padding(.bottom, 30)
-            }
-        }
-        .sheet(isPresented: $showingAIAnalyze) {
-            NavigationStack {
-                AIAnalyzeView(originalContent: content, contextInfo: "File: \(filename)\nType: Nginx Configuration")
             }
         }
         .sheet(isPresented: $showingAIAssist) {
@@ -576,6 +633,34 @@ server {
             }
         }
     }
+
+    func analyzeNginx() {
+        guard !content.isEmpty else { return }
+        isAnalyzing = true
+        aiAnalysis = nil
+        
+        Task {
+            do {
+                let contextInfo = "File: \(filename)\nType: Nginx Configuration"
+                let prompt = "Explain the following Nginx configuration and provide optimization suggestions in \(languageManager.aiResponseLanguage):\n\nContext:\n\(contextInfo)\n\nContent:\n\(content)\n\nUse Markdown formatting for the response."
+                let systemPrompt = "You are an Nginx expert. Explain configuration blocks and suggest optimizations."
+                
+                let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: ["prompt": prompt, "system_prompt": systemPrompt])
+                
+                await MainActor.run {
+                    withAnimation {
+                        self.aiAnalysis = response.data
+                        self.isAnalyzing = false
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    self.aiAnalysis = "Error: \(error.localizedDescription)"
+                    self.isAnalyzing = false
+                }
+            }
+        }
+    }
 }
 
 #Preview {
@@ -588,6 +673,7 @@ server {
 struct NginxLogView: View {
     @Environment(RemoteAPIClient.self) private var apiClient
     @Environment(AppLanguageManager.self) private var languageManager
+    @Environment(\.dismiss) private var dismiss
     @State private var logs: String = ""
     @State private var isLoading = true
     @State private var selectedTab = "error" // "error" or "access"
@@ -642,6 +728,11 @@ struct NginxLogView: View {
         }
         .navigationTitle(languageManager.t("nginx.viewLogs"))
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button(action: { dismiss() }) { Image(systemName: "xmark") }
+            }
+        }
         .onAppear {
             Task { await fetchLogs() }
         }
@@ -660,10 +751,11 @@ struct NginxLogView: View {
                         .font(.system(.subheadline, weight: .semibold))
                         .padding(.horizontal, 24)
                         .padding(.vertical, 12)
-                        .background(Color.purple.opacity(0.15))
-                        .foregroundStyle(.purple)
+                        .background(.ultraThinMaterial)
+                        .background(Color.purple.opacity(0.75))
+                        .foregroundStyle(.white)
                         .clipShape(Capsule())
-                        .shadow(color: Color.purple.opacity(0.2), radius: 8, x: 0, y: 4)
+                        .shadow(color: Color.purple.opacity(0.3), radius: 12, x: 0, y: 6)
                 }
                 .padding(.bottom, 20)
                 .padding(.horizontal)

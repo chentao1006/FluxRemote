@@ -35,7 +35,7 @@ struct LaunchAgentModuleView: View {
     var body: some View {
         ZStack {
             List {
-                if let error = errorMessage {
+                if let error = errorMessage, launchAgents.isEmpty {
                     ContentUnavailableView(languageManager.t("common.error"), systemImage: "wifi.exclamationmark.fill", description: Text(error))
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
@@ -139,9 +139,50 @@ struct LaunchAgentModuleView: View {
                         Button(action: { selectedAgent = nil }) { Image(systemName: "xmark") }
                     }
                 }
+                .sheet(isPresented: Binding(
+                    get: { showingSudoPrompt && selectedAgent != nil },
+                    set: { if !$0 { showingSudoPrompt = false } }
+                )) {
+                    SudoPasswordView(password: $sudoPassword) {
+                        Task {
+                            if let pending = pendingAction {
+                                await performAction(pending.0, path: pending.1)
+                            }
+                        }
+                    }
+                }
+                .alert(item: Binding(
+                    get: { selectedAgent != nil ? activeAlert : nil },
+                    set: { if $0 == nil { activeAlert = nil } }
+                )) { alert in
+                    switch alert {
+                    case .delete(let agent):
+                        return Alert(
+                            title: Text(languageManager.t("launchagent.deleteConfirmTitle")),
+                            message: Text(String.localizedStringWithFormat(languageManager.t("launchagent.deleteConfirmMessage"), agent.name)),
+                            primaryButton: .destructive(Text(languageManager.t("launchagent.delete"))) {
+                                loadingAction[agent.path] = "delete"
+                                Task {
+                                    await performAction("delete", path: agent.path)
+                                    loadingAction[agent.path] = nil
+                                }
+                            },
+                            secondaryButton: .cancel(Text(languageManager.t("common.cancel")))
+                        )
+                    case .error(let message):
+                        return Alert(
+                            title: Text(languageManager.t("common.error")),
+                            message: Text(message),
+                            dismissButton: .default(Text(languageManager.t("common.ok")))
+                        )
+                    }
+                }
             }
         }
-        .sheet(isPresented: $showingSudoPrompt) {
+        .sheet(isPresented: Binding(
+            get: { showingSudoPrompt && selectedAgent == nil },
+            set: { if !$0 { showingSudoPrompt = false } }
+        )) {
             SudoPasswordView(password: $sudoPassword) {
                 Task {
                     if let pending = pendingAction {
@@ -150,7 +191,10 @@ struct LaunchAgentModuleView: View {
                 }
             }
         }
-        .alert(item: $activeAlert) { alert in
+        .alert(item: Binding(
+            get: { selectedAgent == nil ? activeAlert : nil },
+            set: { if $0 == nil { activeAlert = nil } }
+        )) { alert in
             switch alert {
             case .delete(let agent):
                 return Alert(
@@ -279,12 +323,14 @@ struct LaunchAgentModuleView: View {
 
 struct AddAgentView: View {
     @Environment(\.dismiss) var dismiss
+    @Environment(RemoteAPIClient.self) private var apiClient
     @Environment(AppLanguageManager.self) private var languageManager
     @State private var name: String = ""
     @State private var content: String = ""
     var onAdd: (String, String) -> Void
     
-    @State private var showingAIAnalyze = false
+    @State private var isAnalyzing = false
+    @State private var aiAnalysis: String?
     @State private var showingAIAssist = false
     
     init(onAdd: @escaping (String, String) -> Void) {
@@ -338,7 +384,7 @@ struct AddAgentView: View {
                 Button(action: { dismiss() }) { Image(systemName: "xmark") }
             }
             ToolbarItemGroup(placement: .confirmationAction) {
-                Button(action: { showingAIAnalyze = true }) {
+                Button(action: { analyzeAgent() }) {
                     Image(systemName: "sparkle.text.clipboard")
                         .foregroundStyle(.purple)
                 }
@@ -357,15 +403,45 @@ struct AddAgentView: View {
                 .disabled(name.isEmpty)
             }
         }
-        .sheet(isPresented: $showingAIAnalyze) {
-            NavigationStack {
-                AIAnalyzeView(originalContent: content, contextInfo: "Action: Creating New macOS LaunchAgent Plist")
+        .overlay(alignment: .bottom) {
+            if isAnalyzing || aiAnalysis != nil {
+                AIAnalysisCard(analysis: aiAnalysis, isAnalyzing: isAnalyzing) {
+                    withAnimation { aiAnalysis = nil; isAnalyzing = false }
+                }
+                .padding(.bottom, 20)
             }
         }
         .sheet(isPresented: $showingAIAssist) {
             NavigationStack {
                 AIAssistView(originalContent: content, contextInfo: "Action: Creating New macOS LaunchAgent Plist") { newContent in
                     self.content = newContent
+                }
+            }
+        }
+    }
+
+    func analyzeAgent() {
+        guard !content.isEmpty else { return }
+        isAnalyzing = true
+        aiAnalysis = nil
+        
+        Task {
+            do {
+                let prompt = "Explain the following macOS LaunchAgent configuration and provide optimization suggestions in \(languageManager.aiResponseLanguage):\n\nContent:\n\(content)\n\nUse Markdown formatting for the response."
+                let systemPrompt = "You are a macOS systems expert. Explain LaunchAgent segments and suggest optimizations."
+                
+                let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: ["prompt": prompt, "system_prompt": systemPrompt])
+                
+                await MainActor.run {
+                    withAnimation {
+                        self.aiAnalysis = response.data
+                        self.isAnalyzing = false
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    self.aiAnalysis = "Error: \(error.localizedDescription)"
+                    self.isAnalyzing = false
                 }
             }
         }
@@ -380,6 +456,7 @@ struct LaunchAgentDetailView: View {
     @Environment(RemoteAPIClient.self) private var apiClient
     @Environment(AppLanguageManager.self) private var languageManager
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var content: String = ""
     @State private var isLoading = true
     @State private var errorMessage: String?
@@ -387,65 +464,52 @@ struct LaunchAgentDetailView: View {
     @State private var showingError = false
     @State private var showingSudoPrompt = false
     @State private var sudoPassword = ""
-    @State private var showingAIAnalyze = false
+    @State private var isAnalyzing = false
+    @State private var aiAnalysis: String?
     @State private var showingAIAssist = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text(agent.path)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .monospaced()
-                    .lineLimit(1)
-                Spacer()
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 4)
-            .background(Color.secondary.opacity(0.05))
-            
             if isLoading {
                 LoadingView()
             } else if let error = errorMessage {
                 ContentUnavailableView(languageManager.t("common.error"), systemImage: "exclamationmark.triangle", description: Text(error))
             } else {
-            TextEditor(text: $content)
-                .font(.system(.caption2, design: .monospaced))
-                .padding(4)
+                HStack {
+                    Text(agent.path)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .monospaced()
+                        .lineLimit(1)
+                    Spacer()
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 4)
+                .background(Color.secondary.opacity(0.05))
+                
+                TextEditor(text: $content)
+                    .font(.system(.caption2, design: .monospaced))
+                    .padding(4)
                 Spacer()
             }
         }
         .overlay(alignment: .bottom) {
-            if !isLoading && !content.isEmpty {
-                HStack(spacing: 12) {
-                    Button(action: { showingAIAnalyze = true }) {
-                        Label(languageManager.t("common.aiAnalyze"), systemImage: "sparkle.text.clipboard")
-                            .font(.system(.subheadline, weight: .semibold))
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(Color.purple.opacity(0.15))
-                            .foregroundStyle(.purple)
-                            .clipShape(Capsule())
-                            .shadow(color: Color.purple.opacity(0.2), radius: 8, x: 0, y: 4)
+            if isAnalyzing || aiAnalysis != nil {
+                AIAnalysisCard(analysis: aiAnalysis, isAnalyzing: isAnalyzing) {
+                    withAnimation { aiAnalysis = nil; isAnalyzing = false }
+                }
+                .padding(.bottom, 20)
+            } else if !isLoading && !content.isEmpty {
+                HStack(spacing: horizontalSizeClass == .compact ? 8 : 12) {
+                    AIActionButton(languageManager.t("common.aiAnalyze"), systemImage: "sparkle.text.clipboard", isLoading: isAnalyzing) {
+                        analyzeAgent()
                     }
                     
-                    Button(action: { showingAIAssist = true }) {
-                        Label(languageManager.t("common.aiGenerate"), systemImage: "wand.and.sparkles")
-                            .font(.system(.subheadline, weight: .semibold))
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(Color.purple.opacity(0.15))
-                            .foregroundStyle(.purple)
-                            .clipShape(Capsule())
-                            .shadow(color: Color.purple.opacity(0.2), radius: 8, x: 0, y: 4)
+                    AIActionButton(languageManager.t("common.aiGenerate"), systemImage: "wand.and.sparkles") {
+                        showingAIAssist = true
                     }
                 }
                 .padding(.bottom, 30)
-            }
-        }
-        .sheet(isPresented: $showingAIAnalyze) {
-            NavigationStack {
-                AIAnalyzeView(originalContent: content, contextInfo: "File Path: \(agent.path)\nType: macOS LaunchAgent Plist")
             }
         }
         .sheet(isPresented: $showingAIAssist) {
@@ -545,6 +609,34 @@ struct LaunchAgentDetailView: View {
             let errorMsg = error.localizedDescription
             await MainActor.run { 
                 self.isSaving = false 
+            }
+        }
+    }
+
+    func analyzeAgent() {
+        guard !content.isEmpty else { return }
+        isAnalyzing = true
+        aiAnalysis = nil
+        
+        Task {
+            do {
+                let contextInfo = "File Path: \(agent.path)\nType: macOS LaunchAgent Plist"
+                let prompt = "Explain the following macOS LaunchAgent configuration and provide optimization suggestions in \(languageManager.aiResponseLanguage):\n\nContext:\n\(contextInfo)\n\nContent:\n\(content)\n\nUse Markdown formatting for the response."
+                let systemPrompt = "You are a macOS systems expert. Explain LaunchAgent segments and suggest optimizations."
+                
+                let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: ["prompt": prompt, "system_prompt": systemPrompt])
+                
+                await MainActor.run {
+                    withAnimation {
+                        self.aiAnalysis = response.data
+                        self.isAnalyzing = false
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    self.aiAnalysis = "Error: \(error.localizedDescription)"
+                    self.isAnalyzing = false
+                }
             }
         }
     }

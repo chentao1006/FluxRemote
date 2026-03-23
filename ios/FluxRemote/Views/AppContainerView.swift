@@ -262,6 +262,8 @@ struct QuickTerminalView: View {
     @State private var isTranslating = false
     @State private var isAnalyzingOutput = false
     @State private var aiAnalysis: String?
+    @State private var showingAIPrompt = false
+    @State private var aiPromptText = ""
 
     static let defaultCommands: [QuickCommand] = [
         QuickCommand(name: "monitor.quickCmds.ls", command: "ls -FhG"),
@@ -316,10 +318,19 @@ struct QuickTerminalView: View {
                 
                 // Input Bar
                 VStack(spacing: 0) {
-                    HStack(spacing: 15) {
-                        Image(systemName: "chevron.right.square")
-                            .font(.title3)
-                            .foregroundStyle(.blue)
+                    HStack(spacing: 12) {
+                        Button {
+                            showingAIPrompt = true
+                        } label: {
+                            if isTranslating {
+                                ProgressView().controlSize(.small)
+                            } else {
+                                Image(systemName: "wand.and.sparkles")
+                                    .font(.title3)
+                                    .foregroundStyle(.purple)
+                            }
+                        }
+                        .disabled(isTranslating)
                         
                         TextField(languageManager.t("terminal.placeholder"), text: $command, axis: .vertical)
                             .lineLimit(1...5)
@@ -340,27 +351,14 @@ struct QuickTerminalView: View {
                                     .foregroundStyle(.red)
                             }
                         } else {
-                            HStack(spacing: 8) {
-                                Button(action: translateAI) {
-                                    if isTranslating {
-                                        ProgressView().controlSize(.small)
-                                    } else {
-                                        Image(systemName: "wand.and.sparkles")
-                                            .font(.title2)
-                                            .foregroundStyle(.purple)
-                                    }
-                                }
-                                .disabled(command.isEmpty || isTranslating)
-                                
-                                Button {
-                                    executionTask = Task { await execute() }
-                                } label: {
-                                    Image(systemName: "play.circle.fill")
-                                        .font(.title2)
-                                        .foregroundStyle(command.isEmpty ? Color.secondary : Color.blue)
-                                }
-                                .disabled(command.isEmpty)
+                            Button {
+                                executionTask = Task { await execute() }
+                            } label: {
+                                Image(systemName: "play.circle.fill")
+                                    .font(.title2)
+                                    .foregroundStyle(command.isEmpty ? Color.secondary : Color.blue)
                             }
+                            .disabled(command.isEmpty)
                         }
                     }
                     .padding(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
@@ -397,55 +395,6 @@ struct QuickTerminalView: View {
                                 }
                                 .textSelection(.enabled)
                                 
-                                if isAnalyzingOutput || aiAnalysis != nil {
-                                    VStack(alignment: .leading, spacing: 12) {
-                                        Divider().padding(.vertical, 8)
-                                        HStack {
-                                            Label(languageManager.t("monitor.aiAnalysisTitle"), systemImage: "sparkles")
-                                                .font(.headline)
-                                                .foregroundStyle(.purple)
-                                            Spacer()
-                                            if !isAnalyzingOutput {
-                                                Button {
-                                                    aiAnalysis = nil
-                                                } label: {
-                                                    Image(systemName: "xmark.circle.fill")
-                                                        .foregroundStyle(.secondary)
-                                                }
-                                            }
-                                        }
-                                        
-                                        if isAnalyzingOutput {
-                                            HStack {
-                                                ProgressView().controlSize(.small)
-                                                Text(languageManager.t("common.analyzing"))
-                                                    .font(.subheadline)
-                                                    .foregroundStyle(.secondary)
-                                            }
-                                            .frame(maxWidth: CGFloat.infinity, alignment: .center)
-                                            .padding()
-                                        } else if let analysis = aiAnalysis {
-                                            MarkdownView(text: analysis)
-                                        }
-                                    }
-                                    .padding()
-                                    .background(Color(.secondarySystemGroupedBackground))
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                                    .padding(.horizontal)
-                                    .padding(.bottom)
-                                } else {
-                                    Button(action: analyzeOutput) {
-                                        Label(languageManager.t("monitor.aiAnalyzeBtn"), systemImage: "sparkles")
-                                            .font(.subheadline)
-                                            .padding(.horizontal, 16)
-                                            .padding(.vertical, 8)
-                                            .background(Color.purple.opacity(0.1))
-                                            .foregroundStyle(.purple)
-                                            .clipShape(Capsule())
-                                    }
-                                    .padding()
-                                    .frame(maxWidth: CGFloat.infinity, alignment: .center)
-                                }
                             }
                         }
                     }
@@ -458,6 +407,28 @@ struct QuickTerminalView: View {
                         }
                     }
                 }
+            }
+            .overlay(alignment: .bottom) {
+                if isAnalyzingOutput || aiAnalysis != nil {
+                    AIAnalysisCard(analysis: aiAnalysis, isAnalyzing: isAnalyzingOutput) {
+                        withAnimation { aiAnalysis = nil; isAnalyzingOutput = false }
+                    }
+                    .padding(.bottom, 20)
+                } else if !output.isEmpty && !isExecuting {
+                    Button(action: analyzeOutput) {
+                        Label(languageManager.t("common.aiAnalyze"), systemImage: "sparkle.text.clipboard")
+                            .font(.system(.subheadline, weight: .semibold))
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 12)
+                            .background(.ultraThinMaterial)
+                            .background(Color.purple.opacity(0.75))
+                            .foregroundStyle(.white)
+                            .clipShape(Capsule())
+                            .shadow(color: Color.purple.opacity(0.3), radius: 12, x: 0, y: 6)
+                    }
+                    .padding(.bottom, 30)
+                }
+            }
             .navigationTitle(languageManager.t("terminal.title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -477,11 +448,15 @@ struct QuickTerminalView: View {
             .sheet(isPresented: $showingManageCommands) {
                 ManageCommandsView(commands: $commands)
             }
+            .sheet(isPresented: $showingAIPrompt) {
+                TerminalAIPromptView(text: $aiPromptText) {
+                    translateAI()
+                }
+            }
             .onAppear { loadCommands() }
             .onChange(of: commands) { _, newValue in saveCommands(newValue) }
         }
     }
-}
 
     private func loadCommands() {
         if let decoded = try? JSONDecoder().decode([QuickCommand].self, from: quickCommandsData) {
@@ -545,12 +520,15 @@ struct QuickTerminalView: View {
     }
 
     private func translateAI() {
-        guard !command.isEmpty else { return }
+        guard !aiPromptText.isEmpty else { return }
         isTranslating = true
+        let requirement = aiPromptText
+        aiPromptText = ""
+        
         Task {
             do {
-                let prompt = "Translate this natural language command to a macOS bash command: \"\(command)\". Provide ONLY the command, no explanations, no markdown blocks."
-                let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: ["prompt": prompt])
+                let systemPrompt = "You are a macOS terminal expert. Convert the user's natural language requirement into a valid bash command. CRITICAL: Return ONLY the command itself, NO explanations, NO intro/outro text, and NO Markdown code blocks (e.g. ```)."
+                let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: ["prompt": requirement, "system_prompt": systemPrompt])
                 await MainActor.run {
                     self.command = response.data.trimmingCharacters(in: .whitespacesAndNewlines)
                     self.isTranslating = false
@@ -558,7 +536,6 @@ struct QuickTerminalView: View {
             } catch {
                 await MainActor.run {
                     self.isTranslating = false
-                    // Optionally show alert
                 }
             }
         }
@@ -612,8 +589,6 @@ struct SudoPasswordView: View {
                         .textContentType(.password)
                 } header: {
                     Text(languageManager.t("common.sudoRequired"))
-                } footer: {
-                    Text(languageManager.t("common.sudoPassword"))
                 }
             }
             .navigationTitle(languageManager.t("common.sudoRequired"))
@@ -656,14 +631,20 @@ struct ManageCommandsView: View {
         NavigationStack {
             List {
                 ForEach(commands) { cmd in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(languageManager.t(cmd.name))
-                            .fontWeight(.medium)
-                        Text(cmd.command)
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(.secondary)
+                    Button {
+                        commandToEdit = cmd
+                    } label: {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(languageManager.t(cmd.name))
+                                .fontWeight(.medium)
+                                .foregroundStyle(.primary)
+                            Text(cmd.command)
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
                     }
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    .buttonStyle(.plain)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                         Button(role: .destructive) {
                             if let index = commands.firstIndex(where: { $0.id == cmd.id }) {
                                 commands.remove(at: index)
@@ -671,13 +652,6 @@ struct ManageCommandsView: View {
                         } label: {
                             Label(languageManager.t("common.delete"), systemImage: "trash")
                         }
-                        
-                        Button {
-                            commandToEdit = cmd
-                        } label: {
-                            Label(languageManager.t("common.edit"), systemImage: "pencil")
-                        }
-                        .tint(.orange)
                     }
                 }
                 .onMove { indices, newOffset in
@@ -742,7 +716,7 @@ struct CommandEditorView: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField(languageManager.t("terminal.placeholder"), text: $name)
+                    TextField(languageManager.t("terminal.commandNamePlaceholder"), text: $name)
                         .onAppear {
                             // If it's a built-in key, resolve it to localized text for editing
                             if name.contains("monitor.quickCmds.") {
@@ -778,5 +752,42 @@ struct CommandEditorView: View {
                 }
             }
         }
+    }
+}
+
+struct TerminalAIPromptView: View {
+    @Binding var text: String
+    var onConfirm: () -> Void
+    @Environment(\.dismiss) var dismiss
+    @Environment(AppLanguageManager.self) private var languageManager
+    
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                TextEditor(text: $text)
+                    .font(.body)
+                    .padding(8)
+                    .background(Color(.secondarySystemBackground))
+                    .cornerRadius(12)
+                    .padding()
+                
+                Spacer()
+            }
+            .navigationTitle(languageManager.t("common.aiGenerate"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(languageManager.t("common.cancel")) { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(languageManager.t("common.ok")) {
+                        onConfirm()
+                        dismiss()
+                    }
+                    .disabled(text.isEmpty)
+                }
+            }
+        }
+        .presentationDetents([.height(300)])
     }
 }

@@ -109,7 +109,7 @@ struct ConfigsModuleView: View {
         ZStack {
             List(selection: $selectedConfig) {
                 Section {
-                    if let error = errorMessage {
+                    if let error = errorMessage, configs.isEmpty {
                         ContentUnavailableView(languageManager.t("common.error"), systemImage: "exclamationmark.triangle.fill", description: Text(error))
                     } else if configs.isEmpty && !isLoading {
                         ContentUnavailableView(languageManager.t("configs.noConfigs"), systemImage: "gearshape")
@@ -218,6 +218,7 @@ struct ConfigDetailView: View {
     @Environment(RemoteAPIClient.self) private var apiClient
     @Environment(AppLanguageManager.self) private var languageManager
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var content: String = ""
     @State private var isLoading = true
     @State private var isSaving = false
@@ -225,53 +226,46 @@ struct ConfigDetailView: View {
     @State private var showingError = false
     @State private var showingSudoPrompt = false
     @State private var sudoPassword = ""
-    @State private var showingAIAnalyze = false
+    @State private var isAnalyzing = false
+    @State private var aiAnalysis: String?
     @State private var showingAIAssist = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text(config.path)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .monospaced()
-                    .lineLimit(1)
-                Spacer()
-            }
-            .padding(.horizontal)
-            .padding(.vertical, 4)
-            
             if isLoading {
                 LoadingView()
+            } else {
+                HStack {
+                    Text(config.path)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .monospaced()
+                        .lineLimit(1)
+                    Spacer()
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 4)
+                
+                TextEditor(text: $content)
+                    .font(.system(.caption2, design: .monospaced))
+                    .padding(4)
+                Spacer()
             }
-            TextEditor(text: $content)
-                .font(.system(.caption2, design: .monospaced))
-                .padding(4)
-            Spacer()
         }
         .overlay(alignment: .bottom) {
-            if !isLoading && !content.isEmpty {
-                HStack(spacing: 12) {
-                    Button(action: { showingAIAnalyze = true }) {
-                        Label(languageManager.t("common.aiAnalyze"), systemImage: "sparkle.text.clipboard")
-                            .font(.system(.subheadline, weight: .semibold))
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(Color.purple.opacity(0.15))
-                            .foregroundStyle(.purple)
-                            .clipShape(Capsule())
-                            .shadow(color: Color.purple.opacity(0.2), radius: 8, x: 0, y: 4)
+            if isAnalyzing || aiAnalysis != nil {
+                AIAnalysisCard(analysis: aiAnalysis, isAnalyzing: isAnalyzing) {
+                    withAnimation { aiAnalysis = nil; isAnalyzing = false }
+                }
+                .padding(.bottom, 20)
+            } else if !isLoading && !content.isEmpty {
+                HStack(spacing: horizontalSizeClass == .compact ? 8 : 12) {
+                    AIActionButton(languageManager.t("common.aiAnalyze"), systemImage: "sparkle.text.clipboard", isLoading: isAnalyzing) {
+                        analyzeConfig()
                     }
                     
-                    Button(action: { showingAIAssist = true }) {
-                        Label(languageManager.t("common.aiGenerate"), systemImage: "wand.and.sparkles")
-                            .font(.system(.subheadline, weight: .semibold))
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(Color.purple.opacity(0.15))
-                            .foregroundStyle(.purple)
-                            .clipShape(Capsule())
-                            .shadow(color: Color.purple.opacity(0.2), radius: 8, x: 0, y: 4)
+                    AIActionButton(languageManager.t("common.aiGenerate"), systemImage: "wand.and.sparkles") {
+                        showingAIAssist = true
                     }
                 }
                 .padding(.bottom, 30)
@@ -288,11 +282,6 @@ struct ConfigDetailView: View {
                     }
                 }
                 .disabled(isSaving || isLoading)
-            }
-        }
-        .sheet(isPresented: $showingAIAnalyze) {
-            NavigationStack {
-                AIAnalyzeView(originalContent: content, contextInfo: "File Path: \(config.path)")
             }
         }
         .sheet(isPresented: $showingAIAssist) {
@@ -367,6 +356,34 @@ struct ConfigDetailView: View {
                     self.showingError = true
                 }
                 self.isSaving = false 
+            }
+        }
+    }
+
+    func analyzeConfig() {
+        guard !content.isEmpty else { return }
+        isAnalyzing = true
+        aiAnalysis = nil
+        
+        Task {
+            do {
+                let contextInfo = "File Path: \(config.path)"
+                let prompt = "Explain the following configuration and provide optimization suggestions in \(languageManager.aiResponseLanguage):\n\nContext:\n\(contextInfo)\n\nContent:\n\(content)\n\nUse Markdown formatting for the response."
+                let systemPrompt = "You are a configuration expert. Explain segments and suggest optimizations."
+                
+                let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: ["prompt": prompt, "system_prompt": systemPrompt])
+                
+                await MainActor.run {
+                    withAnimation {
+                        self.aiAnalysis = response.data
+                        self.isAnalyzing = false
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    self.aiAnalysis = "Error: \(error.localizedDescription)"
+                    self.isAnalyzing = false
+                }
             }
         }
     }

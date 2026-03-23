@@ -155,7 +155,7 @@ struct DockerModuleView: View {
             
             List {
                 Section {
-                    if let error = errorMessage {
+                    if let error = errorMessage, containers.isEmpty && images.isEmpty {
                         ContentUnavailableView(languageManager.t("common.error"), systemImage: "exclamationmark.triangle.fill", description: Text(error))
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
@@ -215,10 +215,10 @@ struct DockerModuleView: View {
                         }
                     }
                     .disabled(loadingAction[""] != nil)
-                }
-                
-                Button(action: { showingCommandSheet = true }) {
-                    Image(systemName: "plus")
+                } else {
+                    Button(action: { showingCommandSheet = true }) {
+                        Image(systemName: "plus")
+                    }
                 }
                 
             }
@@ -491,6 +491,7 @@ struct DockerLogView: View {
     @Environment(RemoteAPIClient.self) private var apiClient
     @Environment(AppLanguageManager.self) private var languageManager
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var logs: String = ""
     @State private var isLoading = true
     @State private var timer: Timer?
@@ -569,18 +570,10 @@ struct DockerLogView: View {
                 }
                 .padding(.bottom, 10)
             } else if !isLoading && !logs.isEmpty {
-                Button(action: analyzeLogs) {
-                    Label(languageManager.t("common.aiAnalyze"), systemImage: "sparkle.text.clipboard")
-                        .font(.system(.subheadline, weight: .semibold))
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
-                        .background(Color.purple.opacity(0.15))
-                        .foregroundStyle(.purple)
-                        .clipShape(Capsule())
-                        .shadow(color: Color.purple.opacity(0.2), radius: 8, x: 0, y: 4)
+                AIActionButton(languageManager.t("common.aiAnalyze"), systemImage: "sparkle.text.clipboard", isLoading: isAnalyzing) {
+                    analyzeLogs()
                 }
-                .padding(.bottom, 20)
-                .padding(.horizontal)
+                .padding(.bottom, 30)
             }
         }
     }
@@ -891,7 +884,7 @@ struct DockerAIAssistantView: View {
         
         Task {
             do {
-                let systemPrompt = "Convert the natural language description to a valid `docker run` command. Provide ONLY the command itself, no other text."
+                let systemPrompt = "You are a professional Docker assistant. Convert the description to a valid `docker run` command. CRITICAL: Return ONLY the final command itself, NO explanations, NO intro/outro text, and NO Markdown code block delimiters (e.g. ```)."
                 let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: ["prompt": prompt, "systemPrompt": systemPrompt])
                 
                 await MainActor.run {
