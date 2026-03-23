@@ -8,9 +8,24 @@ struct LaunchAgentModuleView: View {
     @State private var errorMessage: String?
     @State private var selectedAgent: LaunchAgentItem?
     @State private var loadingAction: [String: String] = [:] // [agent.path: action]
-    @State private var confirmDeleteAgent: LaunchAgentItem? = nil
     @State private var searchText = ""
     @State private var showingAddAgent = false
+    @State private var showingSudoPrompt = false
+    @State private var sudoPassword = ""
+    @State private var pendingAction: (String, String)? // (action, path)
+    @State private var activeAlert: LaunchAgentAlert?
+    
+    enum LaunchAgentAlert: Identifiable {
+        case delete(LaunchAgentItem)
+        case error(String)
+        
+        var id: String {
+            switch self {
+            case .delete(let item): return "delete-\(item.path)"
+            case .error(let msg): return "error-\(msg)"
+            }
+        }
+    }
     
     var filteredAgents: [LaunchAgentItem] {
         if searchText.isEmpty { return launchAgents }
@@ -68,23 +83,9 @@ struct LaunchAgentModuleView: View {
                                 actionButton(
                                     icon: "trash",
                                     color: .red,
-                                    isLoading: loadingAction[agent.path] == "remove"
+                                    isLoading: loadingAction[agent.path] == "delete"
                                 ) {
-                                    confirmDeleteAgent = agent
-                                }
-                                .alert(item: $confirmDeleteAgent) { agent in
-                                    Alert(
-                                        title: Text(languageManager.t("launchagent.deleteConfirmTitle")),
-                                        message: Text(String.localizedStringWithFormat(languageManager.t("launchagent.deleteConfirmMessage"), agent.name)),
-                                        primaryButton: .destructive(Text(languageManager.t("launchagent.delete"))) {
-                                            loadingAction[agent.path] = "remove"
-                                            Task {
-                                                await performAction("remove", path: agent.path)
-                                                loadingAction[agent.path] = nil
-                                            }
-                                        },
-                                        secondaryButton: .cancel(Text(languageManager.t("common.cancel")))
-                                    )
+                                    activeAlert = .delete(agent)
                                 }
                             }
                         }
@@ -101,7 +102,11 @@ struct LaunchAgentModuleView: View {
         .navigationTitle(languageManager.t("launchagent.title"))
         .searchable(text: $searchText, prompt: languageManager.t("configs.searchPlaceholder"))
         .refreshable {
-            await fetchData()
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask { await fetchData() }
+                group.addTask { try? await Task.sleep(for: .milliseconds(600)) }
+                await group.waitForAll()
+            }
         }
         .onAppear {
             Task { await fetchData() }
@@ -117,19 +122,10 @@ struct LaunchAgentModuleView: View {
         }
         .sheet(isPresented: $showingAddAgent) {
             NavigationStack {
-                AddAgentNameView { name in
-                    let firstPath = launchAgents.first?.path ?? "/Users/chentao/Library/LaunchAgents/placeholder.plist"
-                    let basePath = firstPath.components(separatedBy: "/").dropLast().joined(separator: "/") + "/"
-                    let fullName = name.hasSuffix(".plist") ? name : name + ".plist"
-                    
-                    selectedAgent = LaunchAgentItem(
-                        name: fullName,
-                        label: fullName.replacingOccurrences(of: ".plist", with: ""),
-                        path: basePath + fullName,
-                        isLoaded: false,
-                        size: 0,
-                        mtime: Int64(Date().timeIntervalSince1970 * 1000)
-                    )
+                AddAgentView { name, content in
+                    Task {
+                        await createAgent(name: name, content: content)
+                    }
                 }
             }
         }
@@ -145,6 +141,38 @@ struct LaunchAgentModuleView: View {
                 }
             }
         }
+        .sheet(isPresented: $showingSudoPrompt) {
+            SudoPasswordView(password: $sudoPassword) {
+                Task {
+                    if let pending = pendingAction {
+                        await performAction(pending.0, path: pending.1)
+                    }
+                }
+            }
+        }
+        .alert(item: $activeAlert) { alert in
+            switch alert {
+            case .delete(let agent):
+                return Alert(
+                    title: Text(languageManager.t("launchagent.deleteConfirmTitle")),
+                    message: Text(String.localizedStringWithFormat(languageManager.t("launchagent.deleteConfirmMessage"), agent.name)),
+                    primaryButton: .destructive(Text(languageManager.t("launchagent.delete"))) {
+                        loadingAction[agent.path] = "delete"
+                        Task {
+                            await performAction("delete", path: agent.path)
+                            loadingAction[agent.path] = nil
+                        }
+                    },
+                    secondaryButton: .cancel(Text(languageManager.t("common.cancel")))
+                )
+            case .error(let message):
+                return Alert(
+                    title: Text(languageManager.t("common.error")),
+                    message: Text(message),
+                    dismissButton: .default(Text(languageManager.t("common.ok")))
+                )
+            }
+        }
     }
     
     func fetchData() async {
@@ -152,6 +180,7 @@ struct LaunchAgentModuleView: View {
             let response: LaunchAgentResponse = try await apiClient.request("/api/launchagent/list")
             await MainActor.run {
                 self.launchAgents = response.data
+                self.errorMessage = nil
                 self.isLoading = false
             }
         } catch {
@@ -162,12 +191,67 @@ struct LaunchAgentModuleView: View {
         }
     }
     
+    func createAgent(name: String, content: String) async {
+        let firstPath = launchAgents.first?.path ?? "/Users/chentao/Library/LaunchAgents/placeholder.plist"
+        let basePath = firstPath.components(separatedBy: "/").dropLast().joined(separator: "/") + "/"
+        let fullName = name.hasSuffix(".plist") ? name : name + ".plist"
+        let path = basePath + fullName
+        
+        do {
+            let body: [String: Any] = ["action": "write", "filePath": path, "content": content]
+            let _: ActionResponse = try await apiClient.request("/api/launchagent/action", method: "POST", body: body)
+            await fetchData()
+            await MainActor.run {
+                self.showingAddAgent = false
+                // Select the new one to show details
+                self.selectedAgent = LaunchAgentItem(
+                    name: fullName,
+                    label: fullName.replacingOccurrences(of: ".plist", with: ""),
+                    path: path,
+                    isLoaded: false,
+                    size: Int64(content.utf8.count),
+                    mtime: Int64(Date().timeIntervalSince1970 * 1000)
+                )
+            }
+        } catch {
+            print("Create agent failed: \(error)")
+            await MainActor.run {
+                self.errorMessage = error.localizedDescription
+            }
+        }
+    }
+    
     func performAction(_ action: String, path: String) async {
         do {
-            let _: ActionResponse = try await apiClient.request("/api/launchagent/action", method: "POST", body: ["action": action, "filePath": path])
+            var body: [String: Any] = ["action": action, "filePath": path]
+            if !sudoPassword.isEmpty {
+                body["sudoPassword"] = sudoPassword
+            }
+            let _: ActionResponse = try await apiClient.request("/api/launchagent/action", method: "POST", body: body)
+            await MainActor.run {
+                self.sudoPassword = ""
+                self.pendingAction = nil
+            }
             await fetchData()
         } catch {
             print("Action failed: \(error)")
+            let errorMsg = error.localizedDescription
+            await MainActor.run {
+                let msg = errorMsg.lowercased()
+                let isPermissionError = msg.contains("sudo_required") || msg.contains("permission_denied") || msg.contains("permission denied") || msg.contains("eacces") || msg.contains("eperm")
+                
+                if isPermissionError && self.sudoPassword.isEmpty {
+                    self.pendingAction = (action, path)
+                    self.showingSudoPrompt = true
+                } else if msg.contains("sudo_password_incorrect") || msg.contains("incorrect password") || msg.contains("auth failed") {
+                    self.activeAlert = .error(languageManager.t("common.passwordIncorrect"))
+                    self.sudoPassword = ""
+                    self.pendingAction = nil
+                } else {
+                    self.activeAlert = .error(errorMsg)
+                    self.pendingAction = nil
+                }
+            }
         }
     }
     
@@ -193,30 +277,69 @@ struct LaunchAgentModuleView: View {
     }
 }
 
-struct AddAgentNameView: View {
+struct AddAgentView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(AppLanguageManager.self) private var languageManager
     @State private var name: String = ""
-    var onAdd: (String) -> Void
+    @State private var content: String = ""
+    var onAdd: (String, String) -> Void
+    
+    init(onAdd: @escaping (String, String) -> Void) {
+        self.onAdd = onAdd
+        _content = State(initialValue: """
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.example.agent</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/path/to/executable</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+</dict>
+</plist>
+""")
+    }
     
     var body: some View {
         Form {
-            Section {
-                TextField(languageManager.t("launchagent.newConfigPrompt"), text: $name)
+            Section(header: Text(languageManager.t("launchagent.newConfigPrompt"))) {
+                TextField("com.example.app.plist", text: $name)
                     .autocapitalization(.none)
                     .disableAutocorrection(true)
+                    .onChange(of: name) { oldValue, newValue in
+                        let newLabel = newValue.replacingOccurrences(of: ".plist", with: "")
+                        if let range = content.range(of: "<key>Label</key>\\s*<string>.*?</string>", options: .regularExpression) {
+                            let oldPart = content[range]
+                            if let stringRange = oldPart.range(of: "<string>.*?</string>", options: .regularExpression) {
+                                let newPart = oldPart.replacingCharacters(in: stringRange, with: "<string>\(newLabel)</string>")
+                                content.replaceSubrange(range, with: newPart)
+                            }
+                        }
+                    }
+            }
+            
+            Section(header: Text(languageManager.t("launchagent.configContent"))) {
+                TextEditor(text: $content)
+                    .font(.system(.caption2, design: .monospaced))
+                    .frame(minHeight: 300)
             }
         }
         .navigationTitle(languageManager.t("launchagent.addConfig"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button(languageManager.t("common.cancel")) { dismiss() }
+                Button(action: { dismiss() }) { Image(systemName: "xmark") }
             }
             ToolbarItem(placement: .confirmationAction) {
-                Button(languageManager.t("common.add")) {
-                    onAdd(name)
+                Button(action: {
+                    onAdd(name, content)
                     dismiss()
+                }) {
+                    Image(systemName: "checkmark")
                 }
                 .disabled(name.isEmpty)
             }
@@ -237,6 +360,8 @@ struct LaunchAgentDetailView: View {
     @State private var errorMessage: String?
     @State private var isSaving = false
     @State private var showingError = false
+    @State private var showingSudoPrompt = false
+    @State private var sudoPassword = ""
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -287,6 +412,11 @@ struct LaunchAgentDetailView: View {
                 Text(error)
             }
         }
+        .sheet(isPresented: $showingSudoPrompt) {
+            SudoPasswordView(password: $sudoPassword) {
+                Task { await saveConfig() }
+            }
+        }
     }
     
     func fetchContent() async {
@@ -314,9 +444,9 @@ struct LaunchAgentDetailView: View {
         
         isLoading = true
         do {
-            let response: ConfigResponse = try await apiClient.request("/api/configs", method: "POST", body: ["action": "read", "id": agent.path])
+            let response: ActionResponse = try await apiClient.request("/api/launchagent/action", method: "POST", body: ["action": "read", "filePath": agent.path])
             await MainActor.run {
-                self.content = response.content ?? ""
+                self.content = response.data ?? ""
                 self.isLoading = false
             }
         } catch {
@@ -332,18 +462,34 @@ struct LaunchAgentDetailView: View {
         isSaving = true
         errorMessage = nil
         do {
-            // Reusing configs API for saving plist
-            let _: ActionResponse = try await apiClient.request("/api/configs", method: "POST", body: ["action": "write", "id": agent.path, "content": content])
+            var body: [String: Any] = ["action": "write", "filePath": agent.path, "content": content]
+            if !sudoPassword.isEmpty {
+                body["sudoPassword"] = sudoPassword
+            }
+            let _: ActionResponse = try await apiClient.request("/api/launchagent/action", method: "POST", body: body)
             await onSave()
             await MainActor.run { 
                 self.isSaving = false
+                self.sudoPassword = ""
                 dismiss()
             }
         } catch {
             print("Save agent plist failed: \(error)")
+            let errorMsg = error.localizedDescription
             await MainActor.run { 
-                self.errorMessage = error.localizedDescription
-                self.showingError = true
+                let msg = errorMsg.lowercased()
+                let isPermissionError = msg.contains("sudo_required") || msg.contains("requirespassword") || msg.contains("permission_denied") || msg.contains("permission denied") || msg.contains("eacces") || msg.contains("eperm")
+                
+                if isPermissionError && self.sudoPassword.isEmpty {
+                    self.showingSudoPrompt = true
+                } else if msg.contains("sudo_password_incorrect") || msg.contains("incorrect password") || msg.contains("auth failed") {
+                    self.errorMessage = languageManager.t("common.passwordIncorrect")
+                    self.showingError = true
+                    self.sudoPassword = ""
+                } else {
+                    self.errorMessage = errorMsg
+                    self.showingError = true
+                }
                 self.isSaving = false 
             }
         }

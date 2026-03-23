@@ -45,7 +45,11 @@ struct ConfigsModuleView: View {
                 Task { await fetchData() }
             }
             .refreshable {
-                await fetchData()
+                await withTaskGroup(of: Void.self) { group in
+                    group.addTask { await fetchData() }
+                    group.addTask { try? await Task.sleep(for: .milliseconds(600)) }
+                    await group.waitForAll()
+                }
             }
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
@@ -66,7 +70,7 @@ struct ConfigsModuleView: View {
                     Button {
                         showingAddConfig = true
                     } label: {
-                        Label(languageManager.t("configs.addPath"), systemImage: "plus")
+                        Image(systemName: "plus")
                     }
                 }
             }
@@ -219,6 +223,8 @@ struct ConfigDetailView: View {
     @State private var isSaving = false
     @State private var errorMessage: String?
     @State private var showingError = false
+    @State private var showingSudoPrompt = false
+    @State private var sudoPassword = ""
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -264,6 +270,11 @@ struct ConfigDetailView: View {
                 Text(error)
             }
         }
+        .sheet(isPresented: $showingSudoPrompt) {
+            SudoPasswordView(password: $sudoPassword) {
+                Task { await saveConfig() }
+            }
+        }
     }
     
     func fetchContent() async {
@@ -284,16 +295,35 @@ struct ConfigDetailView: View {
         isSaving = true
         errorMessage = nil
         do {
-            let _: ActionResponse = try await apiClient.request("/api/configs", method: "POST", body: ["action": "write", "id": config.path, "content": content])
+            var body: [String: Any] = ["action": "write", "id": config.path, "content": content]
+            if !sudoPassword.isEmpty {
+                body["sudoPassword"] = sudoPassword
+            }
+            
+            let _: ActionResponse = try await apiClient.request("/api/configs", method: "POST", body: body)
             await MainActor.run { 
                 self.isSaving = false
+                self.sudoPassword = ""
                 dismiss()
             }
         } catch {
             print("Save config failed: \(error)")
+            let errorMsg = error.localizedDescription
+            
             await MainActor.run { 
-                self.errorMessage = error.localizedDescription
-                self.showingError = true
+                let msg = errorMsg.lowercased()
+                let isPermissionError = msg.contains("sudo_required") || msg.contains("permission_denied") || msg.contains("permission denied") || msg.contains("eacces") || msg.contains("eperm")
+                
+                if isPermissionError && self.sudoPassword.isEmpty {
+                    self.showingSudoPrompt = true
+                } else if msg.contains("sudo_password_incorrect") || msg.contains("incorrect password") || msg.contains("auth failed") {
+                    self.errorMessage = languageManager.t("common.passwordIncorrect")
+                    self.showingError = true
+                    self.sudoPassword = ""
+                } else {
+                    self.errorMessage = errorMsg
+                    self.showingError = true
+                }
                 self.isSaving = false 
             }
         }

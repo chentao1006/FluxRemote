@@ -1,9 +1,6 @@
 import SwiftUI
 
 struct DockerModuleView: View {
-        @State private var confirmDeleteContainer: DockerContainer? = nil
-    @State private var confirmDeleteImage: DockerImage? = nil
-    @State private var confirmPruneImages = false
     @Environment(RemoteAPIClient.self) private var apiClient
     @Environment(AppLanguageManager.self) private var languageManager
     @State private var containers: [DockerContainer] = []
@@ -11,11 +8,42 @@ struct DockerModuleView: View {
     @State private var isLoading = true
     @State private var errorMessage: String?
     @State private var selectedTab: Tab = .containers
-    @State private var selectedContainerForLogs: DockerContainer?
-    @State private var selectedContainerDetail: DockerContainer?
-    @State private var loadingAction: [String: String] = [:] // entry: [container.id: action]
-    @State private var actionError: String? = nil
-    @State private var showingActionError = false
+    @State private var loadingAction: [String: String] = [:] // [id: action]
+    
+    @State private var activeAlert: DockerAlertType? = nil
+    @State private var activeSheet: DockerSheetType? = nil
+    
+    enum DockerAlertType: Identifiable {
+        case prune
+        case actionError(String)
+        case delete(DockerContainer)
+        case restart(DockerContainer)
+        case stop(DockerContainer)
+        case deleteImage(DockerImage)
+        
+        var id: String {
+            switch self {
+            case .prune: return "prune"
+            case .actionError(let e): return "error-\(e)"
+            case .delete(let c): return "delete-\(c.id)"
+            case .restart(let c): return "restart-\(c.id)"
+            case .stop(let c): return "stop-\(c.id)"
+            case .deleteImage(let i): return "rmi-\(i.id)"
+            }
+        }
+    }
+    
+    enum DockerSheetType: Identifiable {
+        case logs(DockerContainer)
+        case detail(DockerContainer)
+        
+        var id: String {
+            switch self {
+            case .logs(let c): return "logs-\(c.id)"
+            case .detail(let c): return "detail-\(c.id)"
+            }
+        }
+    }
     
     enum Tab: String, CaseIterable {
         case containers = "docker.containers"
@@ -23,6 +51,97 @@ struct DockerModuleView: View {
     }
     
     var body: some View {
+        mainContent
+            .navigationTitle(languageManager.t("sidebar.docker"))
+            .toolbar { toolbarContent }
+            .refreshable { await refreshData() }
+            .onAppear { Task { await fetchData() } }
+            .onChange(of: selectedTab) { Task { await fetchData() } }
+            .sheet(item: $activeSheet) { sheet in
+                switch sheet {
+                case .logs(let container):
+                    NavigationStack {
+                        DockerLogView(containerId: container.id, containerName: container.name)
+                            .toolbar {
+                                ToolbarItem(placement: .topBarLeading) {
+                                    Button(action: { activeSheet = nil }) { Image(systemName: "xmark") }
+                                }
+                            }
+                    }
+                case .detail(let container):
+                    NavigationStack {
+                        DockerDetailView(
+                            container: container,
+                            loadingAction: loadingAction,
+                            onAction: { await performAction($0, id: container.id) },
+                            onViewLogs: { activeSheet = .logs(container) }
+                        )
+                        .toolbar {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button(action: { activeSheet = nil }) { Image(systemName: "xmark") }
+                            }
+                        }
+                    }
+                }
+            }
+            .alert(item: $activeAlert) { alert in
+                switch alert {
+                case .prune:
+                    return Alert(
+                        title: Text(languageManager.t("docker.pruneTitle")),
+                        message: Text(languageManager.t("docker.pruneMessage")),
+                        primaryButton: .destructive(Text(languageManager.t("common.delete"))) {
+                            Task { await performAction("prune", id: "") }
+                        },
+                        secondaryButton: .cancel(Text(languageManager.t("common.cancel")))
+                    )
+                case .actionError(let error):
+                    return Alert(
+                        title: Text(languageManager.t("common.error")),
+                        message: Text(error),
+                        dismissButton: .cancel(Text(languageManager.t("common.ok")))
+                    )
+                case .delete(let container):
+                    return Alert(
+                        title: Text(languageManager.t("launchagent.deleteConfirmTitle")),
+                        message: Text(String.localizedStringWithFormat(languageManager.t("launchagent.deleteConfirmMessage"), container.name)),
+                        primaryButton: .destructive(Text(languageManager.t("common.delete"))) {
+                            Task { await performAction("rm", id: container.id) }
+                        },
+                        secondaryButton: .cancel(Text(languageManager.t("common.cancel")))
+                    )
+                case .restart(let container):
+                    return Alert(
+                        title: Text(languageManager.t("common.confirm")),
+                        message: Text(languageManager.t("docker.restartConfirm")),
+                        primaryButton: .destructive(Text(languageManager.t("server.restart"))) {
+                            Task { await performAction("restart", id: container.id) }
+                        },
+                        secondaryButton: .cancel(Text(languageManager.t("common.cancel")))
+                    )
+                case .stop(let container):
+                    return Alert(
+                        title: Text(languageManager.t("common.confirm")),
+                        message: Text(languageManager.t("docker.stopConfirm")),
+                        primaryButton: .destructive(Text(languageManager.t("common.stop"))) {
+                            Task { await performAction("stop", id: container.id) }
+                        },
+                        secondaryButton: .cancel(Text(languageManager.t("common.cancel")))
+                    )
+                case .deleteImage(let image):
+                    return Alert(
+                        title: Text(languageManager.t("docker.deleteImageTitle")),
+                        message: Text(String.localizedStringWithFormat(languageManager.t("docker.deleteImageMessage"), image.repository)),
+                        primaryButton: .destructive(Text(languageManager.t("common.delete"))) {
+                            Task { await performAction("rmi", id: image.id) }
+                        },
+                        secondaryButton: .cancel(Text(languageManager.t("common.cancel")))
+                    )
+                }
+            }
+    }
+    
+    private var mainContent: some View {
         ZStack {
             Color(uiColor: .systemGroupedBackground).ignoresSafeArea()
             
@@ -62,86 +181,42 @@ struct DockerModuleView: View {
                 LoadingView()
             }
         }
-        .navigationTitle(languageManager.t("sidebar.docker"))
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Picker("Tabs", selection: $selectedTab) {
-                    ForEach(Tab.allCases, id: \.self) { tab in
-                        Text(languageManager.t(tab.rawValue)).tag(tab)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 200)
-            }
-            
-            ToolbarItem(placement: .topBarTrailing) {
-                if selectedTab == .images {
-                    Button {
-                        confirmPruneImages = true
-                    } label: {
-                        if loadingAction[""] == "prune" {
-                            ProgressView()
-                        } else {
-                            Image(systemName: "trash")
-                                .foregroundStyle(.red)
-                        }
-                    }
-                    .disabled(loadingAction[""] != nil)
+    }
+    
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .principal) {
+            Picker("Tabs", selection: $selectedTab) {
+                ForEach(Tab.allCases, id: \.self) { tab in
+                    Text(languageManager.t(tab.rawValue)).tag(tab)
                 }
             }
+            .pickerStyle(.segmented)
+            .frame(width: 200)
         }
-        .alert(languageManager.t("docker.pruneTitle"), isPresented: $confirmPruneImages) {
-            Button(languageManager.t("common.delete"), role: .destructive) {
-                Task {
-                    await performAction("prune", id: "")
-                }
-            }
-            Button(languageManager.t("common.cancel"), role: .cancel) { }
-        } message: {
-            Text(languageManager.t("docker.pruneMessage"))
-        }
-        .alert(languageManager.t("common.error"), isPresented: $showingActionError) {
-            Button(languageManager.t("common.ok"), role: .cancel) { }
-        } message: {
-            Text(actionError ?? "")
-        }
-        .refreshable {
-            await fetchData()
-        }
-        .onAppear {
-            Task { await fetchData() }
-        }
-        .onChange(of: selectedTab) {
-            Task { await fetchData() }
-        }
-        .sheet(item: $selectedContainerForLogs) { container in
-            NavigationStack {
-                DockerLogView(containerId: container.id, containerName: container.name)
-                    .toolbar {
-                        ToolbarItem(placement: .topBarLeading) {
-                            Button(action: { selectedContainerForLogs = nil }) { Image(systemName: "xmark") }
-                        }
-                    }
-            }
-        }
-        .sheet(item: $selectedContainerDetail) { container in
-            NavigationStack {
-                DockerDetailView(
-                    container: container,
-                    loadingAction: loadingAction,
-                    onAction: { action in
-                        await performAction(action, id: container.id)
-                    },
-                    onViewLogs: {
-                        selectedContainerForLogs = container
-                    }
-                )
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button(action: { selectedContainerDetail = nil }) { Image(systemName: "xmark") }
+        
+        ToolbarItem(placement: .topBarTrailing) {
+            if selectedTab == .images {
+                Button {
+                    activeAlert = .prune
+                } label: {
+                    if loadingAction[""] == "prune" {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "trash")
+                            .foregroundStyle(.red)
                     }
                 }
+                .disabled(loadingAction[""] != nil)
             }
+        }
+    }
+    
+    private func refreshData() async {
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await fetchData() }
+            group.addTask { try? await Task.sleep(for: .milliseconds(600)) }
+            await group.waitForAll()
         }
     }
     
@@ -151,107 +226,96 @@ struct DockerModuleView: View {
 
     private var containerList: some View {
         ForEach(Array(containers.enumerated()), id: \.element.id) { index, container in
-            Button {
-                selectedContainerDetail = container
-            } label: {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(alignment: .top) {
-                        StatusBadge(status: container.state, size: 14)
-                        VStack(alignment: .leading) {
-                            Text(container.name)
-                                .font(.headline)
-                                .fontWeight(.bold)
-                            Text(container.image)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
+            VStack(alignment: .leading, spacing: 12) {
+                // Main info row
+                HStack(alignment: .top) {
+                    StatusBadge(status: container.state, size: 14)
+                        .padding(.top, 4)
+                    VStack(alignment: .leading) {
+                        Text(container.name)
+                            .font(.headline)
+                            .fontWeight(.bold)
+                        Text(container.image)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                    
+                    // Log button at the top right of the row
+                    Button {
+                        activeSheet = .logs(container)
+                    } label: {
+                        Image(systemName: "doc.text")
+                            .font(.subheadline)
+                            .foregroundStyle(.blue)
+                            .frame(width: 32, height: 32)
+                            .background(Color.blue.opacity(0.1))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    activeSheet = .detail(container)
+                }
+                
+                // Status and Buttons row
+                HStack(alignment: .center) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(container.status)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
                         
-                        Spacer()
+                        if !container.ports.isEmpty {
+                            HStack(spacing: 4) {
+                                Image(systemName: "network")
+                                    .font(.system(size: 10))
+                                Text(container.ports)
+                                    .font(.system(size: 10, design: .monospaced))
+                            }
+                            .foregroundStyle(.blue)
+                        }
                     }
                     
-                    HStack(alignment: .bottom) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(container.status)
-                                .font(.system(size: 10))
-                                .foregroundStyle(.secondary)
-                            
-                            if !container.ports.isEmpty {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "network")
-                                        .font(.system(size: 10))
-                                    Text(container.ports)
-                                        .font(.system(size: 10, design: .monospaced))
-                                }
-                                .foregroundStyle(.blue)
+                    Spacer()
+                    
+                    HStack(spacing: 12) {
+                        let isRunning = container.state == "running"
+                        if isRunning {
+                            actionButton(icon: "arrow.clockwise", color: .orange, isLoading: loadingAction[container.id] == "restart") {
+                                await MainActor.run { activeAlert = .restart(container) }
                             }
-                        }
-                        
-                        Spacer()
-                        
-                        HStack(spacing: 8) {
-                            Button {
-                                selectedContainerForLogs = container
-                            } label: {
-                                Image(systemName: "doc.text")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.blue)
-                                    .frame(width: 32, height: 32)
-                                    .background(Color.blue.opacity(0.1))
-                                    .clipShape(Circle())
+                            actionButton(icon: "stop", color: .red, isLoading: loadingAction[container.id] == "stop") {
+                                await MainActor.run { activeAlert = .stop(container) }
                             }
-                            
-                            let isRunning = container.state == "running"
-                            if isRunning {
-                                actionButton(icon: "arrow.clockwise", color: .orange, isLoading: loadingAction[container.id] == "restart") {
-                                    await performAction("restart", id: container.id)
-                                }
-                                actionButton(icon: "stop", color: .red, isLoading: loadingAction[container.id] == "stop") {
-                                    await performAction("stop", id: container.id)
-                                }
-                            } else {
-                                actionButton(icon: "play", color: .green, isLoading: loadingAction[container.id] == "start") {
-                                    await performAction("start", id: container.id)
-                                }
-                                actionButton(icon: "trash", color: .red, isLoading: loadingAction[container.id] == "rm") {
-                                    confirmDeleteContainer = container
-                                }
+                        } else {
+                            actionButton(icon: "play", color: .green, isLoading: loadingAction[container.id] == "start") {
+                                await performAction("start", id: container.id)
+                            }
+                            actionButton(icon: "trash", color: .red, isLoading: loadingAction[container.id] == "rm") {
+                                await MainActor.run { activeAlert = .delete(container) }
                             }
                         }
                     }
                 }
-                .padding(.vertical, 6)
             }
-            .buttonStyle(.plain)
+            .padding(.vertical, 8)
             .swipeActions(edge: .trailing) {
                 Button(role: .destructive) {
-                    confirmDeleteContainer = container
+                    activeAlert = .delete(container)
                 } label: {
                     Label(languageManager.t("common.delete"), systemImage: "trash")
                 }
                 
                 Button {
-                    selectedContainerForLogs = container
+                    activeSheet = .logs(container)
                 } label: {
                     Label(languageManager.t("docker.viewLogs"), systemImage: "doc.text")
                 }
                 .tint(.blue)
             }
             .listRowSeparator(index == 0 ? .hidden : .visible, edges: .top)
-        }
-        .alert(item: $confirmDeleteContainer) { container in
-            Alert(
-                title: Text(languageManager.t("launchagent.deleteConfirmTitle")),
-                message: Text(String.localizedStringWithFormat(languageManager.t("launchagent.deleteConfirmMessage"), container.name)),
-                primaryButton: .destructive(Text(languageManager.t("launchagent.delete"))) {
-                    Task {
-                        loadingAction[container.id] = "rm"
-                        await performAction("rm", id: container.id)
-                        loadingAction[container.id] = nil
-                    }
-                },
-                secondaryButton: .cancel(Text(languageManager.t("common.cancel")))
-            )
         }
     }
     
@@ -285,7 +349,7 @@ struct DockerModuleView: View {
                 
                 if image.inUse != true {
                     actionButton(icon: "trash", color: .red, isLoading: loadingAction[image.id] == "rmi") {
-                        await MainActor.run { confirmDeleteImage = image }
+                        await MainActor.run { activeAlert = .deleteImage(image) }
                     }
                 } else {
                     // Placeholder to keep spacing consistent if needed, or just let Spacer take it
@@ -294,18 +358,6 @@ struct DockerModuleView: View {
             }
             .padding(.vertical, 6)
             .listRowSeparator(index == 0 ? .hidden : .visible, edges: .top)
-        }
-        .alert(item: $confirmDeleteImage) { image in
-            Alert(
-                title: Text(languageManager.t("docker.deleteImageTitle")),
-                message: Text(String.localizedStringWithFormat(languageManager.t("docker.deleteImageMessage"), image.repository)),
-                primaryButton: .destructive(Text(languageManager.t("common.delete"))) {
-                    Task {
-                        await performAction("rmi", id: image.id)
-                    }
-                },
-                secondaryButton: .cancel(Text(languageManager.t("common.cancel")))
-            )
         }
     }
     
@@ -408,14 +460,12 @@ struct DockerModuleView: View {
                         Task { await fetchData() }
                     }
                 } else {
-                    self.actionError = response.details ?? response.error ?? languageManager.t("common.failed")
-                    self.showingActionError = true
+                    self.activeAlert = .actionError(response.details ?? response.error ?? languageManager.t("common.failed"))
                 }
             }
         } catch {
             await MainActor.run {
-                self.actionError = error.localizedDescription
-                self.showingActionError = true
+                self.activeAlert = .actionError(error.localizedDescription)
             }
         }
     }
@@ -524,6 +574,9 @@ struct DockerDetailView: View {
     @Environment(AppLanguageManager.self) private var languageManager
     @Environment(\.dismiss) private var dismiss
     @State private var confirmDelete = false
+    @State private var confirmRestart = false
+    @State private var confirmStop = false
+    @State private var showingLogs = false
     
     var body: some View {
         List {
@@ -531,6 +584,12 @@ struct DockerDetailView: View {
                 detailRow(label: languageManager.t("common.name"), value: container.name)
                 detailRow(label: languageManager.t("common.id"), value: container.id.prefix(12).lowercased())
                 detailRow(label: languageManager.t("docker.image"), value: container.image)
+                if let command = container.command {
+                    detailRow(label: languageManager.t("docker.command"), value: command)
+                }
+                if let created = container.createdAt {
+                    detailRow(label: languageManager.t("docker.createdAt"), value: created)
+                }
             }
             
             Section(languageManager.t("docker.status")) {
@@ -561,30 +620,23 @@ struct DockerDetailView: View {
         .navigationTitle(container.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                HStack(spacing: 20) {
-                    Button(action: {
-                        dismiss()
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            onViewLogs()
-                        }
-                    }) {
-                        Image(systemName: "doc.text")
-                            .foregroundStyle(.blue)
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                NavigationLink(destination: DockerLogView(containerId: container.id, containerName: container.name)) {
+                    Image(systemName: "doc.text")
+                        .foregroundStyle(.blue)
+                }
+                
+                let isRunning = container.state == "running"
+                if isRunning {
+                    toolbarButton(icon: "arrow.clockwise", color: .orange, isLoading: loadingAction[container.id] == "restart") {
+                        confirmRestart = true
                     }
-                    
-                    let isRunning = container.state == "running"
-                    if isRunning {
-                        toolbarButton(icon: "arrow.clockwise", color: .orange, isLoading: loadingAction[container.id] == "restart") {
-                            await onAction("restart")
-                        }
-                        toolbarButton(icon: "stop", color: .red, isLoading: loadingAction[container.id] == "stop") {
-                            await onAction("stop")
-                        }
-                    } else {
-                        toolbarButton(icon: "play", color: .green, isLoading: loadingAction[container.id] == "start") {
-                            await onAction("start")
-                        }
+                    toolbarButton(icon: "stop", color: .red, isLoading: loadingAction[container.id] == "stop") {
+                        confirmStop = true
+                    }
+                } else {
+                    toolbarButton(icon: "play", color: .green, isLoading: loadingAction[container.id] == "start") {
+                        await onAction("start")
                     }
                 }
             }
@@ -599,6 +651,22 @@ struct DockerDetailView: View {
             Button(languageManager.t("common.cancel"), role: .cancel) { }
         } message: {
             Text(String.localizedStringWithFormat(languageManager.t("launchagent.deleteConfirmMessage"), container.name))
+        }
+        .alert(languageManager.t("common.confirm"), isPresented: $confirmRestart) {
+            Button(languageManager.t("server.restart"), role: .destructive) {
+                Task { await onAction("restart") }
+            }
+            Button(languageManager.t("common.cancel"), role: .cancel) { }
+        } message: {
+            Text(languageManager.t("docker.restartConfirm"))
+        }
+        .alert(languageManager.t("common.confirm"), isPresented: $confirmStop) {
+            Button(languageManager.t("common.stop"), role: .destructive) {
+                Task { await onAction("stop") }
+            }
+            Button(languageManager.t("common.cancel"), role: .cancel) { }
+        } message: {
+            Text(languageManager.t("docker.stopConfirm"))
         }
     }
     

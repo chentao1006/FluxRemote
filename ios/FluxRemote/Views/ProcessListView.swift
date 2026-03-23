@@ -108,6 +108,13 @@ struct ProcessListView: View {
         }
         .navigationTitle(languageManager.t("processes.title"))
         .searchable(text: $searchText, prompt: languageManager.t("processes.searchPlaceholder"))
+        .refreshable {
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask { await fetchData() }
+                group.addTask { try? await Task.sleep(for: .milliseconds(600)) }
+                await group.waitForAll()
+            }
+        }
         // 自动静默刷新
         .onAppear {
             Task { await fetchData() }
@@ -147,7 +154,7 @@ struct ProcessListView: View {
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "person")
-                        Text(selectedUser == "All" ? languageManager.t("common.all") : selectedUser).lineLimit(1)
+                        Text(selectedUser == "All" ? languageManager.t("common.all") : selectedUser)
                             .font(.caption2)
                     }
                 }

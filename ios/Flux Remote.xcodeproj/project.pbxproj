@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		110000000000000000000001 /* FluxRemoteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000011 /* FluxRemoteApp.swift */; };
 		110000000000000000000002 /* Core/RemoteAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000012 /* Core/RemoteAPIClient.swift */; };
+		110000000000000000000003 /* Core/AppLanguageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000013 /* Core/AppLanguageManager.swift */; };
+		11000000000000000000000C /* Core/NavigationItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001C /* Core/NavigationItem.swift */; };
 		110000000000000000000004 /* Views/FluxLoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000014 /* Views/FluxLoginView.swift */; };
 		110000000000000000000007 /* Views/DockerModuleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000017 /* Views/DockerModuleView.swift */; };
 		110000000000000000000008 /* Views/NginxModuleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000018 /* Views/NginxModuleView.swift */; };
@@ -30,6 +32,8 @@
 /* Begin PBXFileReference section */
 		110000000000000000000011 /* FluxRemoteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FluxRemoteApp.swift; sourceTree = "<group>"; };
 		110000000000000000000012 /* Core/RemoteAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/RemoteAPIClient.swift; sourceTree = "<group>"; };
+		110000000000000000000013 /* Core/AppLanguageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/AppLanguageManager.swift; sourceTree = "<group>"; };
+		11000000000000000000001C /* Core/NavigationItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/NavigationItem.swift; sourceTree = "<group>"; };
 		110000000000000000000014 /* Views/FluxLoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/FluxLoginView.swift; sourceTree = "<group>"; };
 		110000000000000000000017 /* Views/DockerModuleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/DockerModuleView.swift; sourceTree = "<group>"; };
 		110000000000000000000018 /* Views/NginxModuleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/NginxModuleView.swift; sourceTree = "<group>"; };
@@ -77,6 +81,8 @@
 				C6C798312F6FC0F50036158B /* InfoPlist.strings */,
 				110000000000000000000011 /* FluxRemoteApp.swift */,
 				110000000000000000000012 /* Core/RemoteAPIClient.swift */,
+				11000000000000000000001C /* Core/NavigationItem.swift */,
+				110000000000000000000013 /* Core/AppLanguageManager.swift */,
 				110000000000000000000014 /* Views/FluxLoginView.swift */,
 				110000000000000000000017 /* Views/DockerModuleView.swift */,
 				110000000000000000000018 /* Views/NginxModuleView.swift */,
@@ -179,6 +185,8 @@
 				C6C798512F6FC1170036158B /* Components/LoadingView.swift in Sources */,
 				110000000000000000000001 /* FluxRemoteApp.swift in Sources */,
 				110000000000000000000002 /* Core/RemoteAPIClient.swift in Sources */,
+				11000000000000000000000C /* Core/NavigationItem.swift in Sources */,
+				110000000000000000000003 /* Core/AppLanguageManager.swift in Sources */,
 				110000000000000000000004 /* Views/FluxLoginView.swift in Sources */,
 				110000000000000000000007 /* Views/DockerModuleView.swift in Sources */,
 				110000000000000000000008 /* Views/NginxModuleView.swift in Sources */,

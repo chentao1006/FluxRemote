@@ -2,65 +2,6 @@ import Foundation
 import Observation
 import SwiftUI
 
-// MARK: - Language Management
-
-enum AppLanguage: String, CaseIterable, Identifiable {
-    case system = "system"
-    case chinese = "zh-Hans"
-    case english = "en"
-    
-    var id: String { self.rawValue }
-    
-    var locale: Locale? {
-        switch self {
-        case .system: return nil
-        case .chinese: return Locale(identifier: "zh-Hans")
-        case .english: return Locale(identifier: "en")
-        }
-    }
-    
-    var displayNameKey: String {
-        switch self {
-        case .system: return "common.systemDefault"
-        case .chinese: return "简体中文"
-        case .english: return "English"
-        }
-    }
-}
-
-@MainActor
-@Observable
-class AppLanguageManager {
-    var selectedLanguage: AppLanguage {
-        didSet {
-            UserDefaults.standard.set(selectedLanguage.rawValue, forKey: "app_language")
-        }
-    }
-    
-    init() {
-        let saved = UserDefaults.standard.string(forKey: "app_language") ?? "system"
-        self.selectedLanguage = AppLanguage(rawValue: saved) ?? .system
-    }
-    
-    func t(_ key: String) -> String {
-        let langCode = selectedLanguage == .system ? nil : selectedLanguage.rawValue
-        
-        // 1. Try to find the bundle for the selected language
-        if let langCode = langCode,
-           let path = Bundle.main.path(forResource: langCode, ofType: "lproj"),
-           let bundle = Bundle(path: path) {
-            let result = bundle.localizedString(forKey: key, value: nil, table: nil)
-            if result != key {
-                return result
-            }
-        }
-        
-        // 2. Fallback to NSLocalizedString which handles system language correctly
-        // and also looks into the main bundle for .xcstrings entries.
-        return NSLocalizedString(key, value: key, comment: "")
-    }
-}
-
 // MARK: - Remote API Client
 
 @MainActor
@@ -72,6 +13,7 @@ class RemoteAPIClient {
     var isLoading: Bool = false
     var errorMessage: String?
     var features: FeatureToggles = FeatureToggles()
+    var languageManager: AppLanguageManager?
     
     let session: URLSession
     
@@ -163,6 +105,11 @@ class RemoteAPIClient {
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
         }
         
+        // Set dynamic Accept-Language
+        if let lang = languageManager?.selectedLanguage, lang != .system {
+            request.setValue(lang.rawValue, forHTTPHeaderField: "Accept-Language")
+        }
+        
         let (data, response) = try await session.data(for: request)
         
         if let httpResponse = response as? HTTPURLResponse, !(200...299).contains(httpResponse.statusCode) {
@@ -198,7 +145,14 @@ class RemoteAPIClient {
         request.cachePolicy = .reloadIgnoringLocalCacheData
         
         request.setValue("*/*", forHTTPHeaderField: "Accept")
-        request.setValue("zh-CN,zh-Hans;q=0.9", forHTTPHeaderField: "Accept-Language")
+        
+        // Set dynamic Accept-Language
+        if let lang = languageManager?.selectedLanguage, lang != .system {
+            request.setValue(lang.rawValue, forHTTPHeaderField: "Accept-Language")
+        } else {
+            request.setValue("zh-Hans,en;q=0.9", forHTTPHeaderField: "Accept-Language")
+        }
+        
         request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
         request.setValue("no-cache", forHTTPHeaderField: "Pragma")
         request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.3.1 Safari/605.1.15", forHTTPHeaderField: "User-Agent")

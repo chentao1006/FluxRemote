@@ -16,35 +16,16 @@ struct SettingsView: View {
                     .frame(maxWidth: .infinity)
                     .listRowBackground(Color.clear)
             } else {
-                Section(header: Text(languageManager.t("settings.language"))) {
-                    Picker(languageManager.t("settings.language"), selection: Bindable(languageManager).selectedLanguage) {
-                        ForEach(AppLanguage.allCases) { lang in
-                            Text(lang.displayNameKey == "common.systemDefault" ? languageManager.t(lang.displayNameKey) : lang.displayNameKey).tag(lang)
-                        }
-                    }
-                }
-
                 Section(header: Text(languageManager.t("settings.connection"))) {
                     LabeledContent(languageManager.t("settings.server"), value: apiClient.baseURL?.absoluteString ?? languageManager.t("common.none"))
                     LabeledContent(languageManager.t("settings.version"), value: serverSettings?.version ?? languageManager.t("common.unknown"))
                 }
                 
-                Section(header: Text(languageManager.t("settings.aiConfig"))) {
-                    TextField(languageManager.t("common.url"), text: Binding(
-                        get: { serverSettings?.ai?.url ?? "" },
-                        set: { serverSettings?.ai?.url = $0; triggerAutoSave() }
-                    ))
-                    SecureField(languageManager.t("login.password"), text: Binding(
-                        get: { serverSettings?.ai?.key ?? "" },
-                        set: { serverSettings?.ai?.key = $0; triggerAutoSave() }
-                    ))
-                    #if os(iOS)
-                    .textContentType(.password)
-                    #endif
-                    TextField(languageManager.t("settings.model"), text: Binding(
-                        get: { serverSettings?.ai?.model ?? "" },
-                        set: { serverSettings?.ai?.model = $0; triggerAutoSave() }
-                    ))
+                Section(languageManager.t("settings.account")) {
+                    LabeledContent(languageManager.t("settings.currentUser"), value: apiClient.currentUser ?? languageManager.t("common.unknown"))
+                    Button(languageManager.t("settings.logout"), role: .destructive) {
+                        apiClient.logout()
+                    }
                 }
                 
                 Section(header: Text(languageManager.t("settings.featureControl"))) {
@@ -57,20 +38,35 @@ struct SettingsView: View {
                     Toggle(languageManager.t("sidebar.nginx"), isOn: featureBinding(\.nginx))
                 }
                 
-                Section(languageManager.t("settings.account")) {
-                    LabeledContent(languageManager.t("settings.currentUser"), value: apiClient.currentUser ?? languageManager.t("common.unknown"))
-                    Button(languageManager.t("settings.syncData"), action: { Task { await fetchData() } })
-                    Button(languageManager.t("settings.logout"), role: .destructive) {
-                        apiClient.logout()
+                Section(header: Text(languageManager.t("settings.aiConfig"))) {
+                    TextField(languageManager.t("settings.url"), text: Binding(
+                        get: { serverSettings?.ai?.url ?? "" },
+                        set: { serverSettings?.ai?.url = $0; triggerAutoSave() }
+                    ))
+                    SecureField(languageManager.t("settings.apiKey"), text: Binding(
+                        get: { serverSettings?.ai?.key ?? "" },
+                        set: { serverSettings?.ai?.key = $0; triggerAutoSave() }
+                    ))
+                    #if os(iOS)
+                    .textContentType(.password)
+                    #endif
+                    TextField(languageManager.t("settings.model"), text: Binding(
+                        get: { serverSettings?.ai?.model ?? "" },
+                        set: { serverSettings?.ai?.model = $0; triggerAutoSave() }
+                    ))
+                }
+
+                Section(header: Text(languageManager.t("settings.language"))) {
+                    Picker(languageManager.t("settings.language"), selection: Bindable(languageManager).selectedLanguage) {
+                        ForEach(AppLanguage.allCases) { lang in
+                            Text(lang.displayNameKey == "common.systemDefault" ? languageManager.t(lang.displayNameKey) : lang.displayNameKey).tag(lang)
+                        }
                     }
                 }
-                
-                Section(header: Text(languageManager.t("settings.localSettings"))) {
-                    Text(languageManager.t("settings.iosAppDesc"))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
             }
+        }
+        .refreshable {
+            await fetchData()
         }
         .navigationTitle(languageManager.t("sidebar.settings"))
         .toolbar {
@@ -109,7 +105,9 @@ struct SettingsView: View {
     }
     
     func fetchData() async {
-        isLoading = true
+        if serverSettings == nil {
+            isLoading = true
+        }
         do {
             let response: ServerSettingsResponse = try await apiClient.request("/api/settings")
             await MainActor.run {

@@ -2,8 +2,16 @@ import SwiftUI
 
 @main
 struct FluxRemoteApp: App {
-    @State private var apiClient = RemoteAPIClient()
-    @State private var languageManager = AppLanguageManager()
+    @State private var apiClient: RemoteAPIClient
+    @State private var languageManager: AppLanguageManager
+    
+    init() {
+        let lm = AppLanguageManager()
+        let api = RemoteAPIClient()
+        api.languageManager = lm
+        self._apiClient = State(wrappedValue: api)
+        self._languageManager = State(wrappedValue: lm)
+    }
     
     var body: some Scene {
         WindowGroup {

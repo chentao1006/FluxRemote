@@ -12,6 +12,7 @@ struct DashboardView: View {
     @State private var prevNetBytes: RemoteNetBytes?
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Binding var selection: NavigationItem?
     
     struct MetricPoint: Identifiable {
         let id = UUID()
@@ -25,6 +26,15 @@ struct DashboardView: View {
     @State private var terminalOutput: String = ""
     @State private var isExecutingCommand = false
     
+    // Summary states
+    @State private var dockerSummary: (running: Int, total: Int) = (0, 0)
+    @State private var nginxSummary: (active: Int, total: Int) = (0, 0)
+    @State private var procSummary: (total: Int, topName: String, topCpu: String) = (0, "", "")
+    @State private var agentSummary: (loaded: Int, total: Int) = (0, 0)
+    @State private var logSummary: (total: Int, lastFile: String) = (0, "")
+    @State private var configSummary: (total: Int, sysCount: Int, userCount: Int) = (0, 0, 0)
+    
+    private var features: FeatureToggles { apiClient.features }
 
     // 判断是否为 iPhone 横屏
     var isIPhoneLandscape: Bool {
@@ -79,13 +89,14 @@ struct DashboardView: View {
     
     @ViewBuilder
     private var mainContent: some View {
-        Group {
-            if let stats {
-                ScrollView {
+        ScrollView {
+            Group {
+                if let stats {
                     VStack(spacing: 20) {
                         // Metric Charts Section
                         VStack(alignment: .leading, spacing: 12) {
-                            Text(languageManager.t("monitor.title"))
+                            // ... (rest of stats content remains the same, but without its own ScrollView wrapper)
+                            Text(languageManager.t("monitor.metrics"))
                                 .font(.headline)
                                 .padding(.horizontal)
                             
@@ -110,6 +121,82 @@ struct DashboardView: View {
                                          color: .green, 
                                          data: history, 
                                          isNetwork: true)
+                            }
+                            .padding(.horizontal)
+                        }
+                        
+                        // Summary Modules Section
+                        VStack(alignment: .leading, spacing: 12) {
+                            // ... (rest of summaries block)
+                            Text(languageManager.t("monitor.sections"))
+                                .font(.headline)
+                                .padding(.horizontal)
+                            
+                            let summaryColumns = horizontalSizeClass == .regular ? 
+                                [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())] : 
+                                [GridItem(.flexible()), GridItem(.flexible())]
+                            
+                            LazyVGrid(columns: summaryColumns, spacing: 12) {
+                                if features.processes != false {
+                                    SummaryCard(
+                                        icon: "square.stack.3d.up.fill",
+                                        title: languageManager.t("sidebar.processes"),
+                                        value: Text(procSummary.topName.isEmpty ? "\(procSummary.total)" : procSummary.topName).font(.system(size: 18, weight: .bold)),
+                                        subtitle: procSummary.topName.isEmpty ? "" : "\(procSummary.total) \(languageManager.t("monitor.processes"))",
+                                        rightLabel: procSummary.topCpu,
+                                        action: { selection = .processes }
+                                    )
+                                }
+                                
+                                if features.logs != false {
+                                    SummaryCard(
+                                        icon: "doc.text.fill",
+                                        title: languageManager.t("sidebar.logs"),
+                                        value: Text(logSummary.lastFile.isEmpty ? languageManager.t("common.none") : logSummary.lastFile).font(.system(size: 18, weight: .bold)),
+                                        subtitle: "\(logSummary.total) \(languageManager.t("monitor.logs"))",
+                                        action: { selection = .logs }
+                                    )
+                                }
+                                
+                                if features.configs != false {
+                                    SummaryCard(
+                                        icon: "gearshape.2.fill",
+                                        title: languageManager.t("sidebar.configs"),
+                                        value: formattedConfigSummary,
+                                        subtitle: "\(configSummary.total) \(languageManager.t("monitor.configs"))",
+                                        action: { selection = .configs }
+                                    )
+                                }
+                                
+                                if features.launchagent != false {
+                                    SummaryCard(
+                                        icon: "bolt.fill",
+                                        title: languageManager.t("sidebar.launchagent"),
+                                        value: Text("\(agentSummary.loaded) / \(agentSummary.total)").font(.system(size: 18, weight: .bold)),
+                                        subtitle: languageManager.t("launchagent.totalAgents"),
+                                        action: { selection = .launchagent }
+                                    )
+                                }
+                                
+                                if features.docker != false {
+                                    SummaryCard(
+                                        icon: "cube.fill",
+                                        title: languageManager.t("sidebar.docker"),
+                                        value: Text("\(dockerSummary.running) / \(dockerSummary.total)").font(.system(size: 18, weight: .bold)),
+                                        subtitle: languageManager.t("docker.running"),
+                                        action: { selection = .docker }
+                                    )
+                                }
+                                
+                                if features.nginx != false {
+                                    SummaryCard(
+                                        icon: "server.rack",
+                                        title: languageManager.t("sidebar.nginx"),
+                                        value: Text("\(nginxSummary.active) / \(nginxSummary.total)").font(.system(size: 18, weight: .bold)),
+                                        subtitle: languageManager.t("nginx.activeSites"),
+                                        action: { selection = .nginx }
+                                    )
+                                }
                             }
                             .padding(.horizontal)
                         }
@@ -143,35 +230,113 @@ struct DashboardView: View {
                         }
                     }
                     .padding(.vertical)
-                    .refreshable {
-                        await fetchData()
+                } else if let error = errorMessage {
+                    ContentUnavailableView {
+                        Label(languageManager.t("common.error"), systemImage: "wifi.exclamationmark.fill")
+                    } description: {
+                        Text(error)
+                    } actions: {
+                        Button(languageManager.t("common.retry")) {
+                            Task {
+                                self.errorMessage = nil
+                                await fetchData()
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .padding(.top)
                     }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 100)
+                } else {
+                    VStack {
+                        Spacer()
+                        LoadingView()
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 400)
                 }
-            } else if let error = errorMessage {
-                ContentUnavailableView(languageManager.t("common.error"), systemImage: "wifi.exclamationmark.fill", description: Text(error))
-            } else {
-                VStack {
-                    Spacer()
-                    LoadingView()
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .refreshable {
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask { await fetchData() }
+                group.addTask { try? await Task.sleep(for: .milliseconds(600)) }
+                await group.waitForAll()
             }
         }
     }
+
     
     func fetchData() async {
         do {
             let response: RemoteStatsResponse = try await apiClient.request("/api/system/stats")
             await MainActor.run {
-                self.stats = response.data
-                self.errorMessage = nil
-                updateHistory(with: response.data)
-            }
-        } catch {
+                 self.stats = response.data
+                 self.errorMessage = nil
+                 updateHistory(with: response.data)
+             }
+             await fetchAllSummaries()
+         } catch {
             print("Fetch stats error: \(error)")
             await MainActor.run {
                 self.errorMessage = error.localizedDescription
+            }
+        }
+    }
+    
+    func fetchAllSummaries() async {
+        // Docker
+        if let dockerResponse: DockerResponse = try? await apiClient.request("/api/docker/containers") {
+            await MainActor.run {
+                let running = dockerResponse.data.filter { $0.state == "running" }.count
+                self.dockerSummary = (running, dockerResponse.data.count)
+            }
+        }
+        
+        // Nginx
+        if let nginxResponse: NginxResponse = try? await apiClient.request("/api/nginx/sites") {
+            await MainActor.run {
+                let active = nginxResponse.data?.filter { $0.status == "enabled" }.count ?? 0
+                self.nginxSummary = (active, nginxResponse.data?.count ?? 0)
+            }
+        }
+        
+        // Processes
+        if let procResponse: ProcessResponse = try? await apiClient.request("/api/system/processes?sort=cpu") {
+            await MainActor.run {
+                let top = procResponse.data.first
+                self.procSummary = (procResponse.data.count, top?.command ?? "", top != nil ? "\(top!.cpu)%" : "")
+            }
+        }
+        
+        // LaunchAgents
+        if let agentResponse: LaunchAgentResponse = try? await apiClient.request("/api/launchagent/list") {
+            await MainActor.run {
+                let loaded = agentResponse.data.filter { $0.isLoaded }.count
+                self.agentSummary = (loaded, agentResponse.data.count)
+            }
+        }
+        
+        // Logs
+        if let logResponse: LogResponse = try? await apiClient.request("/api/logs") {
+            await MainActor.run {
+                if case .list(let items) = logResponse.data {
+                    let sorted = items.sorted { $0.mtime > $1.mtime }
+                    self.logSummary = (items.count, sorted.first?.name ?? "")
+                }
+            }
+        }
+        
+        // Configs
+        if let configResponse: ConfigResponse = try? await apiClient.request("/api/configs") {
+            await MainActor.run {
+                if let items = configResponse.data {
+                    let sysCount = items.filter { 
+                        let cat = $0.category.lowercased()
+                        return cat == "system" || cat == "sys"
+                    }.count
+                    self.configSummary = (items.count, sysCount, items.count - sysCount)
+                }
             }
         }
     }
@@ -194,6 +359,22 @@ struct DashboardView: View {
         let point = MetricPoint(date: Date(), cpu: cpu, memory: mem, netIn: max(0, netIn), netOut: max(0, netOut))
         history.append(point)
         if history.count > 60 { history.removeFirst() }
+    }
+    
+    private var formattedConfigSummary: Text {
+        Text("\(configSummary.sysCount)")
+            .font(.system(size: 16, weight: .bold))
+        + Text(" \(languageManager.t("monitor.sys"))")
+            .font(.system(size: 10))
+            .foregroundStyle(.secondary)
+        + Text(" | ")
+            .font(.system(size: 16, weight: .bold))
+            .foregroundStyle(.secondary.opacity(0.5))
+        + Text("\(configSummary.userCount)")
+            .font(.system(size: 16, weight: .bold))
+        + Text(" \(languageManager.t("monitor.user"))")
+            .font(.system(size: 10))
+            .foregroundStyle(.secondary)
     }
     
     func startTimer() {
@@ -377,7 +558,7 @@ struct ChartTile: View {
     var isNetwork: Bool = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 6) {
             Text(title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -402,19 +583,19 @@ struct ChartTile: View {
                         .foregroundStyle(color)
                 }
             }
-            .frame(height: 28)
+            .frame(height: 24)
             
             // SubValue Row
             Text(subValue)
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-                .frame(height: 14)
+                .frame(height: 12)
             
             chartContent
-                .frame(height: 100)
+                .frame(height: 70)
         }
-        .padding()
+        .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -524,10 +705,69 @@ struct SystemDetailTile: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
         .padding(12)
         .background(Color(.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+struct SummaryCard: View {
+    @Environment(RemoteAPIClient.self) private var apiClient
+    let icon: String
+    let title: String
+    let value: Text
+    let subtitle: String?
+    var valueLabel: String? = nil
+    var rightLabel: String? = nil
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Image(systemName: icon)
+                        .font(.system(size: 14, weight: .bold))
+                    Text(title)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                    
+                    Spacer()
+                    
+                    if let rightLabel = rightLabel {
+                        Text(rightLabel)
+                            .font(.caption2)
+                            .foregroundStyle(.blue)
+                            .fontWeight(.bold)
+                    }
+                }
+                .foregroundStyle(.secondary)
+                
+                HStack(alignment: .lastTextBaseline, spacing: 4) {
+                    value
+                    
+                    if let valueLabel = valueLabel {
+                        Text(valueLabel)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+                
+                if let subtitle = subtitle {
+                    Text(subtitle)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 80, alignment: .topLeading)
+            .padding(12)
+            .background(Color(.secondarySystemGroupedBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -553,7 +793,7 @@ struct StatRow: View {
 
 #Preview {
     NavigationStack {
-        DashboardView()
+        DashboardView(selection: .constant(.monitor))
             .environment(RemoteAPIClient())
     }
 }

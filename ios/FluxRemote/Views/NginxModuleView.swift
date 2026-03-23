@@ -13,6 +13,13 @@ struct NginxModuleView: View {
     @State private var editingSite: NginxSite?
     @State private var showingErrorLog = false
     @State private var loadingAction: [String: String] = [:] // key: site.name or "service", value: action
+    @State private var showingSudoPrompt = false
+    @State private var sudoPassword = ""
+    @State private var currentAction: String? // "service" or "site"
+    @State private var currentSite: NginxSite?
+    @State private var currentServiceAction: String? // "start", "stop", etc.
+    @State private var showingRestartConfirm = false
+    @State private var showingStopConfirm = false
     
     var body: some View {
         List {
@@ -31,10 +38,30 @@ struct NginxModuleView: View {
         .listStyle(.insetGrouped)
         .navigationTitle(languageManager.t("sidebar.nginx"))
         .refreshable {
-            await fetchData()
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask { await fetchData() }
+                group.addTask { try? await Task.sleep(for: .milliseconds(600)) }
+                await group.waitForAll()
+            }
         }
         .onAppear {
             Task { await fetchData() }
+        }
+        .alert(languageManager.t("common.confirm"), isPresented: $showingRestartConfirm) {
+            Button(languageManager.t("server.restart"), role: .destructive) {
+                Task { await performAction("restart") }
+            }
+            Button(languageManager.t("common.cancel"), role: .cancel) { }
+        } message: {
+            Text(languageManager.t("nginx.restartConfirm"))
+        }
+        .alert(languageManager.t("common.confirm"), isPresented: $showingStopConfirm) {
+            Button(languageManager.t("server.stop"), role: .destructive) {
+                Task { await performAction("stop") }
+            }
+            Button(languageManager.t("common.cancel"), role: .cancel) { }
+        } message: {
+            Text(languageManager.t("nginx.stopConfirm"))
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -63,6 +90,34 @@ struct NginxModuleView: View {
                     }
             }
         }
+        .sheet(isPresented: $showingSudoPrompt) {
+            SudoPasswordView(password: $sudoPassword) {
+                Task {
+                    if let site = currentSite {
+                        if currentAction == "toggle" { await toggleSite(site) }
+                        else if currentAction == "delete" { await deleteSite(site) }
+                    } else if let action = currentServiceAction {
+                        await performAction(action)
+                    }
+                }
+            }
+        }
+        .alert(languageManager.t("common.error"), isPresented: Binding(
+            get: { errorMessage != nil && !showingSudoPrompt },
+            set: { _ in errorMessage = nil }
+        )) {
+            Button(languageManager.t("common.ok"), role: .cancel) { }
+        } message: {
+            if let error = errorMessage {
+                Text(error)
+            }
+        }
+    }
+    
+    func resetCurrentAction() {
+        currentAction = nil
+        currentSite = nil
+        currentServiceAction = nil
     }
     
     private var serviceSection: some View {
@@ -94,11 +149,17 @@ struct NginxModuleView: View {
                 HStack(spacing: 20) {
                     let isRunning = serviceStatus?.running == true
                     actionButton(icon: isRunning ? "stop" : "play", color: isRunning ? .red : .green, label: isRunning ? languageManager.t("server.stop") : languageManager.t("server.start"), isLoading: loadingAction["service"] == (isRunning ? "stop" : "start")) {
-                        await performAction(isRunning ? "stop" : "start")
+                        if isRunning {
+                            currentServiceAction = "stop"
+                            showingStopConfirm = true
+                        } else {
+                            await performAction("start")
+                        }
                     }
 
                     actionButton(icon: "arrow.clockwise", color: .blue, label: languageManager.t("server.restart"), isLoading: loadingAction["service"] == "restart") {
-                        await performAction("restart")
+                        currentServiceAction = "restart"
+                        showingRestartConfirm = true
                     }
 
                     actionButton(icon: "checkmark.shield", color: .orange, label: languageManager.t("common.test"), isLoading: loadingAction["service"] == "test") {
@@ -220,23 +281,47 @@ struct NginxModuleView: View {
     
     func performAction(_ action: String) async {
         loadingAction["service"] = action
+        currentServiceAction = action
         do {
-            let response: ActionResponse = try await apiClient.request("/api/nginx/action", method: "POST", body: ["action": action])
+            var body: [String: Any] = ["action": action]
+            if !sudoPassword.isEmpty {
+                body["password"] = sudoPassword // Note: Nginx action API use "password" instead of "sudoPassword"
+            }
+            
+            let response: ActionResponse = try await apiClient.request("/api/nginx/action", method: "POST", body: body)
             if response.success {
+                self.sudoPassword = ""
+                resetCurrentAction()
                 await fetchData()
-            } else if response.requiresPassword == true {
+            } else if response.requiresPassword == true || response.error == "SUDO_REQUIRED" {
                 await MainActor.run {
-                    self.errorMessage = languageManager.t("nginx.sudoRequired")
+                    self.showingSudoPrompt = true
+                }
+            } else if response.error == "SUDO_AUTH_FAILED" || response.error == "SUDO_PASSWORD_INCORRECT" {
+                await MainActor.run {
+                   self.errorMessage = languageManager.t("common.passwordIncorrect")
+                   self.sudoPassword = ""
+                   resetCurrentAction()
                 }
             } else {
                 await MainActor.run {
                     self.errorMessage = response.details ?? response.error ?? languageManager.t("common.failed")
+                    resetCurrentAction()
                 }
             }
         } catch {
             print("Action failed: \(error)")
+            let errorMsg = error.localizedDescription
             await MainActor.run {
-                self.errorMessage = error.localizedDescription
+                let msg = errorMsg.lowercased()
+                let isPermissionError = msg.contains("sudo_required") || msg.contains("requirespassword") || msg.contains("permission_denied") || msg.contains("permission denied") || msg.contains("eacces") || msg.contains("eperm")
+                
+                if isPermissionError && self.sudoPassword.isEmpty {
+                    self.showingSudoPrompt = true
+                } else {
+                    self.errorMessage = errorMsg
+                    resetCurrentAction()
+                }
             }
         }
         loadingAction["service"] = nil
@@ -245,13 +330,32 @@ struct NginxModuleView: View {
     func toggleSite(_ site: NginxSite) async {
         let action = site.status == "enabled" ? "disable" : "enable"
         loadingAction[site.name] = action
+        currentAction = "toggle"
+        currentSite = site
         do {
-            let _: ActionResponse = try await apiClient.request("/api/nginx/sites", method: "POST", body: ["action": action, "filename": site.name])
+            var body: [String: Any] = ["action": action, "filename": site.name]
+            if !sudoPassword.isEmpty {
+                body["sudoPassword"] = sudoPassword
+            }
+            let _: ActionResponse = try await apiClient.request("/api/nginx/sites", method: "POST", body: body)
+            self.sudoPassword = ""
+            resetCurrentAction()
             await fetchData()
         } catch {
             print("Toggle site failed: \(error)")
+            let errorMsg = error.localizedDescription
             await MainActor.run {
-                self.errorMessage = error.localizedDescription
+                let msg = errorMsg.lowercased()
+                let isPermissionError = msg.contains("sudo_required") || msg.contains("permission_denied") || msg.contains("permission denied") || msg.contains("eacces") || msg.contains("eperm")
+                if isPermissionError && self.sudoPassword.isEmpty {
+                    self.showingSudoPrompt = true
+                } else if msg.contains("sudo_password_incorrect") || msg.contains("incorrect password") || msg.contains("auth failed") {
+                    self.errorMessage = languageManager.t("common.passwordIncorrect")
+                    self.sudoPassword = ""
+                } else {
+                    self.errorMessage = errorMsg
+                    resetCurrentAction()
+                }
             }
         }
         loadingAction[site.name] = nil
@@ -259,13 +363,32 @@ struct NginxModuleView: View {
     
     func deleteSite(_ site: NginxSite) async {
         loadingAction[site.name] = "delete"
+        currentAction = "delete"
+        currentSite = site
         do {
-            let _: ActionResponse = try await apiClient.request("/api/nginx/sites", method: "POST", body: ["action": "delete", "filename": site.name])
+            var body: [String: Any] = ["action": "delete", "filename": site.name]
+            if !sudoPassword.isEmpty {
+                body["sudoPassword"] = sudoPassword
+            }
+            let _: ActionResponse = try await apiClient.request("/api/nginx/sites", method: "POST", body: body)
+            self.sudoPassword = ""
+            resetCurrentAction()
             await fetchData()
         } catch {
             print("Delete site failed: \(error)")
+            let errorMsg = error.localizedDescription
             await MainActor.run {
-                self.errorMessage = error.localizedDescription
+                let msg = errorMsg.lowercased()
+                let isPermissionError = msg.contains("sudo_required") || msg.contains("permission_denied") || msg.contains("permission denied") || msg.contains("eacces") || msg.contains("eperm")
+                if isPermissionError && self.sudoPassword.isEmpty {
+                    self.showingSudoPrompt = true
+                } else if msg.contains("sudo_password_incorrect") || msg.contains("incorrect password") || msg.contains("auth failed") {
+                    self.errorMessage = languageManager.t("common.passwordIncorrect")
+                    self.sudoPassword = ""
+                } else {
+                    self.errorMessage = errorMsg
+                    resetCurrentAction()
+                }
             }
         }
         loadingAction[site.name] = nil
@@ -285,6 +408,8 @@ struct NginxSiteEditView: View {
     @State private var isSaving = false
     @State private var errorMessage: String?
     @State private var showingError = false
+    @State private var showingSudoPrompt = false
+    @State private var sudoPassword = ""
     
     var body: some View {
         VStack(spacing: 0) {
@@ -348,6 +473,11 @@ server {
                 Text(error)
             }
         }
+        .sheet(isPresented: $showingSudoPrompt) {
+            SudoPasswordView(password: $sudoPassword) {
+                Task { await save() }
+            }
+        }
     }
     
     func fetchContent() async {
@@ -368,21 +498,40 @@ server {
         isSaving = true
         errorMessage = nil
         do {
-            let _: ActionResponse = try await apiClient.request("/api/nginx/sites", method: "POST", body: [
+            var body: [String: Any] = [
                 "action": "write",
                 "filename": filename,
                 "content": content
-            ])
+            ]
+            if !sudoPassword.isEmpty {
+                body["sudoPassword"] = sudoPassword
+            }
+            
+            let _: ActionResponse = try await apiClient.request("/api/nginx/sites", method: "POST", body: body)
             await onSave()
             await MainActor.run { 
                 self.isSaving = false
+                self.sudoPassword = ""
                 dismiss() 
             }
         } catch {
             print("Save nginx site failed: \(error)")
+            let errorMsg = error.localizedDescription
+            
             await MainActor.run { 
-                self.errorMessage = error.localizedDescription
-                self.showingError = true
+                let msg = errorMsg.lowercased()
+                let isPermissionError = msg.contains("sudo_required") || msg.contains("permission_denied") || msg.contains("permission denied") || msg.contains("eacces") || msg.contains("eperm")
+
+                if isPermissionError && self.sudoPassword.isEmpty {
+                    self.showingSudoPrompt = true
+                } else if msg.contains("sudo_password_incorrect") || msg.contains("incorrect password") || msg.contains("auth failed") {
+                    self.errorMessage = languageManager.t("common.passwordIncorrect")
+                    self.showingError = true
+                    self.sudoPassword = ""
+                } else {
+                    self.errorMessage = errorMsg
+                    self.showingError = true
+                }
                 self.isSaving = false 
             }
         }

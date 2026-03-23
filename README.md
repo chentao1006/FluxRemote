@@ -31,6 +31,7 @@ MIT License
 - [x] Login & authentication module
 - [x] All module features implementation
 - [x] Multi-language interface (EN/CH)
+- [ ] AI Assistant
 - [ ] UI/UX improvements
 - [ ] Push notification support
 
@@ -39,5 +40,6 @@ MIT License
 - [ ] Login & authentication module
 - [ ] All module features implementation
 - [ ] Multi-language interface (EN/CH)
+- [ ] AI Assistant
 - [ ] UI/UX improvements
 - [ ] Push notification support

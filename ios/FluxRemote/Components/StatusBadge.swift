@@ -4,6 +4,7 @@ struct StatusBadge: View {
     let status: String
     var showLabel: Bool = false
     var size: CGFloat = 8
+    @Environment(AppLanguageManager.self) private var languageManager
     
     var color: Color {
         let s = status.lowercased()
@@ -24,7 +25,7 @@ struct StatusBadge: View {
                 .font(.system(size: size))
             
             if showLabel {
-                Text(status.uppercased())
+                Text(languageManager.t("status.\(status.lowercased())"))
                     .font(.system(size: 10, weight: .bold))
                     .foregroundColor(.secondary)
             }

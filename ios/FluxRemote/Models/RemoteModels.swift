@@ -61,6 +61,8 @@ struct DockerContainer: Codable, Identifiable {
     let state: String
     let status: String
     let ports: String
+    let command: String?
+    let createdAt: String?
     
     var name: String {
         names.first?.replacingOccurrences(of: "/", with: "") ?? "unknown"
@@ -73,6 +75,8 @@ struct DockerContainer: Codable, Identifiable {
         case state = "State"
         case status = "Status"
         case ports = "Ports"
+        case command = "Command"
+        case createdAt = "CreatedAt"
     }
     
     init(id: String, names: [String], image: String, state: String, status: String, ports: String) {
@@ -82,6 +86,19 @@ struct DockerContainer: Codable, Identifiable {
         self.state = state
         self.status = status
         self.ports = ports
+        self.command = nil
+        self.createdAt = nil
+    }
+    
+    init(id: String, names: [String], image: String, state: String, status: String, ports: String, command: String?, createdAt: String?) {
+        self.id = id
+        self.names = names
+        self.image = image
+        self.state = state
+        self.status = status
+        self.ports = ports
+        self.command = command
+        self.createdAt = createdAt
     }
     
     init(from decoder: Decoder) throws {
@@ -113,6 +130,10 @@ struct DockerContainer: Codable, Identifiable {
                     (try? decoder.container(keyedBy: DynamicCodingKeys.self).decode(String.self, forKey: DynamicCodingKeys(stringValue: "status")!)) ?? "unknown"
         self.ports = (try? container.decode(String.self, forKey: .ports)) ?? 
                     (try? decoder.container(keyedBy: DynamicCodingKeys.self).decode(String.self, forKey: DynamicCodingKeys(stringValue: "ports")!)) ?? ""
+        self.command = (try? container.decode(String.self, forKey: .command)) ?? 
+                    (try? decoder.container(keyedBy: DynamicCodingKeys.self).decode(String.self, forKey: DynamicCodingKeys(stringValue: "command")!))
+        self.createdAt = (try? container.decode(String.self, forKey: .createdAt)) ?? 
+                    (try? decoder.container(keyedBy: DynamicCodingKeys.self).decode(String.self, forKey: DynamicCodingKeys(stringValue: "createdAt")!))
     }
 }
 
@@ -299,6 +320,7 @@ struct ActionResponse: Codable {
     let success: Bool
     let error: String?
     let requiresPassword: Bool?
+    let data: String?
     let details: String?
 }
 

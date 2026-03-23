@@ -83,7 +83,11 @@ struct LogModuleView: View {
                 Task { await fetchData() }
             }
             .refreshable {
-                await fetchData()
+                await withTaskGroup(of: Void.self) { group in
+                    group.addTask { await fetchData() }
+                    group.addTask { try? await Task.sleep(for: .milliseconds(600)) }
+                    await group.waitForAll()
+                }
             }
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
@@ -96,7 +100,7 @@ struct LogModuleView: View {
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "tag")
-                            Text("\(selectedCategory == "All" ? languageManager.t("common.all") : languageManager.t(categoryDisplay(selectedCategory))) (\(categoryCount(selectedCategory)))").lineLimit(1)
+                            Text("\(selectedCategory == "All" ? languageManager.t("common.all") : languageManager.t(categoryDisplay(selectedCategory))) (\(categoryCount(selectedCategory)))")
                                 .font(.caption2)
                         }
                     }
@@ -104,7 +108,7 @@ struct LogModuleView: View {
                     Button {
                         showingAddLog = true
                     } label: {
-                        Label(languageManager.t("logs.addPath"), systemImage: "plus")
+                        Image(systemName: "plus")
                     }
                 }
             }
@@ -428,14 +432,14 @@ struct LogDetailView: View {
                 Button {
                     onAction("clear")
                 } label: {
-                    Label(languageManager.t("common.clear"), systemImage: "eraser")
+                    Image(systemName: "eraser")
                 }
                 .tint(.orange)
                 
                 Button(role: .destructive) {
                     onAction(file.isCustom ? "remove" : "delete")
                 } label: {
-                    Label(file.isCustom ? languageManager.t("common.remove") : languageManager.t("common.delete"), systemImage: file.isCustom ? "minus.circle" : "trash")
+                    Image(systemName: file.isCustom ? "minus.circle" : "trash")
                 }
                 .tint(.red)
             }
@@ -525,13 +529,13 @@ struct AddPathView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button(languageManager.t("common.cancel")) { dismiss() }
+                Button(action: { dismiss() }) { Image(systemName: "xmark") }
             }
             ToolbarItem(placement: .confirmationAction) {
                 if isSaving {
                     ProgressView()
                 } else {
-                    Button(languageManager.t("common.add")) {
+                    Button(action: {
                         Task {
                             isSaving = true
                             errorMessage = nil
@@ -543,6 +547,8 @@ struct AddPathView: View {
                                 isSaving = false
                             }
                         }
+                    }) {
+                        Image(systemName: "checkmark")
                     }
                     .disabled(path.isEmpty)
                 }
@@ -551,40 +557,5 @@ struct AddPathView: View {
     }
 }
 
-struct SudoPasswordView: View {
-    @Binding var password: String
-    @Environment(\.dismiss) var dismiss
-    @Environment(AppLanguageManager.self) private var languageManager
-    var onConfirm: () -> Void
-    
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    SecureField(languageManager.t("logs.sudoPlaceholder"), text: $password)
-                        .textContentType(.password)
-                } header: {
-                    Text(languageManager.t("logs.requireSudo"))
-                } footer: {
-                    Text(languageManager.t("nginx.sudoRequired"))
-                }
-            }
-            .navigationTitle(languageManager.t("logs.requireSudo"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(languageManager.t("common.cancel")) { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(languageManager.t("common.confirm")) {
-                        onConfirm()
-                        dismiss()
-                    }
-                    .disabled(password.isEmpty)
-                }
-            }
-        }
-        .presentationDetents([.height(250)])
-    }
-}
+
 
