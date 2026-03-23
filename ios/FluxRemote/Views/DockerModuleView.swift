@@ -234,7 +234,7 @@ struct DockerModuleView: View {
                     VStack(alignment: .leading) {
                         Text(container.name)
                             .font(.headline)
-                            .fontWeight(.bold)
+                            .fontWeight(.medium)
                         Text(container.image)
                             .font(.caption2)
                             .foregroundStyle(.secondary)

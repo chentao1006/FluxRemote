@@ -4,6 +4,7 @@ struct NginxModuleView: View {
         @State private var confirmDeleteSite: NginxSite? = nil
     @Environment(RemoteAPIClient.self) private var apiClient
     @Environment(AppLanguageManager.self) private var languageManager
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
     @State private var sites: [NginxSite] = []
     @State private var serviceStatus: NginxResponse?
     @State private var isLoading = true
@@ -11,7 +12,7 @@ struct NginxModuleView: View {
     
     @State private var showingAddSite = false
     @State private var editingSite: NginxSite?
-    @State private var showingErrorLog = false
+    @State private var showingLogs = false
     @State private var loadingAction: [String: String] = [:] // key: site.name or "service", value: action
     @State private var showingSudoPrompt = false
     @State private var sudoPassword = ""
@@ -20,6 +21,8 @@ struct NginxModuleView: View {
     @State private var currentServiceAction: String? // "start", "stop", etc.
     @State private var showingRestartConfirm = false
     @State private var showingStopConfirm = false
+    @State private var showingTestAlert = false
+    @State private var testDetails = ""
     
     var body: some View {
         List {
@@ -63,6 +66,12 @@ struct NginxModuleView: View {
         } message: {
             Text(languageManager.t("nginx.stopConfirm"))
         }
+        .alert(languageManager.t("nginx.testConfig"), isPresented: $showingTestAlert) {
+            Button(languageManager.t("common.ok"), role: .cancel) { }
+        } message: {
+            Text(testDetails)
+                .monospaced()
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(action: { showingAddSite = true }) {
@@ -80,12 +89,12 @@ struct NginxModuleView: View {
                 NginxSiteEditView(site: site) { await fetchData() }
             }
         }
-        .sheet(isPresented: $showingErrorLog) {
+        .sheet(isPresented: $showingLogs) {
             NavigationStack {
-                NginxErrorLogView()
+                NginxLogView()
                     .toolbar {
                         ToolbarItem(placement: .topBarLeading) {
-                            Button(action: { showingErrorLog = false }) { Image(systemName: "xmark") }
+                            Button(action: { showingLogs = false }) { Image(systemName: "xmark") }
                         }
                     }
             }
@@ -123,19 +132,13 @@ struct NginxModuleView: View {
     private var serviceSection: some View {
         Section {
             VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .top) {
+                HStack(spacing: 8) {
                     StatusBadge(status: serviceStatus?.running == true ? "running" : "stopped", size: 14)
-                        .padding(.top, 2)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(languageManager.t("nginx.runningStatus"))
-                            .font(.caption)
+                    if let pids = serviceStatus?.pids, !pids.isEmpty {
+                        Text("\(languageManager.t("common.pids")): \(pids.joined(separator: ", "))")
+                            .font(.subheadline)
                             .foregroundStyle(.secondary)
-                        if let pids = serviceStatus?.pids, !pids.isEmpty {
-                            Text("\(languageManager.t("common.pids")): \(pids.joined(separator: ", "))")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .monospacedDigit()
-                        }
+                            .monospacedDigit()
                     }
                     Spacer()
                 }
@@ -157,26 +160,23 @@ struct NginxModuleView: View {
                         }
                     }
 
-                    actionButton(icon: "arrow.clockwise", color: .blue, label: languageManager.t("server.restart"), isLoading: loadingAction["service"] == "restart") {
+                    actionButton(icon: "arrow.clockwise", color: .orange, label: languageManager.t("server.restart"), isLoading: loadingAction["service"] == "restart") {
                         currentServiceAction = "restart"
                         showingRestartConfirm = true
                     }
 
-                    actionButton(icon: "checkmark.shield", color: .orange, label: languageManager.t("common.test"), isLoading: loadingAction["service"] == "test") {
+                    actionButton(icon: "checkmark.shield", color: .green, label: languageManager.t("nginx.testConfig"), isLoading: loadingAction["service"] == "test") {
                         await performAction("test")
+                    }
+
+                    actionButton(icon: "doc.text", color: .blue, label: languageManager.t("nginx.viewLogs")) {
+                        showingLogs = true
                     }
 
                     Spacer()
                 }
             }
             .padding(.vertical, 8)
-            
-            Button {
-                showingErrorLog = true
-            } label: {
-                Label(languageManager.t("nginx.viewErrorLogs"), systemImage: "doc.text")
-                    .foregroundStyle(.blue)
-            }
         } header: {
             Text(languageManager.t("nginx.serviceControl"))
         }
@@ -185,7 +185,9 @@ struct NginxModuleView: View {
     private var siteSection: some View {
         Section {
             ForEach($sites) { $site in
-                VStack(alignment: .leading, spacing: 8) {
+                Button {
+                    editingSite = site
+                } label: {
                     HStack {
                         StatusBadge(status: site.status == "enabled" ? "running" : "stopped", size: 14)
                         VStack(alignment: .leading, spacing: 2) {
@@ -196,33 +198,29 @@ struct NginxModuleView: View {
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
-                    }
-                    HStack(spacing: 16) {
-                        let isEnabled = site.status == "enabled"
-                        actionButton(icon: isEnabled ? "stop" : "play", color: isEnabled ? .red : .green, isLoading: loadingAction[site.name] == (isEnabled ? "disable" : "enable")) {
-                            await toggleSite(site)
-                        }
-                        actionButton(icon: "pencil", color: .blue) {
-                            editingSite = site
-                        }
-                        Spacer()
-                        actionButton(icon: "trash", color: .red, isLoading: loadingAction[site.name] == "delete") {
-                            confirmDeleteSite = site
-                        }
-                        .alert(item: $confirmDeleteSite) { site in
-                            Alert(
-                                title: Text(languageManager.t("launchagent.deleteConfirmTitle")),
-                                message: Text(String.localizedStringWithFormat(languageManager.t("launchagent.deleteConfirmMessage"), site.name)),
-                                primaryButton: .destructive(Text(languageManager.t("launchagent.delete"))) {
-                                    Task { await deleteSite(site) }
-                                },
-                                secondaryButton: .cancel(Text(languageManager.t("common.cancel")))
-                            )
+                        HStack(spacing: 12) {
+                            let isEnabled = site.status == "enabled"
+                            actionButton(icon: isEnabled ? "stop" : "play", color: isEnabled ? .orange : .green, isLoading: loadingAction[site.name] == (isEnabled ? "disable" : "enable")) {
+                                await toggleSite(site)
+                            }
+                            actionButton(icon: "trash", color: .red, isLoading: loadingAction[site.name] == "delete") {
+                                confirmDeleteSite = site
+                            }
+                            .alert(item: $confirmDeleteSite) { site in
+                                Alert(
+                                    title: Text(languageManager.t("launchagent.deleteConfirmTitle")),
+                                    message: Text(String.localizedStringWithFormat(languageManager.t("launchagent.deleteConfirmMessage"), site.name)),
+                                    primaryButton: .destructive(Text(languageManager.t("launchagent.delete"))) {
+                                        Task { await deleteSite(site) }
+                                    },
+                                    secondaryButton: .cancel(Text(languageManager.t("common.cancel")))
+                                )
+                            }
                         }
                     }
-                    .padding(.top, 4)
+                    .padding(.vertical, 4)
                 }
-                .padding(.vertical, 4)
+                .buttonStyle(.plain)
             }
         } header: {
             Text(languageManager.t("nginx.siteManagement"))
@@ -241,15 +239,15 @@ struct NginxModuleView: View {
                     Image(systemName: icon)
                         .font(.subheadline)
                 }
-                if let label = label {
+                if let label = label, horizontalSizeClass != .compact {
                     Text(label)
                         .font(.subheadline)
                 }
             }
-            .padding(8)
+            .padding(horizontalSizeClass == .compact ? 12 : 8) // Slightly more padding when no text
             .background(color.opacity(0.1))
             .foregroundStyle(color)
-            .clipShape(Capsule())
+            .clipShape(Capsule()) 
         }
         .buttonStyle(.plain)
         .disabled(isLoading)
@@ -291,6 +289,12 @@ struct NginxModuleView: View {
             let response: ActionResponse = try await apiClient.request("/api/nginx/action", method: "POST", body: body)
             if response.success {
                 self.sudoPassword = ""
+                if action == "test" {
+                    await MainActor.run {
+                        self.testDetails = response.details ?? "OK"
+                        self.showingTestAlert = true
+                    }
+                }
                 resetCurrentAction()
                 await fetchData()
             } else if response.requiresPassword == true || response.error == "SUDO_REQUIRED" {
@@ -545,42 +549,52 @@ server {
     }
 }
 
-struct NginxErrorLogView: View {
+struct NginxLogView: View {
     @Environment(RemoteAPIClient.self) private var apiClient
     @Environment(AppLanguageManager.self) private var languageManager
     @State private var logs: String = ""
     @State private var isLoading = true
+    @State private var selectedTab = "error" // "error" or "access"
     
     var body: some View {
-        ScrollViewReader { proxy in
-            ZStack {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        let lines = logs.components(separatedBy: .newlines)
-                        let displayLines = lines.suffix(5000)
-                        ForEach(Array(displayLines.enumerated()), id: \.offset) { index, line in
-                            Text(line)
-                                .font(.system(.caption2, design: .monospaced))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 1)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(index % 2 == 0 ? Color.clear : Color.black.opacity(0.04))
-                                .id(index)
-                        }
-                    }
-                    .textSelection(.enabled)
-                }
-                .background(Color.black.opacity(0.02))
-                
-                if isLoading && logs.isEmpty {
-                    LoadingView()
-                }
+        VStack(spacing: 0) {
+            Picker("", selection: $selectedTab) {
+                Text(languageManager.t("nginx.errorLogs")).tag("error")
+                Text(languageManager.t("nginx.accessLogs")).tag("access")
             }
-            .onChange(of: logs) {
-                let linesCount = logs.components(separatedBy: .newlines).suffix(5000).count
-                if linesCount > 0 {
-                    withAnimation {
-                        proxy.scrollTo(linesCount - 1, anchor: .bottom)
+            .pickerStyle(.segmented)
+            .padding()
+            
+            ScrollViewReader { proxy in
+                ZStack {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 0) {
+                            let lines = logs.components(separatedBy: .newlines)
+                            let displayLines = lines.suffix(5000)
+                            ForEach(Array(displayLines.enumerated()), id: \.offset) { index, line in
+                                Text(line)
+                                    .font(.system(.caption2, design: .monospaced))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 1)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(index % 2 == 0 ? Color.clear : Color.black.opacity(0.04))
+                                    .id(index)
+                            }
+                        }
+                        .textSelection(.enabled)
+                    }
+                    .background(Color.black.opacity(0.02))
+                    
+                    if isLoading && logs.isEmpty {
+                        LoadingView()
+                    }
+                }
+                .onChange(of: logs) {
+                    let linesCount = logs.components(separatedBy: .newlines).suffix(5000).count
+                    if linesCount > 0 {
+                        withAnimation {
+                            proxy.scrollTo(linesCount - 1, anchor: .bottom)
+                        }
                     }
                 }
             }
@@ -588,9 +602,12 @@ struct NginxErrorLogView: View {
         .refreshable {
             await fetchLogs()
         }
-        .navigationTitle(languageManager.t("nginx.errorLogs"))
+        .navigationTitle(languageManager.t("nginx.viewLogs"))
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
+            Task { await fetchLogs() }
+        }
+        .onChange(of: selectedTab) {
             Task { await fetchLogs() }
         }
     }
@@ -598,7 +615,8 @@ struct NginxErrorLogView: View {
     func fetchLogs() async {
         isLoading = true
         do {
-            let response: GenericLogResponse = try await apiClient.request("/api/nginx/action", method: "POST", body: ["action": "logs"])
+            // Using the GET endpoint which already supports type parameter
+            let response: GenericLogResponse = try await apiClient.request("/api/nginx/logs?type=\(selectedTab)")
             await MainActor.run {
                 self.logs = response.logs
                 self.isLoading = false

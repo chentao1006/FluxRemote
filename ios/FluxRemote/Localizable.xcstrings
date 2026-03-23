@@ -2790,6 +2790,23 @@
         }
       }
     },
+    "nginx.testConfig" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Test Config"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "测试配置"
+          }
+        }
+      }
+    },
     "nginx.errorLogs" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2922,6 +2939,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "查看错误日志"
+          }
+        }
+      }
+    },
+    "nginx.viewLogs" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View Logs"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看日志"
+          }
+        }
+      }
+    },
+    "nginx.accessLogs" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Access Logs"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "访问日志"
           }
         }
       }
