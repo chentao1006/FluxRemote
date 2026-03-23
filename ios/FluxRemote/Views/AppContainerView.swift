@@ -332,9 +332,9 @@ struct QuickTerminalView: View {
                         }
                         .disabled(isTranslating)
                         
-                        TextField(languageManager.t("terminal.placeholder"), text: $command, axis: .vertical)
-                            .lineLimit(1...5)
-                            .font(.system(.body, design: .monospaced))
+                            TextField(languageManager.t("terminal.placeholder"), text: $command, axis: .vertical)
+                                .lineLimit(1...5)
+                                .font(.system(.body, design: .monospaced))
                             .onSubmit { 
                                 if !isExecuting {
                                     executionTask = Task { await execute() } 
@@ -435,22 +435,30 @@ struct QuickTerminalView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Button(action: { dismiss() }) { Image(systemName: "xmark") }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: {
-                        output = ""
-                        command = ""
-                    }) {
-                        Image(systemName: "eraser")
-                    }
-                    .disabled(output.isEmpty && command.isEmpty)
-                }
             }
             .sheet(isPresented: $showingManageCommands) {
                 ManageCommandsView(commands: $commands)
             }
-            .sheet(isPresented: $showingAIPrompt) {
-                TerminalAIPromptView(text: $aiPromptText) {
-                    translateAI()
+            .overlay {
+                if showingAIPrompt {
+                    ZStack {
+                        Color.black.opacity(0.4)
+                            .ignoresSafeArea()
+                            .onTapGesture { showingAIPrompt = false }
+                        
+                        TerminalAIPromptView(text: $aiPromptText) {
+                            translateAI()
+                            showingAIPrompt = false
+                        } onCancel: {
+                            showingAIPrompt = false
+                        }
+                        .frame(maxWidth: 400)
+                        .frame(height: 320)
+                        .clipShape(RoundedRectangle(cornerRadius: 24))
+                        .shadow(radius: 20)
+                        .padding(20)
+                    }
+                    .transition(.opacity.combined(with: .scale(0.9)))
                 }
             }
             .onAppear { loadCommands() }
@@ -527,8 +535,19 @@ struct QuickTerminalView: View {
         
         Task {
             do {
-                let systemPrompt = "You are a macOS terminal expert. Convert the user's natural language requirement into a valid bash command. CRITICAL: Return ONLY the command itself, NO explanations, NO intro/outro text, and NO Markdown code blocks (e.g. ```)."
-                let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: ["prompt": requirement, "system_prompt": systemPrompt])
+                // Incorporate strict instructions directly into the prompt to ensure they are followed
+                let strictPrompt = """
+                Task: Convert the following requirement into a single-line macOS bash command.
+                Requirement: \(requirement)
+                
+                Mandatory Rule: Return ONLY the command text. No explanations. No markdown. No intro. No quotes.
+                Command:
+                """
+                
+                let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: [
+                    "prompt": strictPrompt,
+                    "system_prompt": "You are a terminal command generator. Output ONLY raw bash commands."
+                ])
                 await MainActor.run {
                     self.command = response.data.trimmingCharacters(in: .whitespacesAndNewlines)
                     self.isTranslating = false
@@ -757,37 +776,50 @@ struct CommandEditorView: View {
 
 struct TerminalAIPromptView: View {
     @Binding var text: String
-    var onConfirm: () -> Void
-    @Environment(\.dismiss) var dismiss
+    var onConfirm: @MainActor () -> Void
+    var onCancel: () -> Void
     @Environment(AppLanguageManager.self) private var languageManager
     
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
+        VStack(spacing: 0) {
+            HStack {
+                Button(action: onCancel) {
+                    Image(systemName: "xmark")
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text(languageManager.t("common.aiGenerate"))
+                    .font(.headline)
+                Spacer()
+                Button {
+                    onConfirm()
+                } label: {
+                    Image(systemName: "checkmark")
+                        .fontWeight(.bold)
+                }
+                .disabled(text.isEmpty)
+            }
+            .padding()
+            .background(Color(.secondarySystemGroupedBackground))
+            
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Image(systemName: "sparkles")
+                        .foregroundStyle(.purple)
+                    Text(languageManager.t("monitor.aiPromptPlaceholder"))
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
+                .padding(.horizontal)
+                .padding(.top, 16)
+                
                 TextEditor(text: $text)
                     .font(.body)
-                    .padding(8)
-                    .background(Color(.secondarySystemBackground))
-                    .cornerRadius(12)
-                    .padding()
-                
-                Spacer()
+                    .scrollContentBackground(.hidden)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 20)
             }
-            .navigationTitle(languageManager.t("common.aiGenerate"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(languageManager.t("common.cancel")) { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(languageManager.t("common.ok")) {
-                        onConfirm()
-                        dismiss()
-                    }
-                    .disabled(text.isEmpty)
-                }
-            }
+            .background(Color(uiColor: .systemGroupedBackground))
         }
-        .presentationDetents([.height(300)])
     }
 }
