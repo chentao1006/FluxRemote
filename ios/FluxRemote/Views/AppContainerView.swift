@@ -345,7 +345,7 @@ struct QuickTerminalView: View {
                                     if isTranslating {
                                         ProgressView().controlSize(.small)
                                     } else {
-                                        Image(systemName: "character.textbox.badge.sparkles")
+                                        Image(systemName: "wand.and.sparkles")
                                             .font(.title2)
                                             .foregroundStyle(.purple)
                                     }

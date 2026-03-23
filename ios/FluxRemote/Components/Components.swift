@@ -1,5 +1,30 @@
 import SwiftUI
 
+struct LoadingView: View {
+    let message: String?
+    @Environment(AppLanguageManager.self) private var languageManager
+    
+    init(_ message: String? = nil) {
+        self.message = message
+    }
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            ProgressView()
+            Text(message ?? languageManager.t("common.loading"))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
+    }
+}
+
+#Preview {
+    LoadingView()
+        .environment(AppLanguageManager())
+}
+
 struct StatusBadge: View {
     let status: String
     var showLabel: Bool = false
@@ -35,12 +60,114 @@ struct StatusBadge: View {
 
 struct MarkdownView: View {
     let text: String
+    @Environment(AppLanguageManager.self) private var languageManager
     
     var body: some View {
-        // iOS 15+ supports Markdown in Text
-        Text(text)
-            .font(.system(.subheadline, design: .default))
-            .lineSpacing(4)
+        VStack(alignment: .leading, spacing: 14) {
+            ForEach(blocks) { block in
+                renderBlock(block)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    
+    private struct MarkdownBlock: Identifiable {
+        let id = UUID()
+        let type: BlockType
+        enum BlockType {
+            case header(Int, String)
+            case list(String)
+            case table([[String]])
+            case code(String)
+            case paragraph(String)
+        }
+    }
+    
+    private var blocks: [MarkdownBlock] {
+        var parsedBlocks: [MarkdownBlock] = []
+        var lines = text.components(separatedBy: .newlines)
+        while !lines.isEmpty {
+            let line = lines.removeFirst().trimmingCharacters(in: .whitespaces)
+            if line.isEmpty { continue }
+            
+            // 1. Code Block (Improved with better closing detection)
+            if line.hasPrefix("```") {
+                var content = ""
+                while !lines.isEmpty {
+                    let nextLine = lines.first!
+                    if nextLine.trimmingCharacters(in: .whitespaces).hasPrefix("```") {
+                        lines.removeFirst() // Remove closing ```
+                        break
+                    }
+                    content += lines.removeFirst() + "\n"
+                }
+                parsedBlocks.append(MarkdownBlock(type: .code(content.trimmingCharacters(in: .newlines))))
+            } else if (line.starts(with: "|") || line.contains("|")) && lines.count > 0 && lines[0].contains("-") && lines[0].contains("|") {
+                var rows: [[String]] = []
+                func parseRow(_ r: String) -> [String] {
+                    r.split(separator: "|").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+                }
+                rows.append(parseRow(line))
+                lines.removeFirst()
+                while !lines.isEmpty && (lines[0].starts(with: "|") || lines[0].contains("|")) {
+                    rows.append(parseRow(lines.removeFirst()))
+                }
+                parsedBlocks.append(MarkdownBlock(type: .table(rows)))
+            } else if line.hasPrefix("#") {
+                let level = line.prefix(while: { $0 == "#" }).count
+                let content = line.drop { $0 == "#" || $0 == " " }
+                parsedBlocks.append(MarkdownBlock(type: .header(level, String(content))))
+            } else if line.hasPrefix("- ") || line.hasPrefix("* ") {
+                parsedBlocks.append(MarkdownBlock(type: .list(String(line.dropFirst(2)))))
+            } else {
+                parsedBlocks.append(MarkdownBlock(type: .paragraph(line)))
+            }
+        }
+        return parsedBlocks
+    }
+    
+    @ViewBuilder
+    private func renderBlock(_ block: MarkdownBlock) -> some View {
+        switch block.type {
+        case .header(let level, let content):
+            Text(LocalizedStringKey(content))
+                .font(.system(size: level == 1 ? 22 : level == 2 ? 18 : 16, weight: .bold))
+                .padding(.top, 4)
+        case .list(let content):
+            HStack(alignment: .top, spacing: 8) {
+                Text("•").fontWeight(.bold).foregroundColor(.secondary)
+                Text(LocalizedStringKey(content)).font(.subheadline)
+            }
+        case .code(let content):
+            ScrollView(.horizontal, showsIndicators: false) {
+                Text(content)
+                    .font(.system(.caption2, design: .monospaced))
+                    .padding(12)
+                    .background(Color.primary.opacity(0.05))
+                    .cornerRadius(8)
+            }
+        case .table(let rows):
+            if #available(iOS 16.0, *) {
+                Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 10) {
+                    ForEach(0..<rows.count, id: \.self) { rowIndex in
+                        GridRow {
+                            ForEach(0..<rows[rowIndex].count, id: \.self) { colIndex in
+                                Text(LocalizedStringKey(rows[rowIndex][colIndex]))
+                                    .font(.system(size: 13, weight: rowIndex == 0 ? .bold : .regular))
+                                    .padding(.vertical, 4)
+                            }
+                        }
+                        if rowIndex == 0 { Divider() }
+                    }
+                }
+                .padding(8)
+                .background(RoundedRectangle(cornerRadius: 8).stroke(Color.primary.opacity(0.1)))
+            }
+        case .paragraph(let content):
+            Text(LocalizedStringKey(content))
+                .font(.subheadline)
+                .lineSpacing(4)
+        }
     }
 }
 

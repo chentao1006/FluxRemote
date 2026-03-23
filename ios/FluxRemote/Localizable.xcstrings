@@ -70,6 +70,9 @@
         }
       }
     },
+    "•" : {
+
+    },
     "app.build_type" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -202,6 +205,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "应用"
+          }
+        }
+      }
+    },
+    "common.authFailed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authentication failed"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "认证失败"
           }
         }
       }
@@ -461,6 +481,23 @@
         }
       }
     },
+    "common.invalidURLFormat" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invalid URL format"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "URL格式无效"
+          }
+        }
+      }
+    },
     "common.loading" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -559,40 +596,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "其它"
-          }
-        }
-      }
-    },
-    "common.authFailed" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Authentication failed"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "认证失败"
-          }
-        }
-      }
-    },
-    "common.invalidURLFormat" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Invalid URL format"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "URL格式无效"
           }
         }
       }
@@ -2164,6 +2167,23 @@
         }
       }
     },
+    "monitor.analysisFailed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analysis Failed"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分析失败"
+          }
+        }
+      }
+    },
     "monitor.arch" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2789,23 +2809,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "用户态"
-          }
-        }
-      }
-    },
-    "monitor.analysisFailed" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Analysis Failed"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "分析失败"
           }
         }
       }
