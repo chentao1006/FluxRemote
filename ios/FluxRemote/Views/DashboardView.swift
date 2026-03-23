@@ -63,15 +63,31 @@ struct DashboardView: View {
         .navigationTitle(languageManager.t("sidebar.monitor"))
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button(action: takeScreenshot) {
-                    if isCapturingScreenshot {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Image(systemName: "camera")
-                            .font(.system(size: 16, weight: .semibold))
+                    Button(action: analyzeSystem) {
+                        if isAnalyzing {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            HStack {
+                                Image(systemName: "sparkle.text.clipboard")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(.purple.opacity(isAnalyzing || stats == nil ? 0.5 : 1.0))
+                                Text(languageManager.t("common.aiAnalyze"))
+                            }
+                        }
                     }
-                }
-                .disabled(isCapturingScreenshot)
+                    .disabled(isAnalyzing || stats == nil)
+            }
+
+            ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: takeScreenshot) {
+                        if isCapturingScreenshot {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Image(systemName: "camera")
+                                .font(.system(size: 16, weight: .semibold))
+                        }
+                    }
+                    .disabled(isCapturingScreenshot)
             }
         }
         .sheet(isPresented: $showScreenshotSheet) {
@@ -93,6 +109,15 @@ struct DashboardView: View {
             Group {
                 if let stats {
                     VStack(spacing: 20) {
+                        if isAnalyzing || aiAnalysis != nil {
+                            AIAnalysisCard(analysis: aiAnalysis, isAnalyzing: isAnalyzing) {
+                                withAnimation {
+                                    aiAnalysis = nil
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
+                        
                         // Metric Charts Section
                         VStack(alignment: .leading, spacing: 12) {
                             // ... (rest of stats content remains the same, but without its own ScrollView wrapper)
@@ -395,9 +420,24 @@ struct DashboardView: View {
     func analyzeSystem() {
         guard let stats = stats else { return }
         isAnalyzing = true
+        aiAnalysis = nil
         Task {
             do {
-                let prompt = "Help me analyze this system status output:\n\(stats)\nPlease provide comments on health, resource usage, and any suggestions in Chinese."
+                let prompt = """
+Help me analyze this system status output:
+Hostname: \(stats.hostname)
+OS: \(stats.osVersion)
+CPU: \(Int((stats.cpu?.user ?? 0) + (stats.cpu?.sys ?? 0)))% (User: \(Int(stats.cpu?.user ?? 0))%, Sys: \(Int(stats.cpu?.sys ?? 0))%)
+Memory: \(stats.memory.usedMB)/\(stats.memory.totalMB)MB
+Disk: \(stats.disk.percent)
+Load: \(stats.loadAvg)
+Processes: \(procSummary.total) Total, Top: \(procSummary.topName) (\(procSummary.topCpu))
+Docker: \(dockerSummary.running)/\(dockerSummary.total) Running
+Nginx: \(nginxSummary.active)/\(nginxSummary.total) Active
+LaunchAgents: \(agentSummary.loaded)/\(agentSummary.total) Loaded
+
+Please provide comments on health, resource usage, and any suggestions in \(languageManager.aiResponseLanguage). Use Markdown with emojis.
+"""
                 let aiResponse: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: ["prompt": prompt])
                 await MainActor.run {
                     withAnimation {
@@ -407,7 +447,12 @@ struct DashboardView: View {
                 }
             } catch {
                 await MainActor.run {
-                    self.aiAnalysis = "\(languageManager.t("monitor.analysisFailed")): \(error.localizedDescription)"
+                    let errorMsg = error.localizedDescription
+                    if errorMsg.contains("AI_CONFIG_MISSING") {
+                        self.aiAnalysis = "\(languageManager.t("common.errors.aiConfigMissing")): \(languageManager.t("common.errors.aiConfigMissingDetail"))"
+                    } else {
+                        self.aiAnalysis = "\(languageManager.t("monitor.analysisFailed")): \(errorMsg)"
+                    }
                     self.isAnalyzing = false
                 }
             }
@@ -791,9 +836,12 @@ struct StatRow: View {
     }
 }
 
+
+
 #Preview {
     NavigationStack {
         DashboardView(selection: .constant(.monitor))
             .environment(RemoteAPIClient())
     }
 }
+

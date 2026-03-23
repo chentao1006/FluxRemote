@@ -225,6 +225,8 @@ struct ConfigDetailView: View {
     @State private var showingError = false
     @State private var showingSudoPrompt = false
     @State private var sudoPassword = ""
+    @State private var showingAIAnalyze = false
+    @State private var showingAIAssist = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -247,6 +249,34 @@ struct ConfigDetailView: View {
                 .padding(4)
             Spacer()
         }
+        .overlay(alignment: .bottom) {
+            if !isLoading && !content.isEmpty {
+                HStack(spacing: 12) {
+                    Button(action: { showingAIAnalyze = true }) {
+                        Label(languageManager.t("common.aiAnalyze"), systemImage: "sparkle.text.clipboard")
+                            .font(.system(.subheadline, weight: .semibold))
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(Color.purple.opacity(0.15))
+                            .foregroundStyle(.purple)
+                            .clipShape(Capsule())
+                            .shadow(color: Color.purple.opacity(0.2), radius: 8, x: 0, y: 4)
+                    }
+                    
+                    Button(action: { showingAIAssist = true }) {
+                        Label(languageManager.t("common.aiGenerate"), systemImage: "wand.and.sparkles")
+                            .font(.system(.subheadline, weight: .semibold))
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(Color.purple.opacity(0.15))
+                            .foregroundStyle(.purple)
+                            .clipShape(Capsule())
+                            .shadow(color: Color.purple.opacity(0.2), radius: 8, x: 0, y: 4)
+                    }
+                }
+                .padding(.bottom, 30)
+            }
+        }
         .navigationTitle(config.name)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -258,6 +288,18 @@ struct ConfigDetailView: View {
                     }
                 }
                 .disabled(isSaving || isLoading)
+            }
+        }
+        .sheet(isPresented: $showingAIAnalyze) {
+            NavigationStack {
+                AIAnalyzeView(originalContent: content, contextInfo: "File Path: \(config.path)")
+            }
+        }
+        .sheet(isPresented: $showingAIAssist) {
+            NavigationStack {
+                AIAssistView(originalContent: content, contextInfo: "File Path: \(config.path)") { newContent in
+                    self.content = newContent
+                }
             }
         }
         .onAppear {

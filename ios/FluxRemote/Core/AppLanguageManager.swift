@@ -59,4 +59,12 @@ class AppLanguageManager {
         // and also looks into the main bundle for .xcstrings entries.
         return NSLocalizedString(key, value: key, comment: "")
     }
+
+    var aiResponseLanguage: String {
+        let langCode = selectedLanguage == .system ? Locale.current.language.languageCode?.identifier : selectedLanguage.rawValue
+        if langCode?.hasPrefix("zh") == true {
+            return "Chinese"
+        }
+        return "English"
+    }
 }

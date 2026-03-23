@@ -186,7 +186,7 @@ struct FluxLoginView: View {
         
         Task {
             await apiClient.login(urlString: finalURL, credentials: [
-                "username": username,
+                "username": username.trimmingCharacters(in: .whitespacesAndNewlines),
                 "password": password
             ])
         }

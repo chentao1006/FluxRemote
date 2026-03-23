@@ -44,7 +44,7 @@ class RemoteAPIClient {
         if !finalURLString.hasSuffix("/") { finalURLString += "/" }
         
         guard let url = URL(string: finalURLString) else {
-            errorMessage = "Invalid URL format"
+            errorMessage = languageManager?.t("common.invalidURLFormat") ?? "Invalid URL format"
             isLoading = false
             return
         }
@@ -63,7 +63,7 @@ class RemoteAPIClient {
             let (_, response) = try await session.data(for: request)
             
             guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-                errorMessage = "Authentication failed"
+                errorMessage = languageManager?.t("common.authFailed") ?? "Authentication failed"
                 isLoading = false
                 return
             }

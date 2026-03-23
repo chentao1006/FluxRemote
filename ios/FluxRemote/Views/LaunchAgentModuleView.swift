@@ -284,6 +284,9 @@ struct AddAgentView: View {
     @State private var content: String = ""
     var onAdd: (String, String) -> Void
     
+    @State private var showingAIAnalyze = false
+    @State private var showingAIAssist = false
+    
     init(onAdd: @escaping (String, String) -> Void) {
         self.onAdd = onAdd
         _content = State(initialValue: """
@@ -334,7 +337,17 @@ struct AddAgentView: View {
             ToolbarItem(placement: .cancellationAction) {
                 Button(action: { dismiss() }) { Image(systemName: "xmark") }
             }
-            ToolbarItem(placement: .confirmationAction) {
+            ToolbarItemGroup(placement: .confirmationAction) {
+                Button(action: { showingAIAnalyze = true }) {
+                    Image(systemName: "sparkle.text.clipboard")
+                        .foregroundStyle(.purple)
+                }
+                
+                Button(action: { showingAIAssist = true }) {
+                    Image(systemName: "wand.and.sparkles")
+                        .foregroundStyle(.purple)
+                }
+                
                 Button(action: {
                     onAdd(name, content)
                     dismiss()
@@ -342,6 +355,18 @@ struct AddAgentView: View {
                     Image(systemName: "checkmark")
                 }
                 .disabled(name.isEmpty)
+            }
+        }
+        .sheet(isPresented: $showingAIAnalyze) {
+            NavigationStack {
+                AIAnalyzeView(originalContent: content, contextInfo: "Action: Creating New macOS LaunchAgent Plist")
+            }
+        }
+        .sheet(isPresented: $showingAIAssist) {
+            NavigationStack {
+                AIAssistView(originalContent: content, contextInfo: "Action: Creating New macOS LaunchAgent Plist") { newContent in
+                    self.content = newContent
+                }
             }
         }
     }
@@ -362,6 +387,8 @@ struct LaunchAgentDetailView: View {
     @State private var showingError = false
     @State private var showingSudoPrompt = false
     @State private var sudoPassword = ""
+    @State private var showingAIAnalyze = false
+    @State private var showingAIAssist = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -382,11 +409,51 @@ struct LaunchAgentDetailView: View {
             } else if let error = errorMessage {
                 ContentUnavailableView(languageManager.t("common.error"), systemImage: "exclamationmark.triangle", description: Text(error))
             } else {
-                TextEditor(text: $content)
-                    .font(.system(.caption2, design: .monospaced))
-                    .padding(4)
+            TextEditor(text: $content)
+                .font(.system(.caption2, design: .monospaced))
+                .padding(4)
+                Spacer()
             }
-            Spacer()
+        }
+        .overlay(alignment: .bottom) {
+            if !isLoading && !content.isEmpty {
+                HStack(spacing: 12) {
+                    Button(action: { showingAIAnalyze = true }) {
+                        Label(languageManager.t("common.aiAnalyze"), systemImage: "sparkle.text.clipboard")
+                            .font(.system(.subheadline, weight: .semibold))
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(Color.purple.opacity(0.15))
+                            .foregroundStyle(.purple)
+                            .clipShape(Capsule())
+                            .shadow(color: Color.purple.opacity(0.2), radius: 8, x: 0, y: 4)
+                    }
+                    
+                    Button(action: { showingAIAssist = true }) {
+                        Label(languageManager.t("common.aiGenerate"), systemImage: "wand.and.sparkles")
+                            .font(.system(.subheadline, weight: .semibold))
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(Color.purple.opacity(0.15))
+                            .foregroundStyle(.purple)
+                            .clipShape(Capsule())
+                            .shadow(color: Color.purple.opacity(0.2), radius: 8, x: 0, y: 4)
+                    }
+                }
+                .padding(.bottom, 30)
+            }
+        }
+        .sheet(isPresented: $showingAIAnalyze) {
+            NavigationStack {
+                AIAnalyzeView(originalContent: content, contextInfo: "File Path: \(agent.path)\nType: macOS LaunchAgent Plist")
+            }
+        }
+        .sheet(isPresented: $showingAIAssist) {
+            NavigationStack {
+                AIAssistView(originalContent: content, contextInfo: "File Path: \(agent.path)\nType: macOS LaunchAgent Plist") { newContent in
+                    self.content = newContent
+                }
+            }
         }
         .navigationTitle(agent.name)
         .navigationBarTitleDisplayMode(.inline)
@@ -477,19 +544,6 @@ struct LaunchAgentDetailView: View {
             print("Save agent plist failed: \(error)")
             let errorMsg = error.localizedDescription
             await MainActor.run { 
-                let msg = errorMsg.lowercased()
-                let isPermissionError = msg.contains("sudo_required") || msg.contains("requirespassword") || msg.contains("permission_denied") || msg.contains("permission denied") || msg.contains("eacces") || msg.contains("eperm")
-                
-                if isPermissionError && self.sudoPassword.isEmpty {
-                    self.showingSudoPrompt = true
-                } else if msg.contains("sudo_password_incorrect") || msg.contains("incorrect password") || msg.contains("auth failed") {
-                    self.errorMessage = languageManager.t("common.passwordIncorrect")
-                    self.showingError = true
-                    self.sudoPassword = ""
-                } else {
-                    self.errorMessage = errorMsg
-                    self.showingError = true
-                }
                 self.isSaving = false 
             }
         }
@@ -502,3 +556,4 @@ struct LaunchAgentDetailView: View {
             .environment(RemoteAPIClient())
     }
 }
+

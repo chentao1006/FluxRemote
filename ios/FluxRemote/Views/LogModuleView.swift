@@ -339,6 +339,10 @@ struct LogModuleView: View {
     }
 
     func performAction(file: LogItem, action: String, password: String? = nil) async {
+        if action == "dismiss" {
+            await MainActor.run { selectedLog = nil }
+            return
+        }
         await MainActor.run { isActioning = true }
         do {
             var body: [String: Any] = ["file": file.path, "action": action]
@@ -389,6 +393,8 @@ struct LogDetailView: View {
     @State private var isReading = false
     @State private var refreshTask: Task<Void, Never>? = nil
     @State private var isSilentRefresh = false // 静默刷新标记
+    @State private var isAnalyzing = false
+    @State private var aiAnalysis: String?
     
     var body: some View {
         ScrollViewReader { proxy in
@@ -427,7 +433,27 @@ struct LogDetailView: View {
                 }
             }
         }
+        .overlay(alignment: .bottom) {
+            if !isReading && !isSilentRefresh && !logContent.isEmpty {
+                Button(action: { analyzeLogs() }) {
+                    Label(languageManager.t("common.aiAnalyze"), systemImage: "sparkle.text.clipboard")
+                        .font(.system(.subheadline, weight: .semibold))
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                        .background(Color.purple.opacity(0.15))
+                        .foregroundStyle(.purple)
+                        .clipShape(Capsule())
+                        .shadow(color: Color.purple.opacity(0.2), radius: 8, x: 0, y: 4)
+                }
+                .padding(.bottom, 30)
+            }
+        }
         .toolbar {
+            // ToolbarItem(placement: .topBarLeading) {
+            //     Button{
+            //         onAction("dismiss") // Standardizing dismiss action via parent
+            //     } label: { Image(systemName: "xmark") }
+            // }
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button {
                     onAction("clear")
@@ -441,6 +467,8 @@ struct LogDetailView: View {
                 } label: {
                     Image(systemName: file.isCustom ? "minus.circle" : "trash")
                 }
+                .tint(.red)
+                
                 .tint(.red)
             }
         }
@@ -488,6 +516,34 @@ struct LogDetailView: View {
             await MainActor.run {
                 self.isReading = false
                 self.isSilentRefresh = false
+            }
+        }
+    }
+    
+    func analyzeLogs() {
+        guard !logContent.isEmpty else { return }
+        isAnalyzing = true
+        aiAnalysis = nil
+        
+        let lines = logContent.components(separatedBy: .newlines)
+        let lastLines = lines.suffix(50).joined(separator: "\n")
+        
+        Task {
+            do {
+                let prompt = "Analyze the following macOS logs and provide diagnosis or suggestions in \(languageManager.aiResponseLanguage):\n\n\(lastLines)\n\nUse Markdown formatting."
+                let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: ["prompt": prompt])
+                
+                await MainActor.run {
+                    withAnimation {
+                        self.aiAnalysis = response.data
+                        self.isAnalyzing = false
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    self.aiAnalysis = "Error: \(error.localizedDescription)"
+                    self.isAnalyzing = false
+                }
             }
         }
     }

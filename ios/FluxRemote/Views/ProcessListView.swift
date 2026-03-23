@@ -210,6 +210,8 @@ struct ProcessDetailView: View {
     @State private var detailedProcess: DetailedProcess?
     @State private var isLoading = true
     @State private var isExecutingAction = false
+    @State private var isAnalyzing = false
+    @State private var aiAnalysis: String?
     
     struct DetailedProcess: Codable {
         let pid: String
@@ -268,6 +270,26 @@ struct ProcessDetailView: View {
                 
             }
         }
+        .overlay(alignment: .bottom) {
+            if isAnalyzing || aiAnalysis != nil {
+                AIAnalysisCard(analysis: aiAnalysis, isAnalyzing: isAnalyzing) {
+                    withAnimation { aiAnalysis = nil; isAnalyzing = false }
+                }
+                .padding(.bottom, 20)
+            } else if !isLoading {
+                Button(action: analyzeProcess) {
+                    Label(languageManager.t("common.aiAnalyze"), systemImage: "sparkles")
+                        .font(.system(.subheadline, weight: .semibold))
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                        .background(Color.purple.opacity(0.15))
+                        .foregroundStyle(.purple)
+                        .clipShape(Capsule())
+                        .shadow(color: Color.purple.opacity(0.2), radius: 8, x: 0, y: 4)
+                }
+                .padding(.bottom, 30)
+            }
+        }
         .navigationTitle(process.command)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -278,7 +300,7 @@ struct ProcessDetailView: View {
                     Button {
                         showingStopConfirmation = true
                     } label: {
-                        Image(systemName: "stop.circle")
+                        Image(systemName: "stop")
                             .font(.system(size: 18, weight: .semibold))
                             .foregroundStyle(.orange)
                     }
@@ -286,7 +308,7 @@ struct ProcessDetailView: View {
                     Button(role: .destructive) {
                         showingKillConfirmation = true
                     } label: {
-                        Image(systemName: "xmark.circle")
+                        Image(systemName: "xmark")
                             .font(.system(size: 18, weight: .semibold))
                             .foregroundStyle(.red)
                     }
@@ -347,6 +369,33 @@ struct ProcessDetailView: View {
         } catch {
             print("Fetch process details error: \(error)")
             await MainActor.run { self.isLoading = false }
+        }
+    }
+    
+    func analyzeProcess() {
+        guard let dp = detailedProcess else { return }
+        isAnalyzing = true
+        aiAnalysis = nil
+        
+        Task {
+            do {
+                let info = "PID: \(dp.pid), PPID: \(dp.ppid) (\(dp.ppidName)), Command: \(dp.command), Full Command: \(dp.fullCommand), CPU: \(dp.cpu)%, MEM: \(dp.mem)%, State: \(dp.state), Start: \(dp.start), User: \(dp.user), Open Files: \(dp.openFiles.joined(separator: ", "))"
+                let prompt = "Analyze this macOS process and provide diagnosis or suggestions in \(languageManager.aiResponseLanguage):\n\(info)\nUse Markdown formatting."
+                
+                let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: ["prompt": prompt])
+                
+                await MainActor.run {
+                    withAnimation {
+                        self.aiAnalysis = response.data
+                        self.isAnalyzing = false
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    self.aiAnalysis = "Error: \(error.localizedDescription)"
+                    self.isAnalyzing = false
+                }
+            }
         }
     }
 }

@@ -12,6 +12,8 @@ struct DockerModuleView: View {
     
     @State private var activeAlert: DockerAlertType? = nil
     @State private var activeSheet: DockerSheetType? = nil
+    @State private var showingAIAssistant = false
+    @State private var showingCommandSheet = false
     
     enum DockerAlertType: Identifiable {
         case prune
@@ -62,11 +64,6 @@ struct DockerModuleView: View {
                 case .logs(let container):
                     NavigationStack {
                         DockerLogView(containerId: container.id, containerName: container.name)
-                            .toolbar {
-                                ToolbarItem(placement: .topBarLeading) {
-                                    Button(action: { activeSheet = nil }) { Image(systemName: "xmark") }
-                                }
-                            }
                     }
                 case .detail(let container):
                     NavigationStack {
@@ -76,11 +73,22 @@ struct DockerModuleView: View {
                             onAction: { await performAction($0, id: container.id) },
                             onViewLogs: { activeSheet = .logs(container) }
                         )
-                        .toolbar {
-                            ToolbarItem(placement: .topBarLeading) {
-                                Button(action: { activeSheet = nil }) { Image(systemName: "xmark") }
-                            }
-                        }
+                    }
+                }
+            }
+            .sheet(isPresented: $showingAIAssistant) {
+                NavigationStack {
+                    DockerAIAssistantView() {
+                        showingAIAssistant = false
+                        Task { await fetchData() }
+                    }
+                }
+            }
+            .sheet(isPresented: $showingCommandSheet) {
+                NavigationStack {
+                    DockerCommandView {
+                        showingCommandSheet = false
+                        Task { await fetchData() }
                     }
                 }
             }
@@ -196,18 +204,23 @@ struct DockerModuleView: View {
         }
         
         ToolbarItem(placement: .topBarTrailing) {
-            if selectedTab == .images {
-                Button {
-                    activeAlert = .prune
-                } label: {
-                    if loadingAction[""] == "prune" {
-                        ProgressView()
-                    } else {
-                        Image(systemName: "trash")
-                            .foregroundStyle(.red)
+            HStack(spacing: 16) {
+                if selectedTab == Tab.images {
+                    Button(action: { activeAlert = .prune }) {
+                        if loadingAction[""] == "prune" {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Image(systemName: "trash")
+                                .foregroundStyle(.red)
+                        }
                     }
+                    .disabled(loadingAction[""] != nil)
                 }
-                .disabled(loadingAction[""] != nil)
+                
+                Button(action: { showingCommandSheet = true }) {
+                    Image(systemName: "plus")
+                }
+                
             }
         }
     }
@@ -477,19 +490,26 @@ struct DockerLogView: View {
     let containerName: String
     @Environment(RemoteAPIClient.self) private var apiClient
     @Environment(AppLanguageManager.self) private var languageManager
+    @Environment(\.dismiss) private var dismiss
     @State private var logs: String = ""
     @State private var isLoading = true
     @State private var timer: Timer?
     @State private var autoScroll = true
+    @State private var isAnalyzing = false
+    @State private var aiAnalysis: String?
     
     var body: some View {
+        // Precompute displayLines to help the compiler
+        let displayLines: [String] = {
+            let lines = logs.components(separatedBy: .newlines)
+            return Array(lines.suffix(5000))
+        }()
         ScrollViewReader { proxy in
             ZStack {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
-                        let lines = logs.components(separatedBy: .newlines)
-                        let displayLines = lines.suffix(5000)
-                        ForEach(Array(displayLines.enumerated()), id: \.offset) { index, line in
+                            ForEach(displayLines.indices, id: \.self) { index in
+                            let line = displayLines[index]
                             Text(line)
                                 .font(.system(.caption2, design: .monospaced))
                                 .padding(.horizontal, 8)
@@ -537,6 +557,32 @@ struct DockerLogView: View {
             timer?.invalidate()
             timer = nil
         }
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button(action: { dismiss() }) { Image(systemName: "xmark") }
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            if isAnalyzing || aiAnalysis != nil {
+                AIAnalysisCard(analysis: aiAnalysis, isAnalyzing: isAnalyzing) {
+                    withAnimation { aiAnalysis = nil; isAnalyzing = false }
+                }
+                .padding(.bottom, 10)
+            } else if !isLoading && !logs.isEmpty {
+                Button(action: analyzeLogs) {
+                    Label(languageManager.t("common.aiAnalyze"), systemImage: "sparkle.text.clipboard")
+                        .font(.system(.subheadline, weight: .semibold))
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                        .background(Color.purple.opacity(0.15))
+                        .foregroundStyle(.purple)
+                        .clipShape(Capsule())
+                        .shadow(color: Color.purple.opacity(0.2), radius: 8, x: 0, y: 4)
+                }
+                .padding(.bottom, 20)
+                .padding(.horizontal)
+            }
+        }
     }
     
     func fetchLogs(silent: Bool = false) async {
@@ -554,7 +600,29 @@ struct DockerLogView: View {
     }
     
     func analyzeLogs() {
-        // AI Analysis logic using /api/ai
+        guard !logs.isEmpty else { return }
+        isAnalyzing = true
+        aiAnalysis = nil
+        
+        let last50Lines = logs.components(separatedBy: .newlines).suffix(50).joined(separator: "\n")
+        
+        Task {
+            do {
+                let prompt = "Analyze these Docker container logs and provide diagnosis or suggestions in \(languageManager.aiResponseLanguage):\n\(last50Lines)\nUse Markdown formatting."
+                let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: ["prompt": prompt])
+                await MainActor.run {
+                    withAnimation {
+                        self.aiAnalysis = response.data
+                        self.isAnalyzing = false
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    self.aiAnalysis = "Error: \(error.localizedDescription)"
+                    self.isAnalyzing = false
+                }
+            }
+        }
     }
 }
 
@@ -668,6 +736,11 @@ struct DockerDetailView: View {
         } message: {
             Text(languageManager.t("docker.stopConfirm"))
         }
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button(action: { dismiss() }) { Image(systemName: "xmark") }
+            }
+        }
     }
     
     private func toolbarButton(icon: String, color: Color, isLoading: Bool, action: @escaping () async -> Void) -> some View {
@@ -718,6 +791,232 @@ struct DockerDetailView: View {
             Text(value)
                 .textSelection(.enabled)
                 .multilineTextAlignment(.trailing)
+        }
+    }
+}
+
+struct DockerAIAssistantView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(RemoteAPIClient.self) private var apiClient
+    @Environment(AppLanguageManager.self) private var languageManager
+    @State private var prompt: String = ""
+    @State private var generatedCommand: String = ""
+    @State private var isGenerating = false
+    @State private var isExecuting = false
+    @State private var errorMessage: String?
+    
+    var onComplete: () -> Void
+    
+    var body: some View {
+        Form {
+            Section(header: Text(languageManager.t("common.aiGenerate"))) {
+                TextEditor(text: $prompt)
+                    .frame(minHeight: 100)
+                    .overlay(
+                        Group {
+                            if prompt.isEmpty {
+                                Text(languageManager.t("monitor.aiPromptPlaceholder"))
+                                    .foregroundStyle(.secondary)
+                                    .padding(.top, 8)
+                                    .padding(.leading, 4)
+                            }
+                        },
+                        alignment: .topLeading
+                    )
+            }
+            
+            Section {
+                Button(action: generateCommand) {
+                    if isGenerating {
+                        HStack {
+                            ProgressView().controlSize(.small)
+                            Text(languageManager.t("common.analyzing")) // Reusing key
+                        }
+                    } else {
+                        Label(languageManager.t("common.generate"), systemImage: "sparkles")
+                    }
+                }
+                .disabled(isGenerating || prompt.isEmpty)
+                .frame(maxWidth: .infinity)
+                .foregroundStyle(.purple)
+            }
+            
+            if !generatedCommand.isEmpty {
+                Section(header: Text(languageManager.t("common.generatedCommand"))) {
+                    Text(generatedCommand)
+                        .font(.system(.caption, design: .monospaced))
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.secondary.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    
+                    Button(action: executeCommand) {
+                        if isExecuting {
+                            HStack {
+                                ProgressView().controlSize(.small)
+                                Text(languageManager.t("common.executing"))
+                            }
+                        } else {
+                            Label(languageManager.t("common.runCommand"), systemImage: "play.fill")
+                        }
+                    }
+                    .disabled(isExecuting)
+                    .frame(maxWidth: .infinity)
+                    .foregroundStyle(.green)
+                }
+            }
+            
+            if let error = errorMessage {
+                Section {
+                    Text(error)
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                }
+            }
+        }
+        .navigationTitle(languageManager.t("monitor.aiGenerateantTitle"))
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button(action: { dismiss() }) {
+                    Image(systemName: "xmark")
+                }
+            }
+        }
+    }
+    
+    func generateCommand() {
+        isGenerating = true
+        errorMessage = nil
+        
+        Task {
+            do {
+                let systemPrompt = "Convert the natural language description to a valid `docker run` command. Provide ONLY the command itself, no other text."
+                let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: ["prompt": prompt, "systemPrompt": systemPrompt])
+                
+                await MainActor.run {
+                    self.generatedCommand = response.data
+                    self.isGenerating = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = error.localizedDescription
+                    self.isGenerating = false
+                }
+            }
+        }
+    }
+    
+    func executeCommand() {
+        isExecuting = true
+        errorMessage = nil
+        
+        Task {
+            do {
+                let _: ActionResponse = try await apiClient.request("/api/terminal/run", method: "POST", body: ["command": generatedCommand])
+                await MainActor.run {
+                    self.isExecuting = false
+                    onComplete()
+                    dismiss()
+                }
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = error.localizedDescription
+                    self.isExecuting = false
+                }
+            }
+        }
+    }
+}
+
+struct DockerCommandView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(RemoteAPIClient.self) private var apiClient
+    @Environment(AppLanguageManager.self) private var languageManager
+    @State private var command: String = ""
+    @State private var isExecuting = false
+    @State private var errorMessage: String?
+    @State private var showingAIAssist = false
+    
+    var onComplete: () -> Void
+    
+    var body: some View {
+        Form {
+            Section(header: Text(languageManager.t("docker.runCommand"))) {
+                TextEditor(text: $command)
+                    .frame(minHeight: 120)
+                    .font(.system(.body, design: .monospaced))
+                    .overlay(
+                        Group {
+                            if command.isEmpty {
+                                Text("docker run ...")
+                                    .foregroundStyle(.secondary)
+                                    .padding(.top, 8)
+                                    .padding(.leading, 4)
+                            }
+                        },
+                        alignment: .topLeading
+                    )
+            }
+            
+            if let error = errorMessage {
+                Section {
+                    Text(error)
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                }
+            }
+        }
+        .navigationTitle(languageManager.t("docker.runCommand"))
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button(action: { dismiss() }) { Image(systemName: "xmark") }
+            }
+            ToolbarItemGroup(placement: .confirmationAction) {
+                Button(action: { showingAIAssist = true }) {
+                    Image(systemName: "wand.and.sparkles")
+                        .foregroundStyle(.purple)
+                }
+                
+                Button(action: execute) {
+                    if isExecuting {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "play.fill")
+                            .foregroundStyle(.green)
+                    }
+                }
+                .disabled(isExecuting || command.isEmpty)
+            }
+        }
+        .sheet(isPresented: $showingAIAssist) {
+            NavigationStack {
+                AIAssistView(originalContent: command, contextInfo: "Action: Run Docker Command") { newCommand in
+                    self.command = newCommand
+                }
+            }
+        }
+    }
+    
+    private func execute() {
+        isExecuting = true
+        errorMessage = nil
+        
+        Task {
+            do {
+                let _: ActionResponse = try await apiClient.request("/api/terminal/run", method: "POST", body: ["command": command])
+                await MainActor.run {
+                    isExecuting = false
+                    onComplete()
+                    dismiss()
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    isExecuting = false
+                }
+            }
         }
     }
 }

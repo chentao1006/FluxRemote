@@ -92,11 +92,6 @@ struct NginxModuleView: View {
         .sheet(isPresented: $showingLogs) {
             NavigationStack {
                 NginxLogView()
-                    .toolbar {
-                        ToolbarItem(placement: .topBarLeading) {
-                            Button(action: { showingLogs = false }) { Image(systemName: "xmark") }
-                        }
-                    }
             }
         }
         .sheet(isPresented: $showingSudoPrompt) {
@@ -395,7 +390,6 @@ struct NginxModuleView: View {
                 }
             }
         }
-        loadingAction[site.name] = nil
     }
 }
 
@@ -414,6 +408,8 @@ struct NginxSiteEditView: View {
     @State private var showingError = false
     @State private var showingSudoPrompt = false
     @State private var sudoPassword = ""
+    @State private var showingAIAnalyze = false
+    @State private var showingAIAssist = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -446,6 +442,46 @@ struct NginxSiteEditView: View {
                     }
                 }
                 .disabled(isSaving || (site == nil && filename.isEmpty))
+            }
+        }
+        .overlay(alignment: .bottom) {
+            if !isLoading && !content.isEmpty {
+                HStack(spacing: 12) {
+                    Button(action: { showingAIAnalyze = true }) {
+                        Label(languageManager.t("common.aiAnalyze"), systemImage: "sparkle.text.clipboard")
+                            .font(.system(.subheadline, weight: .semibold))
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(Color.purple.opacity(0.15))
+                            .foregroundStyle(.purple)
+                            .clipShape(Capsule())
+                            .shadow(color: Color.purple.opacity(0.2), radius: 8, x: 0, y: 4)
+                    }
+                    
+                    Button(action: { showingAIAssist = true }) {
+                        Label(languageManager.t("common.aiGenerate"), systemImage: "wand.and.sparkles")
+                            .font(.system(.subheadline, weight: .semibold))
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(Color.purple.opacity(0.15))
+                            .foregroundStyle(.purple)
+                            .clipShape(Capsule())
+                            .shadow(color: Color.purple.opacity(0.2), radius: 8, x: 0, y: 4)
+                    }
+                }
+                .padding(.bottom, 30)
+            }
+        }
+        .sheet(isPresented: $showingAIAnalyze) {
+            NavigationStack {
+                AIAnalyzeView(originalContent: content, contextInfo: "File: \(filename)\nType: Nginx Configuration")
+            }
+        }
+        .sheet(isPresented: $showingAIAssist) {
+            NavigationStack {
+                AIAssistView(originalContent: content, contextInfo: "File: \(filename)\nType: Nginx Configuration") { newContent in
+                    self.content = newContent
+                }
             }
         }
         .onAppear {
@@ -555,6 +591,8 @@ struct NginxLogView: View {
     @State private var logs: String = ""
     @State private var isLoading = true
     @State private var selectedTab = "error" // "error" or "access"
+    @State private var isAnalyzing = false
+    @State private var aiAnalysis: String?
     
     var body: some View {
         VStack(spacing: 0) {
@@ -610,6 +648,27 @@ struct NginxLogView: View {
         .onChange(of: selectedTab) {
             Task { await fetchLogs() }
         }
+        .safeAreaInset(edge: .bottom) {
+            if isAnalyzing || aiAnalysis != nil {
+                AIAnalysisCard(analysis: aiAnalysis, isAnalyzing: isAnalyzing) {
+                    withAnimation { aiAnalysis = nil; isAnalyzing = false }
+                }
+                .padding(.bottom, 10)
+            } else if !isLoading && !logs.isEmpty {
+                Button(action: analyzeLogs) {
+                    Label(languageManager.t("common.aiAnalyze"), systemImage: "sparkle.text.clipboard")
+                        .font(.system(.subheadline, weight: .semibold))
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                        .background(Color.purple.opacity(0.15))
+                        .foregroundStyle(.purple)
+                        .clipShape(Capsule())
+                        .shadow(color: Color.purple.opacity(0.2), radius: 8, x: 0, y: 4)
+                }
+                .padding(.bottom, 20)
+                .padding(.horizontal)
+            }
+        }
     }
     
     func fetchLogs() async {
@@ -624,6 +683,32 @@ struct NginxLogView: View {
         } catch {
             print("Fetch Nginx logs failed: \(error)")
             await MainActor.run { self.isLoading = false }
+        }
+    }
+
+    func analyzeLogs() {
+        guard !logs.isEmpty else { return }
+        isAnalyzing = true
+        aiAnalysis = nil
+        
+        let last50Lines = logs.components(separatedBy: .newlines).suffix(50).joined(separator: "\n")
+        
+        Task {
+            do {
+                let prompt = "Analyze these Nginx \(selectedTab) logs and provide diagnosis or suggestions in \(languageManager.aiResponseLanguage):\n\(last50Lines)\nUse Markdown formatting."
+                let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: ["prompt": prompt])
+                await MainActor.run {
+                    withAnimation {
+                        self.aiAnalysis = response.data
+                        self.isAnalyzing = false
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    self.aiAnalysis = "Error: \(error.localizedDescription)"
+                    self.isAnalyzing = false
+                }
+            }
         }
     }
 }
