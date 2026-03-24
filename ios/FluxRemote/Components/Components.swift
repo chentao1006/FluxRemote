@@ -507,7 +507,6 @@ struct AIActionButton: View {
                     .fontWeight(.semibold)
                     .lineLimit(1)
             }
-            .frame(maxWidth: .infinity)
             .font(.system(horizontalSizeClass == .compact ? .footnote : .subheadline))
             .padding(.horizontal, horizontalSizeClass == .compact ? 14 : 20)
             .padding(.vertical, horizontalSizeClass == .compact ? 10 : 12)

@@ -415,16 +415,8 @@ struct QuickTerminalView: View {
                     }
                     .padding(.bottom, 20)
                 } else if !output.isEmpty && !isExecuting {
-                    Button(action: analyzeOutput) {
-                        Label(languageManager.t("common.aiAnalyze"), systemImage: "sparkle.text.clipboard")
-                            .font(.system(.subheadline, weight: .semibold))
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 12)
-                            .background(.ultraThinMaterial)
-                            .background(Color.purple.opacity(0.75))
-                            .foregroundStyle(.white)
-                            .clipShape(Capsule())
-                            .shadow(color: Color.purple.opacity(0.3), radius: 12, x: 0, y: 6)
+                    AIActionButton(languageManager.t("common.aiAnalyze"), systemImage: "sparkle.text.clipboard", isLoading: isAnalyzingOutput) {
+                        analyzeOutput()
                     }
                     .padding(.bottom, 30)
                 }

@@ -746,16 +746,8 @@ struct NginxLogView: View {
                 }
                 .padding(.bottom, 10)
             } else if !isLoading && !logs.isEmpty {
-                Button(action: analyzeLogs) {
-                    Label(languageManager.t("common.aiAnalyze"), systemImage: "sparkle.text.clipboard")
-                        .font(.system(.subheadline, weight: .semibold))
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
-                        .background(.ultraThinMaterial)
-                        .background(Color.purple.opacity(0.75))
-                        .foregroundStyle(.white)
-                        .clipShape(Capsule())
-                        .shadow(color: Color.purple.opacity(0.3), radius: 12, x: 0, y: 6)
+                AIActionButton(languageManager.t("common.aiAnalyze"), systemImage: "sparkle.text.clipboard", isLoading: isAnalyzing) {
+                    analyzeLogs()
                 }
                 .padding(.bottom, 20)
                 .padding(.horizontal)
