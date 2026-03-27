@@ -48,7 +48,7 @@ class RemoteAPIClient {
         // Load selected server from ServerManager
         if let server = ServerManager.shared.selectedServer {
             self.baseURL = server.baseURL
-            self.isAuthenticated = server.isAuthenticated
+            self.isAuthenticated = ServerManager.shared.isServerAuthenticated(server.id)
             self.currentUser = server.username
         }
     }
@@ -56,7 +56,7 @@ class RemoteAPIClient {
     func switchServer(to server: ServerConfig) {
         // Reset state for new server
         self.baseURL = server.baseURL
-        self.isAuthenticated = server.isAuthenticated
+        self.isAuthenticated = ServerManager.shared.isServerAuthenticated(server.id)
         self.currentUser = server.username
         
         // Clear cached data for previous server
@@ -120,15 +120,15 @@ class RemoteAPIClient {
             // Update ServerManager
             if let existingServer = ServerManager.shared.servers.first(where: { $0.url == cleanURL }) {
                 var updated = existingServer
-                updated.isAuthenticated = true
                 updated.username = currentUser
-                updated.isSelected = true
+                ServerManager.shared.setAuthenticated(true, for: updated.id)
                 ServerManager.shared.updateServer(updated)
                 ServerManager.shared.selectServer(updated) // Ensure it's selected
             } else {
                 // Should not happen if we add server before login, but just in case
-                let newServer = ServerConfig(name: cleanURL, url: cleanURL, username: currentUser, isSelected: true, isAuthenticated: true)
+                let newServer = ServerConfig(name: cleanURL, url: cleanURL, username: currentUser)
                 ServerManager.shared.addServer(newServer)
+                ServerManager.shared.setAuthenticated(true, for: newServer.id)
             }
             
             isLoading = false
@@ -144,9 +144,7 @@ class RemoteAPIClient {
         
         // Update ServerManager
         if let server = ServerManager.shared.selectedServer {
-            var updated = server
-            updated.isAuthenticated = false
-            ServerManager.shared.updateServer(updated)
+            ServerManager.shared.setAuthenticated(false, for: server.id)
         }
     }
     

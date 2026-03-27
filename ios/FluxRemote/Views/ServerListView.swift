@@ -36,9 +36,9 @@ struct ServerListView: View {
                     .listRowBackground(Color.clear)
                 } else {
                     ForEach(ServerManager.shared.servers) { server in
-                        ServerRow(server: server, isActive: server.id == ServerManager.shared.selectedServer?.id) {
+                        ServerRow(server: server, isActive: server.id == ServerManager.shared.selectedServerId) {
                             apiClient.switchServer(to: server)
-                            if !server.isAuthenticated {
+                            if !ServerManager.shared.isServerAuthenticated(server.id) {
                                 showingLoginForServer = server
                             }
                         } onEdit: {
@@ -50,6 +50,10 @@ struct ServerListView: View {
                     }
                 }
             }
+        }
+        .refreshable {
+            await ServerManager.shared.manualSync()
+            try? await Task.sleep(nanoseconds: 800_000_000) // 0.8s delay for feedback
         }
         .navigationTitle(languageManager.t("settings.serverList"))
         .toolbar {
@@ -108,9 +112,17 @@ struct ServerRow: View {
                     HStack {
                         Text(server.name)
                             .font(.headline)
-                            .foregroundStyle(.primary)
+                            .foregroundStyle(server.isOffline ? .secondary : .primary)
                         
-                        if isActive {
+                        if server.isOffline {
+                            Text(languageManager.t("common.offline"))
+                                .font(.caption2)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.secondary.opacity(0.1))
+                                .foregroundStyle(.secondary)
+                                .clipShape(Capsule())
+                        } else if isActive {
                             Text(languageManager.t("settings.active"))
                                 .font(.caption2)
                                 .padding(.horizontal, 6)
@@ -128,7 +140,11 @@ struct ServerRow: View {
                 
                 Spacer()
                 
-                if server.isAuthenticated {
+                if server.isOffline {
+                    Image(systemName: "wifi.slash")
+                        .foregroundStyle(.secondary)
+                        .font(.subheadline)
+                } else if ServerManager.shared.isServerAuthenticated(server.id) {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(.green)
                         .font(.subheadline)
@@ -145,6 +161,7 @@ struct ServerRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(server.isOffline)
         .swipeActions(edge: .trailing) {
             Button(role: .destructive, action: onDelete) {
                 Label(languageManager.t("common.delete"), systemImage: "trash")

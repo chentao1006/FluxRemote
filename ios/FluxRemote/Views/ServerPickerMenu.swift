@@ -12,12 +12,19 @@ struct ServerPickerMenu: View {
                     apiClient.switchServer(to: server)
                 } label: {
                     HStack {
-                        Text(server.name)
-                        if server.id == ServerManager.shared.selectedServer?.id {
+                        if server.isOffline {
+                            Text("\(server.name) (\(languageManager.t("common.offline")))")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text(server.name)
+                        }
+                        
+                        if server.id == ServerManager.shared.selectedServerId {
                             Image(systemName: "checkmark")
                         }
                     }
                 }
+                .disabled(server.isOffline)
             }
             
             Divider()

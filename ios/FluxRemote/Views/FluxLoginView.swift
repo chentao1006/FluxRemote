@@ -162,11 +162,10 @@ struct FluxLoginView: View {
                 }
             }
             .toolbar {
-                if isAddingServer {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button { dismiss() } label: {
-                            Image(systemName: "xmark")
-                        }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark")
+                            .foregroundStyle(.secondary)
                     }
                 }
             }

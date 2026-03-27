@@ -16,84 +16,96 @@ struct AppContainerView: View {
     @State private var isDraggingTerminalButton = false
     
     var body: some View {
-        if !apiClient.isAuthenticated {
-            NavigationStack {
-                ServerListView()
-            }
-        } else {
-            GeometryReader { geometry in
-                ZStack(alignment: .bottomTrailing) {
-                    responsiveContent
-                        .onAppear {
-                            Task { await apiClient.fetchSettings() }
-                        }
-                
-                    // Floating Terminal Button
-                    if horizontalSizeClass != .regular || selection != nil {
-                        Button {
-                            if !isDraggingTerminalButton {
-                                showingQuickTerminal = true
-                            }
-                        } label: {
-                            Image(systemName: "terminal")
-                                .font(.title2)
-                                .foregroundStyle(.white)
-                                .frame(width: 56, height: 56)
-                                .background(Color.blue)
-                                .clipShape(Circle())
-                                .shadow(radius: isDraggingTerminalButton ? 8 : 4, y: isDraggingTerminalButton ? 4 : 2)
-                                .scaleEffect(isDraggingTerminalButton ? 1.1 : 1.0)
-                        }
-                        .padding(16)
-                        .padding(.bottom, horizontalSizeClass == .regular ? 0 : 50) // Adjust for TabBar
-                        .offset(terminalButtonOffset)
-                        .highPriorityGesture(
-                            DragGesture()
-                                .onChanged { value in
-                                    isDraggingTerminalButton = true
-                                    terminalButtonOffset = CGSize(
-                                        width: lastTerminalButtonOffset.width + value.translation.width,
-                                        height: lastTerminalButtonOffset.height + value.translation.height
-                                    )
-                                }
-                                .onEnded { value in
-                                    isDraggingTerminalButton = false
-                                    let screenWidth = geometry.size.width
-                                    let buttonWidth: CGFloat = 56
-                                    let horizontalPadding: CGFloat = 16
-                                    
-                                    let leftSnapX = -(screenWidth - buttonWidth - 2 * horizontalPadding)
-                                    
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                        if terminalButtonOffset.width < leftSnapX / 2 {
-                                            terminalButtonOffset.width = leftSnapX
-                                            storedIsLeft = true
-                                        } else {
-                                            terminalButtonOffset.width = 0
-                                            storedIsLeft = false
-                                        }
-                                        
-                                        let tabBarPadding: CGFloat = horizontalSizeClass == .regular ? 0 : 50
-                                        let availableHeight = geometry.size.height - tabBarPadding - 2 * horizontalPadding - buttonWidth
-                                        let minY = -availableHeight
-                                        let maxY: CGFloat = 0
-                                        
-                                        terminalButtonOffset.height = min(maxY, max(minY, terminalButtonOffset.height))
-                                        storedYOffset = -Double(terminalButtonOffset.height)
-                                    }
-                                    lastTerminalButtonOffset = terminalButtonOffset
-                                }
-                        )
-                        .transition(.scale.combined(with: .opacity))
-                    }
+        Group {
+            if !apiClient.isAuthenticated {
+                NavigationStack {
+                    ServerListView()
                 }
-                .frame(width: geometry.size.width, height: geometry.size.height)
-                .onAppear { recalculatePosition(geometry: geometry) }
-                .onChange(of: geometry.size) { _, _ in recalculatePosition(geometry: geometry) }
+            } else {
+                GeometryReader { geometry in
+                    ZStack(alignment: .bottomTrailing) {
+                        responsiveContent
+                            .onAppear {
+                                Task { await apiClient.fetchSettings() }
+                            }
+                    
+                        // Floating Terminal Button
+                        if horizontalSizeClass != .regular || selection != nil {
+                            Button {
+                                if !isDraggingTerminalButton {
+                                    showingQuickTerminal = true
+                                }
+                            } label: {
+                                Image(systemName: "terminal")
+                                    .font(.title2)
+                                    .foregroundStyle(.white)
+                                    .frame(width: 56, height: 56)
+                                    .background(Color.blue)
+                                    .clipShape(Circle())
+                                    .shadow(radius: isDraggingTerminalButton ? 8 : 4, y: isDraggingTerminalButton ? 4 : 2)
+                                    .scaleEffect(isDraggingTerminalButton ? 1.1 : 1.0)
+                            }
+                            .padding(16)
+                            .padding(.bottom, horizontalSizeClass == .regular ? 0 : 50) // Adjust for TabBar
+                            .offset(terminalButtonOffset)
+                            .highPriorityGesture(
+                                DragGesture()
+                                    .onChanged { value in
+                                        isDraggingTerminalButton = true
+                                        terminalButtonOffset = CGSize(
+                                            width: lastTerminalButtonOffset.width + value.translation.width,
+                                            height: lastTerminalButtonOffset.height + value.translation.height
+                                        )
+                                    }
+                                    .onEnded { value in
+                                        isDraggingTerminalButton = false
+                                        let screenWidth = geometry.size.width
+                                        let buttonWidth: CGFloat = 56
+                                        let horizontalPadding: CGFloat = 16
+                                        
+                                        let leftSnapX = -(screenWidth - buttonWidth - 2 * horizontalPadding)
+                                        
+                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                            if terminalButtonOffset.width < leftSnapX / 2 {
+                                                terminalButtonOffset.width = leftSnapX
+                                                storedIsLeft = true
+                                            } else {
+                                                terminalButtonOffset.width = 0
+                                                storedIsLeft = false
+                                            }
+                                            
+                                            let tabBarPadding: CGFloat = horizontalSizeClass == .regular ? 0 : 50
+                                            let availableHeight = geometry.size.height - tabBarPadding - 2 * horizontalPadding - buttonWidth
+                                            let minY = -availableHeight
+                                            let maxY: CGFloat = 0
+                                            
+                                            terminalButtonOffset.height = min(maxY, max(minY, terminalButtonOffset.height))
+                                            storedYOffset = -Double(terminalButtonOffset.height)
+                                        }
+                                        lastTerminalButtonOffset = terminalButtonOffset
+                                    }
+                            )
+                            .transition(.scale.combined(with: .opacity))
+                        }
+                    }
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .onAppear { recalculatePosition(geometry: geometry) }
+                    .onChange(of: geometry.size) { _, _ in recalculatePosition(geometry: geometry) }
+                }
             }
-            .sheet(isPresented: $showingQuickTerminal) {
-                QuickTerminalView()
-            }
+        }
+        .sheet(isPresented: $showingQuickTerminal) {
+            QuickTerminalView()
+        }
+        .onChange(of: ServerManager.shared.selectedServerId) { checkOfflineStatus() }
+        .onChange(of: ServerManager.shared.servers) { checkOfflineStatus() }
+    }
+    
+    private func checkOfflineStatus() {
+        if let sid = ServerManager.shared.selectedServerId,
+           let server = ServerManager.shared.servers.first(where: { $0.id == sid }),
+           server.isOffline {
+            selection = .servers
         }
     }
 
@@ -218,7 +230,7 @@ struct AppContainerView: View {
                         } label: {
                             HStack {
                                 Text(server.name)
-                                if server.id == ServerManager.shared.selectedServer?.id {
+                                if server.id == ServerManager.shared.selectedServerId {
                                     Image(systemName: "checkmark")
                                 }
                             }

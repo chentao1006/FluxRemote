@@ -6,8 +6,7 @@ struct ServerConfig: Codable, Identifiable, Hashable {
     var name: String
     var url: String
     var username: String?
-    var isSelected: Bool = false
-    var isAuthenticated: Bool = false
+    var isOffline: Bool = false
     
     var baseURL: URL? {
         var urlStr = url
@@ -22,6 +21,18 @@ class ServerManager {
     static let shared = ServerManager()
     
     var servers: [ServerConfig] = []
+    var selectedServerId: UUID? {
+        didSet {
+            UserDefaults.standard.set(selectedServerId?.uuidString, forKey: "selected_server_id_v2")
+        }
+    }
+    var authenticatedServerIds: Set<UUID> = [] {
+        didSet {
+            let strings = Array(authenticatedServerIds).map { $0.uuidString }
+            UserDefaults.standard.set(strings, forKey: "authenticated_server_ids_v2")
+        }
+    }
+    
     var isCloudSyncEnabled: Bool = true {
         didSet {
             UserDefaults.standard.set(isCloudSyncEnabled, forKey: "is_cloud_sync_enabled")
@@ -36,6 +47,14 @@ class ServerManager {
     
     init() {
         self.isCloudSyncEnabled = UserDefaults.standard.object(forKey: "is_cloud_sync_enabled") as? Bool ?? true
+        
+        if let idString = UserDefaults.standard.string(forKey: "selected_server_id_v2") {
+            self.selectedServerId = UUID(uuidString: idString)
+        }
+        if let authStrings = UserDefaults.standard.stringArray(forKey: "authenticated_server_ids_v2") {
+            self.authenticatedServerIds = Set(authStrings.compactMap { UUID(uuidString: $0) })
+        }
+        
         loadServers()
         setupCloudSync()
     }
@@ -50,65 +69,68 @@ class ServerManager {
     }
     
     private func mergeWithCloud(_ cloudServers: [ServerConfig]) {
-        // Multi-device sync logic:
-        // 1. Keep all servers from cloud.
-        // 2. Add local servers that don't exist in cloud (newly created local servers).
-        // 3. Update local servers that have a match in cloud.
+        var merged: [ServerConfig] = self.servers
+        var hasChanges = false
         
-        var merged = cloudServers
-        let cloudIds = Set(cloudServers.map { $0.id })
-        
-        // Add local-only servers (don't overwrite cloud with older local versions for now, simple merge)
-        for localServer in self.servers {
-            if !cloudIds.contains(localServer.id) {
-                merged.append(localServer)
+        // 1. Add/Update servers from cloud
+        for cloudServer in cloudServers {
+            if let index = merged.firstIndex(where: { $0.id == cloudServer.id }) {
+                // If ID matches, check if content (like isOffline or Name) changed
+                if merged[index] != cloudServer {
+                    merged[index] = cloudServer
+                    hasChanges = true
+                }
+            } else {
+                // New from cloud
+                merged.append(cloudServer)
+                hasChanges = true
             }
         }
         
-        // Preserve selection if possible
-        let selectedId = self.selectedServer?.id
+        // 2. Check if local has anything not in cloud
+        let cloudIds = Set(cloudServers.map { $0.id })
+        let localMissingInCloud = self.servers.contains { !cloudIds.contains($0.id) }
         
         isCloudUpdating = true
         self.servers = merged
-        
-        // If the previously selected server is still here, re-select it if cloud didn't have a selection
-        if let sid = selectedId, !self.servers.contains(where: { $0.isSelected }) {
-            for i in 0..<self.servers.count {
-                if self.servers[i].id == sid {
-                    self.servers[i].isSelected = true
-                }
-            }
-        }
-        
         saveLocalOnly()
         isCloudUpdating = false
         
-        // If we added something from local to the merge, upload it back to sync other devices
-        if merged.count > cloudServers.count {
-            CloudSyncManager.shared.upload(servers: merged)
+        // 3. Force upload if local had extra data to ensure Cloud eventually has EVERYTHING
+        if localMissingInCloud || hasChanges {
+            CloudSyncManager.shared.upload(servers: self.servers)
         }
     }
     
     var selectedServer: ServerConfig? {
-        if let selected = servers.first(where: { $0.isSelected }) {
-            return selected
+        if let sid = selectedServerId, let server = servers.first(where: { $0.id == sid }) {
+            return server
         }
-        return servers.first
+        return servers.first(where: { !$0.isOffline }) ?? servers.first
     }
     
     func selectServer(_ server: ServerConfig) {
-        for i in 0..<servers.count {
-            servers[i].isSelected = (servers[i].id == server.id)
-        }
+        selectedServerId = server.id
         saveServers()
     }
     
-    func addServer(_ server: ServerConfig) {
-        var newServer = server
-        if servers.isEmpty {
-            newServer.isSelected = true
+    func setAuthenticated(_ authenticated: Bool, for serverId: UUID) {
+        if authenticated {
+            authenticatedServerIds.insert(serverId)
+        } else {
+            authenticatedServerIds.remove(serverId)
         }
-        servers.append(newServer)
+    }
+    
+    func isServerAuthenticated(_ serverId: UUID) -> Bool {
+        authenticatedServerIds.contains(serverId)
+    }
+    
+    func addServer(_ server: ServerConfig) {
+        if servers.isEmpty {
+            selectedServerId = server.id
+        }
+        servers.append(server)
         saveServers()
     }
     
@@ -120,10 +142,11 @@ class ServerManager {
     }
     
     func removeServer(_ server: ServerConfig) {
-        let wasSelected = server.isSelected
+        let wasSelected = (selectedServerId == server.id)
         servers.removeAll { $0.id == server.id }
-        if wasSelected, !servers.isEmpty {
-            servers[0].isSelected = true
+        authenticatedServerIds.remove(server.id)
+        if wasSelected {
+            selectedServerId = servers.first?.id
         }
         saveServers()
     }
@@ -135,13 +158,22 @@ class ServerManager {
         } else {
             if let oldURL = UserDefaults.standard.string(forKey: "flux_remote_url") {
                 let oldUser = UserDefaults.standard.string(forKey: "flux_remote_user")
-                let oldServer = ServerConfig(name: "Default Server", url: oldURL, username: oldUser, isSelected: true)
+                let oldServer = ServerConfig(name: "Default Server", url: oldURL, username: oldUser)
                 self.servers = [oldServer]
+                self.selectedServerId = oldServer.id
                 saveServers()
             }
         }
         
         if isCloudSyncEnabled, let cloudServers = CloudSyncManager.shared.download() {
+            mergeWithCloud(cloudServers)
+        }
+    }
+    
+    func manualSync() async {
+        CloudSyncManager.shared.forceDownload()
+        // Wait briefly for metadata query or just pull directly
+        if let cloudServers = CloudSyncManager.shared.download() {
             mergeWithCloud(cloudServers)
         }
     }
@@ -251,10 +283,27 @@ class CloudSyncManager {
     func download() -> [ServerConfig]? {
         guard let url = cloudFileURL, FileManager.default.fileExists(atPath: url.path) else { return nil }
         
-        if let data = try? Data(contentsOf: url),
-           let servers = try? JSONDecoder().decode([ServerConfig].self, from: data) {
-            return servers
+        // Ensure we read latest from iCloud by coordinating
+        var result: [ServerConfig]?
+        let coordinator = NSFileCoordinator(filePresenter: nil)
+        var error: NSError?
+        
+        coordinator.coordinate(readingItemAt: url, options: .withoutChanges, error: &error) { readURL in
+            if let data = try? Data(contentsOf: readURL),
+               let servers = try? JSONDecoder().decode([ServerConfig].self, from: data) {
+                result = servers
+            }
         }
-        return nil
+        
+        return result
+    }
+    
+    func forceDownload() {
+        guard let url = cloudFileURL else { return }
+        try? FileManager.default.startDownloadingUbiquitousItem(at: url)
+        
+        // Also manually trigger a query update
+        metadataQuery?.stop()
+        metadataQuery?.start()
     }
 }
