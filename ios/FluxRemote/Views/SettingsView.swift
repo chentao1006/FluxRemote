@@ -9,6 +9,11 @@ struct SettingsView: View {
     @State private var isSaving = false
     @State private var lastSavedTime: Date?
     
+    private var appVersionString: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
+        return "v\(version) (\(languageManager.t("app.build_type")))"
+    }
+    
     var body: some View {
         Form {
             if isLoading {
@@ -17,7 +22,9 @@ struct SettingsView: View {
                     .listRowBackground(Color.clear)
             } else {
                 Section(header: Text(languageManager.t("settings.connection"))) {
-                    LabeledContent(languageManager.t("settings.server"), value: apiClient.baseURL?.absoluteString ?? languageManager.t("common.none"))
+                    NavigationLink(destination: ServerListView()) {
+                        LabeledContent(languageManager.t("settings.server"), value: ServerManager.shared.selectedServer?.name ?? languageManager.t("common.none"))
+                    }
                     LabeledContent(languageManager.t("settings.version"), value: serverSettings?.version ?? languageManager.t("common.unknown"))
                 }
                 
@@ -70,6 +77,16 @@ struct SettingsView: View {
                             Text(lang.displayNameKey == "common.systemDefault" ? languageManager.t(lang.displayNameKey) : lang.displayNameKey).tag(lang)
                         }
                     }
+                }
+                
+                Section {
+                    VStack(spacing: 8) {
+                        Text(appVersionString)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .listRowBackground(Color.clear)
                 }
             }
         }
@@ -147,13 +164,5 @@ struct SettingsView: View {
                 self.isSaving = false
             }
         }
-    }
-}
-
-#Preview {
-    NavigationStack {
-        SettingsView()
-            .environment(RemoteAPIClient())
-            .environment(AppLanguageManager())
     }
 }

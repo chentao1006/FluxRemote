@@ -7,15 +7,13 @@ struct FluxLoginView: View {
     @State private var panelURL: String = ""
     @State private var username: String = ""
     @State private var password: String = ""
+    @State private var serverName: String = ""
     @FocusState private var focusedField: Field?
+    var isAddingServer: Bool = false
+    @Environment(\.dismiss) private var dismiss
     
     enum Field {
-        case url, username, password
-    }
-    
-    private var appVersionString: String {
-        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
-        return "v\(version) (\(languageManager.t("app.build_type")))"
+        case url, username, password, serverName
     }
     
     var body: some View {
@@ -28,25 +26,13 @@ struct FluxLoginView: View {
                     ScrollView {
                         VStack(spacing: 32) {
                             // Header Section
-                            VStack(spacing: 24) {
-                                Image("logo")
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(width: 90, height: 90)
-                                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                                    .shadow(color: .black.opacity(0.1), radius: 15, x: 0, y: 8)
-                                
-                                VStack(spacing: 8) {
-                                    Text(languageManager.t("appTitle"))
-                                        .font(.title)
-                                        .fontWeight(.bold)
-                                    
-                                    Text(languageManager.t("login.safeConnection"))
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                }
+                            VStack(spacing: 8) {
+                                Text(languageManager.t("login.headerTitle"))
+                                    .font(.title)
+                                    .fontWeight(.bold)
                             }
-                            .padding(.top, 40)
+                            .padding(.top, 60)
+                            .padding(.bottom, 10)
                             
                             // Form Section
                             VStack(alignment: .leading, spacing: 24) {
@@ -58,18 +44,35 @@ struct FluxLoginView: View {
                                         .foregroundStyle(.secondary)
                                         .padding(.leading, 8)
                                     
-                                    HStack(spacing: 12) {
-                                        Image(systemName: "link")
-                                            .foregroundStyle(.blue)
-                                            .frame(width: 20)
-                                        TextField(languageManager.t("login.serverURL"), text: $panelURL)
-                                            .keyboardType(.URL)
-                                            .autocorrectionDisabled()
-                                            .textInputAutocapitalization(.never)
-                                            .focused($focusedField, equals: .url)
-                                            .submitLabel(.next)
+                                    VStack(spacing: 0) {
+                                        HStack(spacing: 12) {
+                                            Image(systemName: "link")
+                                                .foregroundStyle(.blue)
+                                                .frame(width: 20)
+                                            TextField(languageManager.t("login.serverURL"), text: $panelURL)
+                                                .keyboardType(.URL)
+                                                .autocorrectionDisabled()
+                                                .textInputAutocapitalization(.never)
+                                                .focused($focusedField, equals: .url)
+                                                .submitLabel(.next)
+                                        }
+                                        .padding()
+                                        
+                                        if isAddingServer {
+                                            Divider()
+                                                .padding(.leading, 48)
+                                            
+                                            HStack(spacing: 12) {
+                                                Image(systemName: "tag")
+                                                    .foregroundStyle(.blue)
+                                                    .frame(width: 20)
+                                                TextField(languageManager.t("settings.serverName"), text: $serverName)
+                                                    .focused($focusedField, equals: .serverName)
+                                                    .submitLabel(.next)
+                                            }
+                                            .padding()
+                                        }
                                     }
-                                    .padding()
                                     .background(Color(.secondarySystemGroupedBackground))
                                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                                 }
@@ -143,11 +146,6 @@ struct FluxLoginView: View {
                             .padding(.horizontal)
                             .padding(.top, 10)
                             .disabled(apiClient.isLoading || panelURL.isEmpty || username.isEmpty || password.isEmpty)
-                            Text(appVersionString)
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
-                                .padding(.top, 20)
-                                .padding(.bottom, 16)
                         }
                         .frame(maxWidth: 400)
                         .frame(maxWidth: .infinity, alignment: .center)
@@ -157,17 +155,32 @@ struct FluxLoginView: View {
             }
             .onSubmit {
                 switch focusedField {
-                case .url: focusedField = .username
+                case .url: focusedField = isAddingServer ? .serverName : .username
+                case .serverName: focusedField = .username
                 case .username: focusedField = .password
                 default: login()
                 }
             }
+            .toolbar {
+                if isAddingServer {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button { dismiss() } label: {
+                            Image(systemName: "xmark")
+                        }
+                    }
+                }
+            }
             .onAppear {
-                if let savedURL = UserDefaults.standard.string(forKey: "flux_remote_url") {
+                if isAddingServer {
+                    panelURL = ""
+                    serverName = ""
+                    username = ""
+                    password = ""
+                } else if let savedURL = UserDefaults.standard.string(forKey: "flux_remote_url") {
                     panelURL = savedURL
                 }
                 
-                // Set initial focus if URL is empty
+                // Set initial focus
                 if panelURL.isEmpty {
                     focusedField = .url
                 } else if username.isEmpty {
@@ -176,7 +189,6 @@ struct FluxLoginView: View {
             }
         }
     }
-    
     func login() {
         // Auto-fix URL if missing protocol
         var finalURL = panelURL
@@ -184,11 +196,34 @@ struct FluxLoginView: View {
             finalURL = "https://" + finalURL
         }
         
+        // Fix server name if empty
+        if isAddingServer && serverName.isEmpty {
+            serverName = panelURL.replacingOccurrences(of: "https://", with: "").replacingOccurrences(of: "http://", with: "")
+            if serverName.hasSuffix("/") { serverName.removeLast() }
+        }
+        
         Task {
+            // If adding a server, check if it already exists or add to ServerManager first
+            if isAddingServer {
+                var cleanPanelURL = finalURL
+                if cleanPanelURL.hasSuffix("/") { cleanPanelURL.removeLast() }
+                
+                if !ServerManager.shared.servers.contains(where: { $0.url == cleanPanelURL }) {
+                    let newServer = ServerConfig(name: serverName, url: cleanPanelURL)
+                    ServerManager.shared.addServer(newServer)
+                }
+            }
+            
             await apiClient.login(urlString: finalURL, credentials: [
                 "username": username.trimmingCharacters(in: .whitespacesAndNewlines),
                 "password": password
             ])
+            
+            if apiClient.isAuthenticated {
+                if isAddingServer {
+                    dismiss()
+                }
+            }
         }
     }
 }

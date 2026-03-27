@@ -17,7 +17,9 @@ struct AppContainerView: View {
     
     var body: some View {
         if !apiClient.isAuthenticated {
-            FluxLoginView()
+            NavigationStack {
+                ServerListView()
+            }
         } else {
             GeometryReader { geometry in
                 ZStack(alignment: .bottomTrailing) {
@@ -119,6 +121,7 @@ struct AppContainerView: View {
                     NavigationStack(path: pathBinding(for: currentItem)) {
                         contentView(for: currentItem)
                             .id(currentItem)
+                            .navigationTitle(languageManager.t(currentItem.title))
                     }
                 } else {
                     ContentUnavailableView(languageManager.t("appTitle"), systemImage: "monitor.fill")
@@ -127,27 +130,44 @@ struct AppContainerView: View {
         } else {
             TabView(selection: $selection) {
                 if isFeatureEnabled(for: .monitor) {
-                    NavigationStack { contentView(for: .monitor) }
-                        .tabItem { Label(languageManager.t(NavigationItem.monitor.title), systemImage: NavigationItem.monitor.icon) }
-                        .tag(Optional(NavigationItem.monitor))
+                    NavigationStack { 
+                        contentView(for: .monitor) 
+                            .navigationTitle(languageManager.t(NavigationItem.monitor.title))
+                            .toolbar {
+                                ToolbarItem(placement: .topBarLeading) {
+                                    ServerPickerMenu(selection: $selection)
+                                }
+                            }
+                    }
+                    .tabItem { Label(languageManager.t(NavigationItem.monitor.title), systemImage: NavigationItem.monitor.icon) }
+                    .tag(Optional(NavigationItem.monitor))
                 }
                 
                 if isFeatureEnabled(for: .processes) {
-                    NavigationStack { contentView(for: .processes) }
-                        .tabItem { Label(languageManager.t(NavigationItem.processes.title), systemImage: NavigationItem.processes.icon) }
-                        .tag(Optional(NavigationItem.processes))
+                    NavigationStack { 
+                        contentView(for: .processes)
+                            .navigationTitle(languageManager.t(NavigationItem.processes.title))
+                    }
+                    .tabItem { Label(languageManager.t(NavigationItem.processes.title), systemImage: NavigationItem.processes.icon) }
+                    .tag(Optional(NavigationItem.processes))
                 }
                 
                 if isFeatureEnabled(for: .logs) {
-                    NavigationStack { contentView(for: .logs) }
-                        .tabItem { Label(languageManager.t(NavigationItem.logs.title), systemImage: NavigationItem.logs.icon) }
-                        .tag(Optional(NavigationItem.logs))
+                    NavigationStack { 
+                        contentView(for: .logs)
+                            .navigationTitle(languageManager.t(NavigationItem.logs.title))
+                    }
+                    .tabItem { Label(languageManager.t(NavigationItem.logs.title), systemImage: NavigationItem.logs.icon) }
+                    .tag(Optional(NavigationItem.logs))
                 }
                 
                 if isFeatureEnabled(for: .configs) {
-                    NavigationStack { contentView(for: .configs) }
-                        .tabItem { Label(languageManager.t(NavigationItem.configs.title), systemImage: NavigationItem.configs.icon) }
-                        .tag(Optional(NavigationItem.configs))
+                    NavigationStack { 
+                        contentView(for: .configs)
+                            .navigationTitle(languageManager.t(NavigationItem.configs.title))
+                    }
+                    .tabItem { Label(languageManager.t(NavigationItem.configs.title), systemImage: NavigationItem.configs.icon) }
+                    .tag(Optional(NavigationItem.configs))
                 }
                 
                 NavigationStack(path: $morePath) {
@@ -162,7 +182,7 @@ struct AppContainerView: View {
             .onChange(of: selection) { oldValue, newValue in
                 guard horizontalSizeClass == .compact else { return }
                 guard let newValue = newValue else { return }
-                let moreItems: [NavigationItem] = [.launchagent, .docker, .nginx, .settings]
+                let moreItems: [NavigationItem] = [.launchagent, .docker, .nginx, .settings, .servers]
                 if moreItems.contains(newValue) {
                     selection = .more
                     morePath = [newValue]
@@ -181,6 +201,7 @@ struct AppContainerView: View {
             
             Section(languageManager.t("sidebar.settings")) {
                 tabRow(for: .settings)
+                tabRow(for: .servers)
             }
         }
         .listStyle(.insetGrouped)
@@ -189,6 +210,48 @@ struct AppContainerView: View {
     
     private var sidebarContent: some View {
         List(selection: $selection) {
+            Section {
+                Menu {
+                    ForEach(ServerManager.shared.servers) { server in
+                        Button {
+                            apiClient.switchServer(to: server)
+                        } label: {
+                            HStack {
+                                Text(server.name)
+                                if server.id == ServerManager.shared.selectedServer?.id {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                    
+                    Divider()
+                    
+                    Button {
+                        selection = .servers
+                    } label: {
+                        Label(languageManager.t("settings.serverList"), systemImage: "list.bullet.rectangle.portrait")
+                    }
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(ServerManager.shared.selectedServer?.name ?? languageManager.t("common.none"))
+                                .font(.headline)
+                            Text(ServerManager.shared.selectedServer?.url ?? "")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.vertical, 8)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.primary)
+            }
+            
             Section(languageManager.t("sidebar.home")) {
                 if isFeatureEnabled(for: .monitor) { tabRow(for: .monitor) }
             }
@@ -207,6 +270,7 @@ struct AppContainerView: View {
             
             Section(languageManager.t("sidebar.system")) {
                 tabRow(for: .settings)
+                tabRow(for: .servers)
             }
         }
         .listStyle(.sidebar)
@@ -222,6 +286,7 @@ struct AppContainerView: View {
         case .docker: return apiClient.features.docker ?? true
         case .nginx: return apiClient.features.nginx ?? true
         case .settings: return true
+        case .servers: return true
         case .more: return true
         }
     }
@@ -244,6 +309,7 @@ struct AppContainerView: View {
         case .docker: DockerModuleView(selection: $selection)
         case .nginx: NginxModuleView(selection: $selection)
         case .settings: SettingsView()
+        case .servers: ServerListView()
         case .more: EmptyView()
         }
     }
@@ -385,9 +451,6 @@ struct QuickTerminalView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 0) {
-                            SectionHeader(title: languageManager.t("terminal.output"))
-                                .padding(.top)
-                            
                             if output.isEmpty {
                                 Text(languageManager.t("terminal.waiting"))
                                     .font(.system(.caption, design: .monospaced))

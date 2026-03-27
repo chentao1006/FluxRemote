@@ -45,14 +45,37 @@ class RemoteAPIClient {
         config.httpShouldSetCookies = true
         self.session = URLSession(configuration: config)
         
-        // Load session from defaults
-        if let savedURL = UserDefaults.standard.string(forKey: "flux_remote_url") {
-            var urlStr = savedURL
-            if !urlStr.hasSuffix("/") { urlStr += "/" }
-            self.baseURL = URL(string: urlStr)
+        // Load selected server from ServerManager
+        if let server = ServerManager.shared.selectedServer {
+            self.baseURL = server.baseURL
+            self.isAuthenticated = server.isAuthenticated
+            self.currentUser = server.username
         }
-        self.isAuthenticated = UserDefaults.standard.bool(forKey: "flux_remote_auth")
-        self.currentUser = UserDefaults.standard.string(forKey: "flux_remote_user")
+    }
+    
+    func switchServer(to server: ServerConfig) {
+        // Reset state for new server
+        self.baseURL = server.baseURL
+        self.isAuthenticated = server.isAuthenticated
+        self.currentUser = server.username
+        
+        // Clear cached data for previous server
+        self.dashboardStats = nil
+        self.dashboardHistory = []
+        self.dockerContainers = []
+        self.nginxSites = []
+        self.launchAgents = []
+        self.logItems = []
+        self.processItems = []
+        self.configItems = []
+        self.features = FeatureToggles()
+        self.aiConfig = nil
+        
+        ServerManager.shared.selectServer(server)
+        
+        if isAuthenticated {
+            Task { await fetchSettings() }
+        }
     }
     
     func login(urlString: String, credentials: [String: String]) async {
@@ -94,9 +117,19 @@ class RemoteAPIClient {
             isAuthenticated = true
             currentUser = credentials["username"]
             
-            UserDefaults.standard.set(cleanURL, forKey: "flux_remote_url")
-            UserDefaults.standard.set(true, forKey: "flux_remote_auth")
-            UserDefaults.standard.set(currentUser, forKey: "flux_remote_user")
+            // Update ServerManager
+            if let existingServer = ServerManager.shared.servers.first(where: { $0.url == cleanURL }) {
+                var updated = existingServer
+                updated.isAuthenticated = true
+                updated.username = currentUser
+                updated.isSelected = true
+                ServerManager.shared.updateServer(updated)
+                ServerManager.shared.selectServer(updated) // Ensure it's selected
+            } else {
+                // Should not happen if we add server before login, but just in case
+                let newServer = ServerConfig(name: cleanURL, url: cleanURL, username: currentUser, isSelected: true, isAuthenticated: true)
+                ServerManager.shared.addServer(newServer)
+            }
             
             isLoading = false
         } catch {
@@ -108,8 +141,13 @@ class RemoteAPIClient {
     func logout() {
         isAuthenticated = false
         currentUser = nil
-        UserDefaults.standard.set(false, forKey: "flux_remote_auth")
-        UserDefaults.standard.removeObject(forKey: "flux_remote_user")
+        
+        // Update ServerManager
+        if let server = ServerManager.shared.selectedServer {
+            var updated = server
+            updated.isAuthenticated = false
+            ServerManager.shared.updateServer(updated)
+        }
     }
     
     func request<T: Decodable>(_ path: String, method: String = "GET", body: [String: Any]? = nil) async throws -> T {

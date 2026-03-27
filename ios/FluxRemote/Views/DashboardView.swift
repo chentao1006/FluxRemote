@@ -55,7 +55,6 @@ struct DashboardView: View {
             
             mainContent
         }
-        .navigationTitle(languageManager.t("sidebar.monitor"))
         .alert(languageManager.t("settings.aiDisabled"), isPresented: $showingAIDisabledAlert) {
             Button(languageManager.t("common.ok"), role: .cancel) { }
         } message: {
