@@ -45,5 +45,9 @@
 		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 	</array>
+	<key>ServiceSecret</key>
+	<string>$(SERVICE_SECRET)</string>
+	<key>PublicServiceURL</key>
+	<string>$(PUBLIC_SERVICE_URL)</string>
 </dict>
 </plist>

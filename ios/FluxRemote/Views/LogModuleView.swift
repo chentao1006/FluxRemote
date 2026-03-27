@@ -27,6 +27,7 @@ struct LogModuleView: View {
     @State private var sudoPassword = ""
     @State private var showingSudoPrompt = false
     @State private var isActioning = false
+    @Binding var selection: NavigationItem?
 
     
     let categories = ["All", "system", "service", "app", "other"]
@@ -136,6 +137,10 @@ struct LogModuleView: View {
                 }
             }
             .onAppear {
+                if logs.isEmpty && !apiClient.logItems.isEmpty {
+                    self.logs = apiClient.logItems
+                    self.isLoading = false
+                }
                 Task { await fetchData() }
             }
             .refreshable {
@@ -377,6 +382,7 @@ struct LogModuleView: View {
     
     
     func fetchData() async {
+        guard selection == .logs else { return }
         isLoading = true
         errorMessage = nil
         do {
@@ -384,6 +390,7 @@ struct LogModuleView: View {
             await MainActor.run {
                 if case .list(let items) = response.data {
                     self.logs = items
+                    self.apiClient.logItems = items
                 }
                 self.isLoading = false
             }
@@ -638,11 +645,11 @@ struct LogDetailView: View {
                 let prompt = "Analyze the following logs and provide diagnosis or suggestions in \(languageManager.aiResponseLanguage):\n\nContext:\n\(contextInfo)\n\nContent:\n\(lastLines)\n\nUse Markdown formatting for the response."
                 let systemPrompt = "You are a systems expert. Analyze the provided logs to diagnose issues and provide solutions."
                 
-                let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: ["prompt": prompt, "system_prompt": systemPrompt])
+                let response = try await AIService.shared.analyze(prompt: prompt, systemPrompt: systemPrompt, apiClient: apiClient)
                 
                 await MainActor.run {
                     withAnimation {
-                        self.aiAnalysis = response.data
+                        self.aiAnalysis = response
                         self.isAnalyzing = false
                     }
                 }
@@ -657,7 +664,7 @@ struct LogDetailView: View {
 }
 
 #Preview {
-    LogModuleView()
+    LogModuleView(selection: .constant(.logs))
         .environment(RemoteAPIClient())
 }
 

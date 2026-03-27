@@ -319,12 +319,13 @@ struct AIAnalyzeView: View {
                     ? "Analyze the following logs and provide diagnosis or suggestions in \(languageManager.aiResponseLanguage):\n\nContext:\n\(contextInfo)\n\nContent:\n\(originalContent)\n\nUse Markdown formatting for the response."
                     : "Explain the following configuration and provide optimization suggestions in \(languageManager.aiResponseLanguage):\n\nContext:\n\(contextInfo)\n\nContent:\n\(originalContent)\n\nUse Markdown formatting for the response."
                 
-                let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: [
-                    "prompt": prompt,
-                    "system_prompt": systemPrompt
-                ])
+                let response = try await AIService.shared.analyze(
+                    prompt: prompt,
+                    systemPrompt: systemPrompt,
+                    apiClient: apiClient
+                )
                 await MainActor.run {
-                    self.analysisResult = response.data
+                    self.analysisResult = response
                     self.isProcessing = false
                 }
             } catch {
@@ -457,13 +458,14 @@ struct AIAssistView: View {
                 \(originalContent)
                 """
                 
-                let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: [
-                    "prompt": userPrompt,
-                    "system_prompt": systemPrompt
-                ])
+                let response = try await AIService.shared.analyze(
+                    prompt: userPrompt,
+                    systemPrompt: systemPrompt,
+                    apiClient: apiClient
+                )
                 
                 await MainActor.run {
-                    self.generatedContent = response.data
+                    self.generatedContent = response
                     self.isProcessing = false
                 }
             } catch {
@@ -483,7 +485,10 @@ struct AIActionButton: View {
     var isLoading: Bool = false
     let action: () -> Void
     
+    @Environment(RemoteAPIClient.self) private var apiClient
+    @Environment(AppLanguageManager.self) private var languageManager
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @State private var showDisabledAlert = false
     
     init(_ title: String, systemImage: String, color: Color = .purple, isLoading: Bool = false, action: @escaping () -> Void) {
         self.title = title
@@ -494,7 +499,13 @@ struct AIActionButton: View {
     }
     
     var body: some View {
-        Button(action: action) {
+        Button(action: {
+            if apiClient.aiConfig?.enabled ?? false {
+                action()
+            } else {
+                showDisabledAlert = true
+            }
+        }) {
             HStack(spacing: 8) {
                 if isLoading {
                     ProgressView()
@@ -511,12 +522,17 @@ struct AIActionButton: View {
             .padding(.horizontal, horizontalSizeClass == .compact ? 14 : 20)
             .padding(.vertical, horizontalSizeClass == .compact ? 10 : 12)
             .background(.ultraThinMaterial)
-            .background(color.opacity(0.6))
+            .background(apiClient.aiConfig?.enabled ?? false ? color.opacity(0.6) : Color.gray.opacity(0.4))
             .foregroundStyle(.white)
             .clipShape(Capsule())
             .shadow(color: color.opacity(0.3), radius: 10, x: 0, y: 5)
         }
         .disabled(isLoading)
         .buttonStyle(.plain)
+        .alert(languageManager.t("settings.aiDisabled"), isPresented: $showDisabledAlert) {
+            Button(languageManager.t("common.ok"), role: .cancel) { }
+        } message: {
+            Text(languageManager.t("settings.aiDisabledDesc"))
+        }
     }
 }

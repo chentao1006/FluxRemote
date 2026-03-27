@@ -11,6 +11,7 @@ struct ConfigsModuleView: View {
     @State private var showingAddConfig = false
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var searchText = ""
+    @Binding var selection: NavigationItem?
     
     func categoryCount(_ category: String) -> Int {
         if category == "All" { return configs.count }
@@ -42,6 +43,10 @@ struct ConfigsModuleView: View {
                 }
             }
             .onAppear {
+                if configs.isEmpty && !apiClient.configItems.isEmpty {
+                    self.configs = apiClient.configItems
+                    self.isLoading = false
+                }
                 Task { await fetchData() }
             }
             .refreshable {
@@ -195,12 +200,14 @@ struct ConfigsModuleView: View {
 
 
     func fetchData() async {
+        guard selection == .configs else { return }
         isLoading = true
         errorMessage = nil
         do {
             let response: ConfigResponse = try await apiClient.request("/api/configs")
             await MainActor.run {
                 self.configs = response.data ?? []
+                self.apiClient.configItems = response.data ?? []
                 self.isLoading = false
             }
         } catch {
@@ -371,11 +378,11 @@ struct ConfigDetailView: View {
                 let prompt = "Explain the following configuration and provide optimization suggestions in \(languageManager.aiResponseLanguage):\n\nContext:\n\(contextInfo)\n\nContent:\n\(content)\n\nUse Markdown formatting for the response."
                 let systemPrompt = "You are a configuration expert. Explain segments and suggest optimizations."
                 
-                let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: ["prompt": prompt, "system_prompt": systemPrompt])
+                let response = try await AIService.shared.analyze(prompt: prompt, systemPrompt: systemPrompt, apiClient: apiClient)
                 
                 await MainActor.run {
                     withAnimation {
-                        self.aiAnalysis = response.data
+                        self.aiAnalysis = response
                         self.isAnalyzing = false
                     }
                 }
@@ -390,6 +397,6 @@ struct ConfigDetailView: View {
 }
 
 #Preview {
-    ConfigsModuleView()
+    ConfigsModuleView(selection: .constant(.configs))
         .environment(RemoteAPIClient())
 }

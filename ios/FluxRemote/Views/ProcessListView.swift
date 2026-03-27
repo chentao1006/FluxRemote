@@ -16,6 +16,7 @@ struct ProcessListView: View {
     @State private var processToActOn: RemoteProcess?
     @State private var showingStopConfirmation = false
     @State private var showingKillConfirmation = false
+    @Binding var selection: NavigationItem?
     
     enum SortOrder: String, CaseIterable {
         case cpu = "CPU"
@@ -166,6 +167,10 @@ struct ProcessListView: View {
         }
         // 自动静默刷新
         .onAppear {
+            if processes.isEmpty && !apiClient.processItems.isEmpty {
+                self.processes = apiClient.processItems
+                self.isLoading = false
+            }
             Task { await fetchData() }
             refreshTask?.cancel()
             refreshTask = Task {
@@ -242,12 +247,14 @@ struct ProcessListView: View {
     }
     
     func fetchData(silent: Bool = false) async {
+        guard selection == .processes else { return }
         if !silent { isLoading = processes.isEmpty }
         errorMessage = nil
         do {
             let response: ProcessResponse = try await apiClient.request("/api/system/processes")
             await MainActor.run {
                 self.processes = response.data
+                self.apiClient.processItems = response.data
                 self.users = ["All"] + Array(Set(response.data.map { $0.user })).sorted()
                 self.isLoading = false
             }
@@ -459,11 +466,11 @@ struct ProcessDetailView: View {
                 let info = "PID: \(dp.pid), PPID: \(dp.ppid) (\(dp.ppidName)), Command: \(dp.command), Full Command: \(dp.fullCommand), CPU: \(dp.cpu)%, MEM: \(dp.mem)%, State: \(dp.state), Start: \(dp.start), User: \(dp.user), Open Files: \(dp.openFiles.joined(separator: ", "))"
                 let prompt = "Analyze this macOS process and provide diagnosis or suggestions in \(languageManager.aiResponseLanguage):\n\(info)\nUse Markdown formatting."
                 
-                let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: ["prompt": prompt])
+                let response = try await AIService.shared.analyze(prompt: prompt, systemPrompt: "You are a macOS systems expert.", apiClient: apiClient)
                 
                 await MainActor.run {
                     withAnimation {
-                        self.aiAnalysis = response.data
+                        self.aiAnalysis = response
                         self.isAnalyzing = false
                     }
                 }
@@ -480,7 +487,7 @@ struct ProcessDetailView: View {
 
 #Preview {
     NavigationStack {
-        ProcessListView()
+        ProcessListView(selection: .constant(.processes))
             .environment(RemoteAPIClient())
     }
 }

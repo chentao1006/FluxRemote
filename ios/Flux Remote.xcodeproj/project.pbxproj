@@ -26,6 +26,9 @@
 		C6C798322F6FC0F50036158B /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = C6C798312F6FC0F50036158B /* InfoPlist.strings */; };
 		C6C798412F6FC1170036158B /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = C6C798402F6FC1170036158B /* Localizable.xcstrings */; };
 		C6C798512F6FC1170036158B /* Components/Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6C798502F6FC1170036158B /* Components/Components.swift */; };
+		110000000000000000000A01 /* Core/AIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000A11 /* Core/AIService.swift */; };
+		110000000000000000000A02 /* Core/LLMClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000A12 /* Core/LLMClient.swift */; };
+		110000000000000000000A03 /* Views/AISettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000A13 /* Views/AISettingsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -50,6 +53,10 @@
 		C6C798332F6FC1170036158B /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		C6C798402F6FC1170036158B /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		C6C798502F6FC1170036158B /* Components/Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components/Components.swift; sourceTree = "<group>"; };
+		110000000000000000000A11 /* Core/AIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/AIService.swift; sourceTree = "<group>"; };
+		110000000000000000000A12 /* Core/LLMClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/LLMClient.swift; sourceTree = "<group>"; };
+		110000000000000000000A13 /* Views/AISettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/AISettingsView.swift; sourceTree = "<group>"; };
+		110000000000000000000A14 /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -74,14 +81,18 @@
 		110000000000000000000051 /* FluxRemote */ = {
 			isa = PBXGroup;
 			children = (
+				110000000000000000000A14 /* Config.xcconfig */,
 				C6C798502F6FC1170036158B /* Components/Components.swift */,
 				C6C798402F6FC1170036158B /* Localizable.xcstrings */,
 				C6C798312F6FC0F50036158B /* InfoPlist.strings */,
 				110000000000000000000011 /* FluxRemoteApp.swift */,
+				110000000000000000000A11 /* Core/AIService.swift */,
+				110000000000000000000A12 /* Core/LLMClient.swift */,
 				110000000000000000000012 /* Core/RemoteAPIClient.swift */,
 				11000000000000000000001C /* Core/NavigationItem.swift */,
 				110000000000000000000013 /* Core/AppLanguageManager.swift */,
 				110000000000000000000014 /* Views/FluxLoginView.swift */,
+				110000000000000000000A13 /* Views/AISettingsView.swift */,
 				110000000000000000000017 /* Views/DockerModuleView.swift */,
 				110000000000000000000018 /* Views/NginxModuleView.swift */,
 				110000000000000000000019 /* Models/RemoteModels.swift */,
@@ -179,6 +190,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				110000000000000000000A01 /* Core/AIService.swift in Sources */,
+				110000000000000000000A02 /* Core/LLMClient.swift in Sources */,
+				110000000000000000000A03 /* Views/AISettingsView.swift in Sources */,
 				C6C798512F6FC1170036158B /* Components/Components.swift in Sources */,
 				110000000000000000000001 /* FluxRemoteApp.swift in Sources */,
 				110000000000000000000002 /* Core/RemoteAPIClient.swift in Sources */,
@@ -253,6 +267,7 @@
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
+			baseConfigurationReference = 110000000000000000000A14 /* Config.xcconfig */;
 			name = Debug;
 		};
 		1100000000000000000000D2 /* Release */ = {
@@ -289,6 +304,7 @@
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				VALIDATE_PRODUCT = YES;
 			};
+			baseConfigurationReference = 110000000000000000000A14 /* Config.xcconfig */;
 			name = Release;
 		};
 		1100000000000000000000E1 /* Debug */ = {

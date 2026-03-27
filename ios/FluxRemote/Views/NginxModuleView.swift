@@ -23,6 +23,7 @@ struct NginxModuleView: View {
     @State private var showingStopConfirm = false
     @State private var showingTestAlert = false
     @State private var testDetails = ""
+    @Binding var selection: NavigationItem?
     
     var body: some View {
         List {
@@ -48,6 +49,10 @@ struct NginxModuleView: View {
             }
         }
         .onAppear {
+            if sites.isEmpty && !apiClient.nginxSites.isEmpty {
+                self.sites = apiClient.nginxSites
+                self.isLoading = false
+            }
             Task { await fetchData() }
         }
         .alert(languageManager.t("common.confirm"), isPresented: $showingRestartConfirm) {
@@ -309,6 +314,7 @@ struct NginxModuleView: View {
     }
     
     func fetchData() async {
+        guard selection == .nginx else { return }
         isLoading = true
         errorMessage = nil
         do {
@@ -319,6 +325,7 @@ struct NginxModuleView: View {
             
             await MainActor.run {
                 self.sites = sRes.data ?? []
+                self.apiClient.nginxSites = sRes.data ?? []
                 self.serviceStatus = stRes
                 self.isLoading = false
                 self.errorMessage = nil
@@ -645,11 +652,11 @@ server {
                 let prompt = "Explain the following Nginx configuration and provide optimization suggestions in \(languageManager.aiResponseLanguage):\n\nContext:\n\(contextInfo)\n\nContent:\n\(content)\n\nUse Markdown formatting for the response."
                 let systemPrompt = "You are an Nginx expert. Explain configuration blocks and suggest optimizations."
                 
-                let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: ["prompt": prompt, "system_prompt": systemPrompt])
+                let response = try await AIService.shared.analyze(prompt: prompt, systemPrompt: systemPrompt, apiClient: apiClient)
                 
                 await MainActor.run {
                     withAnimation {
-                        self.aiAnalysis = response.data
+                        self.aiAnalysis = response
                         self.isAnalyzing = false
                     }
                 }
@@ -665,7 +672,7 @@ server {
 
 #Preview {
     NavigationStack {
-        NginxModuleView()
+        NginxModuleView(selection: .constant(.nginx))
             .environment(RemoteAPIClient())
     }
 }
@@ -780,10 +787,10 @@ struct NginxLogView: View {
         Task {
             do {
                 let prompt = "Analyze these Nginx \(selectedTab) logs and provide diagnosis or suggestions in \(languageManager.aiResponseLanguage):\n\(last50Lines)\nUse Markdown formatting."
-                let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: ["prompt": prompt])
+                let response = try await AIService.shared.analyze(prompt: prompt, systemPrompt: "You are an Nginx logs expert.", apiClient: apiClient)
                 await MainActor.run {
                     withAnimation {
-                        self.aiAnalysis = response.data
+                        self.aiAnalysis = response
                         self.isAnalyzing = false
                     }
                 }

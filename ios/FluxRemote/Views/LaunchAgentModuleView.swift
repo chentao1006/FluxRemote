@@ -14,6 +14,7 @@ struct LaunchAgentModuleView: View {
     @State private var sudoPassword = ""
     @State private var pendingAction: (String, String)? // (action, path)
     @State private var activeAlert: LaunchAgentAlert?
+    @Binding var selection: NavigationItem?
     
     enum LaunchAgentAlert: Identifiable {
         case delete(LaunchAgentItem)
@@ -109,6 +110,10 @@ struct LaunchAgentModuleView: View {
             }
         }
         .onAppear {
+            if launchAgents.isEmpty && !apiClient.launchAgents.isEmpty {
+                self.launchAgents = apiClient.launchAgents
+                self.isLoading = false
+            }
             Task { await fetchData() }
         }
         .toolbar {
@@ -220,10 +225,12 @@ struct LaunchAgentModuleView: View {
     }
     
     func fetchData() async {
+        guard selection == .launchagent else { return }
         do {
             let response: LaunchAgentResponse = try await apiClient.request("/api/launchagent/list")
             await MainActor.run {
                 self.launchAgents = response.data
+                self.apiClient.launchAgents = response.data
                 self.errorMessage = nil
                 self.isLoading = false
             }
@@ -430,11 +437,11 @@ struct AddAgentView: View {
                 let prompt = "Explain the following macOS LaunchAgent configuration and provide optimization suggestions in \(languageManager.aiResponseLanguage):\n\nContent:\n\(content)\n\nUse Markdown formatting for the response."
                 let systemPrompt = "You are a macOS systems expert. Explain LaunchAgent segments and suggest optimizations."
                 
-                let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: ["prompt": prompt, "system_prompt": systemPrompt])
+                let response = try await AIService.shared.analyze(prompt: prompt, systemPrompt: systemPrompt, apiClient: apiClient)
                 
                 await MainActor.run {
                     withAnimation {
-                        self.aiAnalysis = response.data
+                        self.aiAnalysis = response
                         self.isAnalyzing = false
                     }
                 }
@@ -624,11 +631,11 @@ struct LaunchAgentDetailView: View {
                 let prompt = "Explain the following macOS LaunchAgent configuration and provide optimization suggestions in \(languageManager.aiResponseLanguage):\n\nContext:\n\(contextInfo)\n\nContent:\n\(content)\n\nUse Markdown formatting for the response."
                 let systemPrompt = "You are a macOS systems expert. Explain LaunchAgent segments and suggest optimizations."
                 
-                let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: ["prompt": prompt, "system_prompt": systemPrompt])
+                let response = try await AIService.shared.analyze(prompt: prompt, systemPrompt: systemPrompt, apiClient: apiClient)
                 
                 await MainActor.run {
                     withAnimation {
-                        self.aiAnalysis = response.data
+                        self.aiAnalysis = response
                         self.isAnalyzing = false
                     }
                 }
@@ -644,7 +651,7 @@ struct LaunchAgentDetailView: View {
 
 #Preview {
     NavigationStack {
-        LaunchAgentModuleView()
+        LaunchAgentModuleView(selection: .constant(.launchagent))
             .environment(RemoteAPIClient())
     }
 }

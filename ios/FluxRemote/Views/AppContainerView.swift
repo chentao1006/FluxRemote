@@ -5,6 +5,7 @@ struct AppContainerView: View {
     @Environment(AppLanguageManager.self) private var languageManager
     @State private var selection: NavigationItem? = .monitor
     @State private var morePath: [NavigationItem] = []
+    @State private var modulePaths: [NavigationItem: NavigationPath] = [:]
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     
     @State private var showingQuickTerminal = false
@@ -114,12 +115,13 @@ struct AppContainerView: View {
                 sidebarContent
                     .navigationTitle(languageManager.t("appTitle"))
             } detail: {
-                if let selection = selection {
-                    NavigationStack {
-                        contentView(for: selection)
+                if let currentItem = selection {
+                    NavigationStack(path: pathBinding(for: currentItem)) {
+                        contentView(for: currentItem)
+                            .id(currentItem)
                     }
                 } else {
-                    LoadingView()
+                    ContentUnavailableView(languageManager.t("appTitle"), systemImage: "monitor.fill")
                 }
             }
         } else {
@@ -158,6 +160,7 @@ struct AppContainerView: View {
                 .tag(Optional(NavigationItem.more))
             }
             .onChange(of: selection) { oldValue, newValue in
+                guard horizontalSizeClass == .compact else { return }
                 guard let newValue = newValue else { return }
                 let moreItems: [NavigationItem] = [.launchagent, .docker, .nginx, .settings]
                 if moreItems.contains(newValue) {
@@ -234,15 +237,22 @@ struct AppContainerView: View {
     private func contentView(for item: NavigationItem) -> some View {
         switch item {
         case .monitor: DashboardView(selection: $selection)
-        case .processes: ProcessListView()
-        case .logs: LogModuleView()
-        case .configs: ConfigsModuleView()
-        case .launchagent: LaunchAgentModuleView()
-        case .docker: DockerModuleView()
-        case .nginx: NginxModuleView()
+        case .processes: ProcessListView(selection: $selection)
+        case .logs: LogModuleView(selection: $selection)
+        case .configs: ConfigsModuleView(selection: $selection)
+        case .launchagent: LaunchAgentModuleView(selection: $selection)
+        case .docker: DockerModuleView(selection: $selection)
+        case .nginx: NginxModuleView(selection: $selection)
         case .settings: SettingsView()
         case .more: EmptyView()
         }
+    }
+    
+    private func pathBinding(for item: NavigationItem) -> Binding<NavigationPath> {
+        Binding(
+            get: { modulePaths[item] ?? NavigationPath() },
+            set: { modulePaths[item] = $0 }
+        )
     }
 }
 
@@ -283,6 +293,8 @@ struct QuickTerminalView: View {
         QuickCommand(name: "monitor.quickCmds.dns", command: "cat /etc/resolv.conf")
     ]
     
+    @State private var showingAIDisabledAlert = false
+    
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
@@ -320,7 +332,11 @@ struct QuickTerminalView: View {
                 VStack(spacing: 0) {
                     HStack(spacing: 12) {
                         Button {
-                            showingAIPrompt = true
+                            if apiClient.aiConfig?.enabled ?? false {
+                                showingAIPrompt = true
+                            } else {
+                                showingAIDisabledAlert = true
+                            }
                         } label: {
                             if isTranslating {
                                 ProgressView().controlSize(.small)
@@ -420,6 +436,11 @@ struct QuickTerminalView: View {
                     }
                     .padding(.bottom, 30)
                 }
+            }
+            .alert(languageManager.t("settings.aiDisabled"), isPresented: $showingAIDisabledAlert) {
+                Button(languageManager.t("common.ok"), role: .cancel) { }
+            } message: {
+                Text(languageManager.t("settings.aiDisabledDesc"))
             }
             .navigationTitle(languageManager.t("terminal.title"))
             .navigationBarTitleDisplayMode(.inline)
@@ -536,12 +557,13 @@ struct QuickTerminalView: View {
                 Command:
                 """
                 
-                let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: [
-                    "prompt": strictPrompt,
-                    "system_prompt": "You are a terminal command generator. Output ONLY raw bash commands."
-                ])
+                let response = try await AIService.shared.analyze(
+                    prompt: strictPrompt,
+                    systemPrompt: "You are a terminal command generator. Output ONLY raw bash commands.",
+                    apiClient: apiClient
+                )
                 await MainActor.run {
-                    self.command = response.data.trimmingCharacters(in: .whitespacesAndNewlines)
+                    self.command = response.trimmingCharacters(in: .whitespacesAndNewlines)
                     self.isTranslating = false
                 }
             } catch {
@@ -559,9 +581,9 @@ struct QuickTerminalView: View {
         Task {
             do {
                 let prompt = "Analyze this terminal output and provide explanations or suggestions in Chinese:\n\(output)\nPlease use Markdown formatting."
-                let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: ["prompt": prompt])
+                let response = try await AIService.shared.analyze(prompt: prompt, systemPrompt: "You are a terminal output analyzer.", apiClient: apiClient)
                 await MainActor.run {
-                    self.aiAnalysis = response.data
+                    self.aiAnalysis = response
                     self.isAnalyzingOutput = false
                 }
             } catch {
@@ -794,21 +816,22 @@ struct TerminalAIPromptView: View {
             .padding()
             .background(Color(.secondarySystemGroupedBackground))
             
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Image(systemName: "sparkles")
-                        .foregroundStyle(.purple)
+            ZStack(alignment: .topLeading) {
+                if text.isEmpty {
                     Text(languageManager.t("monitor.aiPromptPlaceholder"))
                         .font(.subheadline)
                         .fontWeight(.medium)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
+                        .allowsHitTesting(false)
                 }
-                .padding(.horizontal)
-                .padding(.top, 16)
                 
                 TextEditor(text: $text)
                     .font(.body)
                     .scrollContentBackground(.hidden)
                     .padding(.horizontal, 12)
+                    .padding(.top, 4)
                     .padding(.bottom, 20)
             }
             .background(Color(uiColor: .systemGroupedBackground))

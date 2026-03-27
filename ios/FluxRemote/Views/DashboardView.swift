@@ -8,20 +8,11 @@ struct DashboardView: View {
     @State private var stats: RemoteSystemStats?
     @State private var errorMessage: String?
     @State private var history: [MetricPoint] = []
-    @State private var timer: Timer?
     @State private var prevNetBytes: RemoteNetBytes?
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Binding var selection: NavigationItem?
     
-    struct MetricPoint: Identifiable {
-        let id = UUID()
-        let date: Date
-        let cpu: Double
-        let memory: Double
-        let netIn: Double
-        let netOut: Double
-    }
     @State private var terminalCommand: String = ""
     @State private var terminalOutput: String = ""
     @State private var isExecutingCommand = false
@@ -33,6 +24,8 @@ struct DashboardView: View {
     @State private var agentSummary: (loaded: Int, total: Int) = (0, 0)
     @State private var logSummary: (total: Int, lastFile: String) = (0, "")
     @State private var configSummary: (total: Int, sysCount: Int, userCount: Int) = (0, 0, 0)
+    @State private var fetchTask: Task<Void, Never>?
+    @State private var lastSummaryFetch: Date = .distantPast
     
     private var features: FeatureToggles { apiClient.features }
 
@@ -54,6 +47,8 @@ struct DashboardView: View {
         }
     }
     
+    @State private var showingAIDisabledAlert = false
+    
     var body: some View {
         ZStack {
             Color(.systemGroupedBackground).ignoresSafeArea()
@@ -61,16 +56,27 @@ struct DashboardView: View {
             mainContent
         }
         .navigationTitle(languageManager.t("sidebar.monitor"))
+        .alert(languageManager.t("settings.aiDisabled"), isPresented: $showingAIDisabledAlert) {
+            Button(languageManager.t("common.ok"), role: .cancel) { }
+        } message: {
+            Text(languageManager.t("settings.aiDisabledDesc"))
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: analyzeSystem) {
+                    Button(action: {
+                        if apiClient.aiConfig?.enabled ?? false {
+                            analyzeSystem()
+                        } else {
+                            showingAIDisabledAlert = true
+                        }
+                    }) {
                         if isAnalyzing {
                             ProgressView().controlSize(.small)
                         } else {
                             HStack {
                                 Image(systemName: "sparkle.text.clipboard")
                                     .font(.system(size: 16, weight: .semibold))
-                                    .foregroundStyle(.purple.opacity(isAnalyzing || stats == nil ? 0.5 : 1.0))
+                                    .foregroundStyle(.purple.opacity(!(apiClient.aiConfig?.enabled ?? false) || isAnalyzing || stats == nil ? 0.5 : 1.0))
                                 Text(languageManager.t("common.aiAnalyze"))
                             }
                         }
@@ -96,6 +102,10 @@ struct DashboardView: View {
             }
         }
         .onAppear {
+            if stats == nil {
+                stats = apiClient.dashboardStats
+                history = apiClient.dashboardHistory
+            }
             startTimer()
         }
         .onDisappear {
@@ -285,6 +295,10 @@ struct DashboardView: View {
         .refreshable {
             await withTaskGroup(of: Void.self) { group in
                 group.addTask { await fetchData() }
+                group.addTask { 
+                    await fetchAllSummaries()
+                    lastSummaryFetch = Date()
+                }
                 group.addTask { try? await Task.sleep(for: .milliseconds(600)) }
                 await group.waitForAll()
             }
@@ -293,14 +307,16 @@ struct DashboardView: View {
 
     
     func fetchData() async {
+        guard selection == .monitor else { return }
         do {
             let response: RemoteStatsResponse = try await apiClient.request("/api/system/stats")
             await MainActor.run {
                  self.stats = response.data
+                 self.apiClient.dashboardStats = response.data
                  self.errorMessage = nil
                  updateHistory(with: response.data)
+                 self.apiClient.dashboardHistory = self.history
              }
-             await fetchAllSummaries()
          } catch {
             print("Fetch stats error: \(error)")
             await MainActor.run {
@@ -374,9 +390,9 @@ struct DashboardView: View {
         var netOut: Double = 0
         
         if let currentNet = stats.netBytes, let prevNet = prevNetBytes {
-            // Assume 2s interval
-            netIn = Double(currentNet.in - prevNet.in) / 1024 / 2.0
-            netOut = Double(currentNet.out - prevNet.out) / 1024 / 2.0
+            // Updated to 5s interval for speed calculation
+            netIn = Double(currentNet.in - prevNet.in) / 1024 / 5.0
+            netOut = Double(currentNet.out - prevNet.out) / 1024 / 5.0
         }
         
         self.prevNetBytes = stats.netBytes
@@ -403,15 +419,31 @@ struct DashboardView: View {
     }
     
     func startTimer() {
-        Task { await fetchData() }
-        timer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
-            Task { await fetchData() }
+        fetchTask?.cancel()
+        fetchTask = Task {
+            // Initial fetch
+            await fetchData()
+            await fetchAllSummaries()
+            lastSummaryFetch = Date()
+            
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                guard !Task.isCancelled else { break }
+                
+                await fetchData()
+                
+                // Fetch summaries every 30 seconds
+                if Date().timeIntervalSince(lastSummaryFetch) >= 30 {
+                    await fetchAllSummaries()
+                    lastSummaryFetch = Date()
+                }
+            }
         }
     }
     
     func stopTimer() {
-        timer?.invalidate()
-        timer = nil
+        fetchTask?.cancel()
+        fetchTask = nil
     }
     
     @State private var aiAnalysis: String?
@@ -438,10 +470,10 @@ LaunchAgents: \(agentSummary.loaded)/\(agentSummary.total) Loaded
 
 Please provide comments on health, resource usage, and any suggestions in \(languageManager.aiResponseLanguage). Use Markdown with emojis.
 """
-                let aiResponse: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: ["prompt": prompt])
+                let response = try await AIService.shared.analyze(prompt: prompt, systemPrompt: "You are a professional system assistant analyzing macOS health and resource usage.", apiClient: apiClient)
                 await MainActor.run {
                     withAnimation {
-                        self.aiAnalysis = aiResponse.data
+                        self.aiAnalysis = response
                         self.isAnalyzing = false
                     }
                 }
@@ -598,8 +630,8 @@ struct ChartTile: View {
     let value: String
     let subValue: String
     let color: Color
-    let data: [DashboardView.MetricPoint]
-    var keyPath: KeyPath<DashboardView.MetricPoint, Double>? = nil
+    let data: [MetricPoint]
+    var keyPath: KeyPath<MetricPoint, Double>? = nil
     var isNetwork: Bool = false
     
     var body: some View {
@@ -667,7 +699,7 @@ struct ChartTile: View {
                     .interpolationMethod(.monotone)
                 }
                 .chartXAxis(.hidden)
-                .chartXScale(domain: Date().addingTimeInterval(-120)...Date())
+                .chartXScale(domain: Date().addingTimeInterval(-300)...Date())
                 .chartYAxis {
                     AxisMarks(position: .trailing)
                 }
@@ -690,7 +722,7 @@ struct ChartTile: View {
                     .interpolationMethod(.monotone)
                 }
                 .chartXAxis(.hidden)
-                .chartXScale(domain: Date().addingTimeInterval(-120)...Date())
+                .chartXScale(domain: Date().addingTimeInterval(-300)...Date())
                 .chartYAxis {
                     AxisMarks(position: .trailing) {
                         AxisValueLabel().foregroundStyle(.clear)
@@ -715,7 +747,7 @@ struct ChartTile: View {
                 .interpolationMethod(.monotone)
             }
             .chartXAxis(.hidden)
-            .chartXScale(domain: Date().addingTimeInterval(-120)...Date())
+            .chartXScale(domain: Date().addingTimeInterval(-300)...Date())
             .chartYAxis {
                 AxisMarks(position: .trailing, values: [0, 50, 100])
             }

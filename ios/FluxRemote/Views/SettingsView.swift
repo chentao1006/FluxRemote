@@ -39,21 +39,29 @@ struct SettingsView: View {
                 }
                 
                 Section(header: Text(languageManager.t("settings.aiConfig"))) {
-                    TextField(languageManager.t("settings.url"), text: Binding(
-                        get: { serverSettings?.ai?.url ?? "" },
-                        set: { serverSettings?.ai?.url = $0; triggerAutoSave() }
-                    ))
-                    SecureField(languageManager.t("settings.apiKey"), text: Binding(
-                        get: { serverSettings?.ai?.key ?? "" },
-                        set: { serverSettings?.ai?.key = $0; triggerAutoSave() }
-                    ))
-                    #if os(iOS)
-                    .textContentType(.password)
-                    #endif
-                    TextField(languageManager.t("settings.model"), text: Binding(
-                        get: { serverSettings?.ai?.model ?? "" },
-                        set: { serverSettings?.ai?.model = $0; triggerAutoSave() }
-                    ))
+                    NavigationLink(destination: AISettingsView(
+                        languageManager: languageManager,
+                        aiConfig: Binding(
+                            get: { serverSettings?.ai },
+                            set: { serverSettings?.ai = $0 }
+                        ),
+                        onSave: { triggerAutoSave() },
+                        apiClient: apiClient
+                    )) {
+                        HStack {
+                            Text(languageManager.t("settings.aiConfig"))
+                            Spacer()
+                            if !(serverSettings?.ai?.enabled ?? false) {
+                                Text(languageManager.t("common.off"))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text(serverSettings?.ai?.usePublicService ?? true ? languageManager.t("settings.publicService") : (serverSettings?.ai?.model ?? languageManager.t("common.none")))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
                 }
 
                 Section(header: Text(languageManager.t("settings.language"))) {
@@ -129,6 +137,7 @@ struct SettingsView: View {
                 if let feats = settings.features {
                     apiClient.features = feats
                 }
+                apiClient.aiConfig = settings.ai
                 self.isSaving = false
                 self.lastSavedTime = Date()
             }

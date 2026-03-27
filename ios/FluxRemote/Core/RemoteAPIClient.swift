@@ -2,6 +2,17 @@ import Foundation
 import Observation
 import SwiftUI
 
+// MARK: - Models
+
+struct MetricPoint: Identifiable {
+    let id = UUID()
+    let date: Date
+    let cpu: Double
+    let memory: Double
+    let netIn: Double
+    let netOut: Double
+}
+
 // MARK: - Remote API Client
 
 @MainActor
@@ -13,7 +24,18 @@ class RemoteAPIClient {
     var isLoading: Bool = false
     var errorMessage: String?
     var features: FeatureToggles = FeatureToggles()
+    var aiConfig: AIConfig?
     var languageManager: AppLanguageManager?
+    
+    // Shared state for persistent content
+    var dashboardStats: RemoteSystemStats? = nil
+    var dashboardHistory: [MetricPoint] = []
+    var dockerContainers: [DockerContainer] = []
+    var nginxSites: [NginxSite] = []
+    var launchAgents: [LaunchAgentItem] = []
+    var logItems: [LogItem] = []
+    var processItems: [RemoteProcess] = []
+    var configItems: [ConfigItem] = []
     
     let session: URLSession
     
@@ -190,6 +212,7 @@ class RemoteAPIClient {
                 if let feats = response.data.features {
                     self.features = feats
                 }
+                self.aiConfig = response.data.ai
             }
         } catch {
             print("Fetch settings for features failed: \(error)")

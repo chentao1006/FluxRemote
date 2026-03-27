@@ -14,6 +14,7 @@ struct DockerModuleView: View {
     @State private var activeSheet: DockerSheetType? = nil
     @State private var showingAIAssistant = false
     @State private var showingCommandSheet = false
+    @Binding var selection: NavigationItem?
     
     enum DockerAlertType: Identifiable {
         case prune
@@ -57,7 +58,13 @@ struct DockerModuleView: View {
             .navigationTitle(languageManager.t("sidebar.docker"))
             .toolbar { toolbarContent }
             .refreshable { await refreshData() }
-            .onAppear { Task { await fetchData() } }
+            .onAppear {
+                if containers.isEmpty && !apiClient.dockerContainers.isEmpty {
+                    self.containers = apiClient.dockerContainers
+                    self.isLoading = false
+                }
+                Task { await fetchData() }
+            }
             .onChange(of: selectedTab) { Task { await fetchData() } }
             .sheet(item: $activeSheet) { sheet in
                 switch sheet {
@@ -398,6 +405,7 @@ struct DockerModuleView: View {
     @State private var fetchTask: Task<Void, Never>?
     
     func fetchData() async {
+        guard selection == .docker else { return }
         fetchTask?.cancel()
         
         fetchTask = Task {
@@ -413,6 +421,7 @@ struct DockerModuleView: View {
                     if !Task.isCancelled {
                         await MainActor.run {
                             self.containers = response.data
+                            self.apiClient.dockerContainers = response.data
                             self.isLoading = false
                         }
                     }
@@ -494,10 +503,10 @@ struct DockerLogView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var logs: String = ""
     @State private var isLoading = true
-    @State private var timer: Timer?
     @State private var autoScroll = true
     @State private var isAnalyzing = false
     @State private var aiAnalysis: String?
+    @State private var logTask: Task<Void, Never>? = nil
     
     var body: some View {
         // Precompute displayLines to help the compiler
@@ -549,14 +558,18 @@ struct DockerLogView: View {
         .navigationTitle(String(format: languageManager.t("docker.containerLogs"), containerName))
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
-            Task { await fetchLogs() }
-            timer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { _ in
-                Task { await fetchLogs(silent: true) }
+            logTask?.cancel()
+            logTask = Task {
+                await fetchLogs()
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(3))
+                    await fetchLogs(silent: true)
+                }
             }
         }
         .onDisappear {
-            timer?.invalidate()
-            timer = nil
+            logTask?.cancel()
+            logTask = nil
         }
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -602,10 +615,10 @@ struct DockerLogView: View {
         Task {
             do {
                 let prompt = "Analyze these Docker container logs and provide diagnosis or suggestions in \(languageManager.aiResponseLanguage):\n\(last50Lines)\nUse Markdown formatting."
-                let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: ["prompt": prompt])
+                let response = try await AIService.shared.analyze(prompt: prompt, systemPrompt: "You are a systems expert.", apiClient: apiClient)
                 await MainActor.run {
                     withAnimation {
-                        self.aiAnalysis = response.data
+                        self.aiAnalysis = response
                         self.isAnalyzing = false
                     }
                 }
@@ -622,7 +635,7 @@ struct DockerLogView: View {
 
 #Preview {
     NavigationStack {
-        DockerModuleView()
+        DockerModuleView(selection: .constant(.docker))
             .environment(RemoteAPIClient())
     }
 }
@@ -867,7 +880,7 @@ struct DockerAIAssistantView: View {
                 }
             }
         }
-        .navigationTitle(languageManager.t("monitor.aiGenerateantTitle"))
+        .navigationTitle(languageManager.t("monitor.aiAssistantTitle"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
@@ -885,10 +898,10 @@ struct DockerAIAssistantView: View {
         Task {
             do {
                 let systemPrompt = "You are a professional Docker assistant. Convert the description to a valid `docker run` command. CRITICAL: Return ONLY the final command itself, NO explanations, NO intro/outro text, and NO Markdown code block delimiters (e.g. ```)."
-                let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: ["prompt": prompt, "systemPrompt": systemPrompt])
+                let response = try await AIService.shared.analyze(prompt: prompt, systemPrompt: systemPrompt, apiClient: apiClient)
                 
                 await MainActor.run {
-                    self.generatedCommand = response.data
+                    self.generatedCommand = response
                     self.isGenerating = false
                 }
             } catch {

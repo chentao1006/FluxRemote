@@ -299,9 +299,11 @@ struct ServerSettings: Codable {
 }
 
 struct AIConfig: Codable {
+    var enabled: Bool?
     var url: String?
     var key: String?
     var model: String?
+    var usePublicService: Bool?
 }
 
 struct FeatureToggles: Codable {
