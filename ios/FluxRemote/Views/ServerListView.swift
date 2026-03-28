@@ -19,21 +19,63 @@ struct ServerListView: View {
             
             Section {
                 if ServerManager.shared.servers.isEmpty {
-                    VStack(spacing: 20) {
-                        Image(systemName: "server.rack")
-                            .font(.system(size: 60))
-                            .foregroundStyle(.tertiary)
-                        Text(languageManager.t("settings.noServers"))
-                            .font(.headline)
+                    VStack(spacing: 24) {
+                        VStack(spacing: 8) {
+                            Circle()
+                                .fill(Color("AccentColor").opacity(0.1))
+                                .frame(width: 80, height: 80)
+                                .overlay {
+                                    Image(systemName: "server.rack")
+                                        .font(.system(size: 40))
+                                        .foregroundStyle(Color("AccentColor"))
+                                }
+                                .padding(.bottom, 8)
+                            
+                            Text(languageManager.t("settings.noServersTitle"))
+                                .font(.title2.bold())
+                            
+                            Text(languageManager.t("settings.noServers"))
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 16) {
+                            StepItem(icon: "1.circle.fill", text: languageManager.t("settings.launcherStep1"))
+                            StepItem(icon: "2.circle.fill", text: languageManager.t("settings.launcherStep2"))
+                            
+                            HStack(alignment: .top, spacing: 12) {
+                                Image(systemName: "safari.fill")
+                                    .foregroundStyle(.blue)
+                                    .font(.system(size: 20))
+                                
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(languageManager.t("settings.launcherVisitWebsite"))
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                    Link("https://flux.ct106.com/", destination: URL(string: "https://flux.ct106.com/")!)
+                                        .font(.subheadline.bold())
+                                        .foregroundStyle(Color("AccentColor"))
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 20)
+                        .background(Color.secondary.opacity(0.05))
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        
                         Button {
                             showingAddServer = true
                         } label: {
-                            Text(languageManager.t("common.add"))
+                            Label(languageManager.t("common.add"), systemImage: "plus")
                                 .fontWeight(.semibold)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 4)
                         }
                         .buttonStyle(.borderedProminent)
+                        .padding(.horizontal, 24)
                     }
-                    .frame(maxWidth: .infinity, minHeight: 400)
+                    .padding(.top, 40)
+                    .frame(maxWidth: .infinity)
                     .listRowBackground(Color.clear)
                 } else {
                     ForEach(ServerManager.shared.servers) { server in
@@ -238,5 +280,23 @@ struct ServerEditView: View {
             }
         }
         .tint(.primary)
+    }
+}
+
+struct StepItem: View {
+    let icon: String
+    let text: String
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .foregroundStyle(Color("AccentColor"))
+                .font(.system(size: 20))
+            
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }

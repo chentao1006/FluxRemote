@@ -8,6 +8,32 @@ struct ServerConfig: Codable, Identifiable, Hashable {
     var username: String?
     var isOffline: Bool = false
     var isLauncher: Bool = false
+    var lastUpdatedAt: Date = Date()
+    
+    enum CodingKeys: String, CodingKey {
+        case id, name, url, username, isOffline, isLauncher, lastUpdatedAt
+    }
+    
+    init(id: UUID = UUID(), name: String, url: String, username: String? = nil, isOffline: Bool = false, isLauncher: Bool = false, lastUpdatedAt: Date = Date()) {
+        self.id = id
+        self.name = name
+        self.url = url
+        self.username = username
+        self.isOffline = isOffline
+        self.isLauncher = isLauncher
+        self.lastUpdatedAt = lastUpdatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        name = try container.decode(String.self, forKey: .name)
+        url = try container.decode(String.self, forKey: .url)
+        username = try container.decodeIfPresent(String.self, forKey: .username)
+        isOffline = try container.decodeIfPresent(Bool.self, forKey: .isOffline) ?? false
+        isLauncher = try container.decodeIfPresent(Bool.self, forKey: .isLauncher) ?? false
+        lastUpdatedAt = try container.decodeIfPresent(Date.self, forKey: .lastUpdatedAt) ?? Date(timeIntervalSince1970: 0)
+    }
     
     var baseURL: URL? {
         var urlStr = url
@@ -87,6 +113,7 @@ class ServerManager {
         if let data = UserDefaults.standard.data(forKey: serversKey),
            let decoded = try? JSONDecoder().decode([ServerConfig].self, from: data) {
             self.servers = decoded
+            sortServers()
         } else {
             // Migration for old single server config
             if let oldURL = UserDefaults.standard.string(forKey: "flux_remote_url") {
@@ -110,20 +137,24 @@ class ServerManager {
     
     private func mergeWithCloud(_ cloudServers: [ServerConfig]) {
         var merged: [ServerConfig] = self.servers
-        var hasChanges = false
+        var hasChangesFromCloud = false
+        var hasLocalNewer = false
         
         // 1. Add/Update servers from cloud
         for cloudServer in cloudServers {
             if let index = merged.firstIndex(where: { $0.id == cloudServer.id }) {
-                // If ID matches, check if content (like isOffline or Name) changed
-                if merged[index] != cloudServer {
+                // Determine which one is newer
+                if cloudServer.lastUpdatedAt > merged[index].lastUpdatedAt {
                     merged[index] = cloudServer
-                    hasChanges = true
+                    hasChangesFromCloud = true
+                } else if cloudServer.lastUpdatedAt < merged[index].lastUpdatedAt {
+                    // Local is newer, let's make sure we push this back eventually
+                    hasLocalNewer = true
                 }
             } else {
                 // New from cloud
                 merged.append(cloudServer)
-                hasChanges = true
+                hasChangesFromCloud = true
             }
         }
         
@@ -131,14 +162,12 @@ class ServerManager {
         let cloudIds = Set(cloudServers.map { $0.id })
         let localMissingInCloud = self.servers.contains { !cloudIds.contains($0.id) }
         
-        isCloudUpdating = true
-        self.servers = merged
-        saveLocalOnly()
-        isCloudUpdating = false
-        
-        // 3. Force upload if local had extra data to ensure Cloud eventually has EVERYTHING
-        if localMissingInCloud || hasChanges {
-            CloudSyncManager.shared.upload(servers: self.servers)
+        if hasChangesFromCloud {
+            isCloudUpdating = true
+            self.servers = merged
+            sortServers()
+            saveLocalOnly()
+            isCloudUpdating = false
         }
     }
     
@@ -170,13 +199,19 @@ class ServerManager {
         if servers.isEmpty {
             selectedServerId = server.id
         }
-        servers.append(server)
+        var newServer = server
+        newServer.lastUpdatedAt = Date()
+        servers.append(newServer)
+        sortServers()
         saveServers()
     }
     
     func updateServer(_ server: ServerConfig) {
         if let index = servers.firstIndex(where: { $0.id == server.id }) {
-            servers[index] = server
+            var updated = server
+            updated.lastUpdatedAt = Date()
+            servers[index] = updated
+            sortServers()
             saveServers()
         }
     }
@@ -185,6 +220,12 @@ class ServerManager {
         let wasSelected = (selectedServerId == server.id)
         servers.removeAll { $0.id == server.id }
         authenticatedServerIds.remove(server.id)
+        
+        // Propagate deletion to cloud
+        if isCloudSyncEnabled {
+            CloudSyncManager.shared.deleteFile(for: server.id)
+        }
+        
         if wasSelected {
             selectedServerId = servers.first?.id
         }
@@ -229,6 +270,10 @@ class ServerManager {
         if let encoded = try? JSONEncoder().encode(servers) {
             UserDefaults.standard.set(encoded, forKey: serversKey)
         }
+    }
+    
+    private func sortServers() {
+        servers.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 }
 
@@ -391,8 +436,6 @@ class CloudSyncManager {
         
         // Read-only logic: only upload servers that are NOT managed by launcher
         let serversToUpload = servers.filter { !$0.isLauncher }
-        // We keep all known filenames (including launcher) in this set so we don't accidentally delete them
-        let allKnownFileNames = Set(servers.map { "\(prefix)\($0.id.uuidString).\(ext)" })
         
         // Perform file modifications and coordinator work in Background
         Task.detached(priority: .utility) {
@@ -402,22 +445,14 @@ class CloudSyncManager {
                 try? FileManager.default.createDirectory(at: docURL, withIntermediateDirectories: true)
             }
             
-            // 1. Clean up old files (excluding those we currently know about, like launcher files)
-            if let existingFiles = try? FileManager.default.contentsOfDirectory(at: docURL, includingPropertiesForKeys: nil) {
-                let serverFiles = existingFiles.filter { $0.lastPathComponent.hasPrefix(prefix) && $0.pathExtension == ext }
-                
-                for fileURL in serverFiles {
-                    if !allKnownFileNames.contains(fileURL.lastPathComponent) {
-                        var error: NSError?
-                        coordinator.coordinate(writingItemAt: fileURL, options: .forDeleting, error: &error) { deleteURL in
-                            try? FileManager.default.removeItem(at: deleteURL)
-                        }
-                    }
-                }
-            }
-
-            // 2. Upload/Update only non-launcher servers
+            // 1. Upload/Update only non-launcher servers
+            // NOTE: We only upload servers that have been touched (timestamp > 1970)
+            // and we never delete files blindly to avoid sync race conditions.
             for server in serversToUpload {
+                // If it's a legacy or uninitialized timestamp, don't push it to cloud.
+                // We only want to push data that was explicitly created or modified on this device.
+                guard server.lastUpdatedAt.timeIntervalSince1970 > 0 else { continue }
+                
                 let fileName = "\(prefix)\(server.id.uuidString).\(ext)"
                 let url = docURL.appendingPathComponent(fileName)
                 
@@ -435,6 +470,20 @@ class CloudSyncManager {
                 } catch {
                     print("iCloud: Encoding error for \(server.name): \(error)")
                 }
+            }
+        }
+    }
+    
+    func deleteFile(for serverId: UUID) {
+        guard let docURL = documentsURL else { return }
+        let fileName = "\(filePrefix)\(serverId.uuidString).\(fileExtension)"
+        let url = docURL.appendingPathComponent(fileName)
+        
+        Task.detached(priority: .utility) {
+            let coordinator = NSFileCoordinator(filePresenter: nil)
+            var error: NSError?
+            coordinator.coordinate(writingItemAt: url, options: .forDeleting, error: &error) { deleteURL in
+                try? FileManager.default.removeItem(at: deleteURL)
             }
         }
     }
