@@ -182,7 +182,7 @@ struct AIAnalysisCard: View {
             HStack {
                 Label(languageManager.t("monitor.aiAnalysisTitle"), systemImage: "sparkles")
                     .font(.headline)
-                    .foregroundStyle(.purple)
+                    .foregroundStyle(Color("AccentColor"))
                 Spacer()
                 Button(action: onDismiss) {
                     Image(systemName: "xmark.circle.fill")
@@ -259,7 +259,7 @@ struct AIAnalyzeView: View {
                     VStack(spacing: 12) {
                         Image(systemName: originalContent.isEmpty ? "hourglass" : "sparkles")
                             .font(.system(size: 32))
-                            .foregroundStyle(.purple.opacity(0.5))
+                            .foregroundStyle(Color("AccentColor").opacity(0.5))
                             .padding(.bottom, 8)
                         
                         Text(originalContent.isEmpty 
@@ -490,7 +490,7 @@ struct AIActionButton: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var showDisabledAlert = false
     
-    init(_ title: String, systemImage: String, color: Color = .purple, isLoading: Bool = false, action: @escaping () -> Void) {
+    init(_ title: String, systemImage: String, color: Color = Color("AccentColor"), isLoading: Bool = false, action: @escaping () -> Void) {
         self.title = title
         self.systemImage = systemImage
         self.color = color

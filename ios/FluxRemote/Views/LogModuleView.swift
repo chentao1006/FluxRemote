@@ -68,7 +68,7 @@ struct LogModuleView: View {
                             }
                             Button(languageManager.t("common.cancel"), role: .cancel) {}
                         } message: {
-                            if let action = actionType, let file = actionTarget {
+                            if let action = actionType, let _ = actionTarget {
                                 Text(action == "delete" ? languageManager.t("logs.deleteConfirm") : (action == "remove" ? languageManager.t("logs.removeConfirm") : languageManager.t("logs.clearConfirm")))
                             }
                         }
@@ -110,7 +110,7 @@ struct LogModuleView: View {
                 }
                 Button(languageManager.t("common.cancel"), role: .cancel) {}
             } message: {
-                if let action = actionType, let file = actionTarget {
+                if let action = actionType, let _ = actionTarget {
                     Text(action == "delete" ? languageManager.t("logs.deleteConfirm") : (action == "remove" ? languageManager.t("logs.removeConfirm") : languageManager.t("logs.clearConfirm")))
                 }
             }
@@ -334,6 +334,7 @@ struct LogModuleView: View {
                 }
             }
             .listStyle(.insetGrouped)
+            .tint(Color("AccentColor"))
             
             if isLoading && logs.isEmpty {
                 LoadingView()

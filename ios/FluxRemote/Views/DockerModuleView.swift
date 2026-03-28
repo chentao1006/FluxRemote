@@ -55,6 +55,7 @@ struct DockerModuleView: View {
     
     var body: some View {
         mainContent
+            .tint(Color("AccentColor"))
             .navigationTitle(languageManager.t("sidebar.docker"))
             .toolbar { toolbarContent }
             .refreshable { await refreshData() }
@@ -844,7 +845,7 @@ struct DockerAIAssistantView: View {
                 }
                 .disabled(isGenerating || prompt.isEmpty)
                 .frame(maxWidth: .infinity)
-                .foregroundStyle(.purple)
+                .foregroundStyle(Color("AccentColor"))
             }
             
             if !generatedCommand.isEmpty {
@@ -982,7 +983,7 @@ struct DockerCommandView: View {
             ToolbarItemGroup(placement: .confirmationAction) {
                 Button(action: { showingAIAssist = true }) {
                     Image(systemName: "wand.and.sparkles")
-                        .foregroundStyle(.purple)
+                        .foregroundStyle(Color("AccentColor"))
                 }
                 
                 Button(action: execute) {

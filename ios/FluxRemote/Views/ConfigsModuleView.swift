@@ -165,6 +165,7 @@ struct ConfigsModuleView: View {
                 }
             }
             .listStyle(.insetGrouped)
+            .tint(Color("AccentColor"))
             
             if isLoading && configs.isEmpty {
                 LoadingView()

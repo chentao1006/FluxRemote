@@ -40,6 +40,7 @@ struct NginxModuleView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .tint(Color("AccentColor"))
         .navigationTitle(languageManager.t("sidebar.nginx"))
         .refreshable {
             await withTaskGroup(of: Void.self) { group in
@@ -514,7 +515,7 @@ struct NginxSiteEditView: View {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button(action: { showingAIAssist = true }) {
                     Image(systemName: "wand.and.sparkles")
-                        .foregroundStyle(.purple)
+                        .foregroundStyle(Color("AccentColor"))
                 }
                 
                 Button(action: { Task { await save() } }) {

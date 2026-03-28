@@ -90,6 +90,7 @@ struct SettingsView: View {
                 }
             }
         }
+        .tint(Color("AccentColor"))
         .refreshable {
             await fetchData()
         }

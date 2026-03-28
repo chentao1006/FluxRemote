@@ -75,8 +75,8 @@ struct DashboardView: View {
                             HStack {
                                 Image(systemName: "sparkle.text.clipboard")
                                     .font(.system(size: 16, weight: .semibold))
-                                    .foregroundStyle(.purple.opacity(!(apiClient.aiConfig?.enabled ?? false) || isAnalyzing || stats == nil ? 0.5 : 1.0))
-                                Text(languageManager.t("common.aiAnalyze"))
+                                    .foregroundStyle(Color("AccentColor").opacity(!(apiClient.aiConfig?.enabled ?? false) || isAnalyzing || stats == nil ? 0.5 : 1.0))
+                                // Text(languageManager.t("common.aiAnalyze"))
                             }
                         }
                     }
@@ -291,92 +291,76 @@ struct DashboardView: View {
                 }
             }
         }
+        .tint(Color("AccentColor"))
         .refreshable {
-            await withTaskGroup(of: Void.self) { group in
-                group.addTask { await fetchData() }
-                group.addTask { 
-                    await fetchAllSummaries()
-                    lastSummaryFetch = Date()
-                }
-                group.addTask { try? await Task.sleep(for: .milliseconds(600)) }
-                await group.waitForAll()
+            await fetchData()
+            await fetchAllSummaries()
+            await MainActor.run {
+                lastSummaryFetch = Date()
             }
+            try? await Task.sleep(for: .milliseconds(400))
         }
     }
 
     
+    @MainActor
     func fetchData() async {
         guard selection == .monitor else { return }
         do {
             let response: RemoteStatsResponse = try await apiClient.request("/api/system/stats")
-            await MainActor.run {
-                 self.stats = response.data
-                 self.apiClient.dashboardStats = response.data
-                 self.errorMessage = nil
-                 updateHistory(with: response.data)
-                 self.apiClient.dashboardHistory = self.history
-             }
+            self.stats = response.data
+            self.apiClient.dashboardStats = response.data
+            self.errorMessage = nil
+            updateHistory(with: response.data)
+            self.apiClient.dashboardHistory = self.history
          } catch {
             print("Fetch stats error: \(error)")
-            await MainActor.run {
-                self.errorMessage = error.localizedDescription
-            }
+            self.errorMessage = error.localizedDescription
         }
     }
     
+    @MainActor
     func fetchAllSummaries() async {
         // Docker
         if let dockerResponse: DockerResponse = try? await apiClient.request("/api/docker/containers") {
-            await MainActor.run {
-                let running = dockerResponse.data.filter { $0.state == "running" }.count
-                self.dockerSummary = (running, dockerResponse.data.count)
-            }
+            let running = dockerResponse.data.filter { $0.state == "running" }.count
+            self.dockerSummary = (running, dockerResponse.data.count)
         }
         
         // Nginx
         if let nginxResponse: NginxResponse = try? await apiClient.request("/api/nginx/sites") {
-            await MainActor.run {
-                let active = nginxResponse.data?.filter { $0.status == "enabled" }.count ?? 0
-                self.nginxSummary = (active, nginxResponse.data?.count ?? 0)
-            }
+            let active = nginxResponse.data?.filter { $0.status == "enabled" }.count ?? 0
+            self.nginxSummary = (active, nginxResponse.data?.count ?? 0)
         }
         
         // Processes
         if let procResponse: ProcessResponse = try? await apiClient.request("/api/system/processes?sort=cpu") {
-            await MainActor.run {
-                let top = procResponse.data.first
-                self.procSummary = (procResponse.data.count, top?.command ?? "", top != nil ? "\(top!.cpu)%" : "")
-            }
+            let top = procResponse.data.first
+            self.procSummary = (procResponse.data.count, top?.command ?? "", top != nil ? "\(top!.cpu)%" : "")
         }
         
         // LaunchAgents
         if let agentResponse: LaunchAgentResponse = try? await apiClient.request("/api/launchagent/list") {
-            await MainActor.run {
-                let loaded = agentResponse.data.filter { $0.isLoaded }.count
-                self.agentSummary = (loaded, agentResponse.data.count)
-            }
+            let loaded = agentResponse.data.filter { $0.isLoaded }.count
+            self.agentSummary = (loaded, agentResponse.data.count)
         }
         
         // Logs
         if let logResponse: LogResponse = try? await apiClient.request("/api/logs") {
-            await MainActor.run {
-                if case .list(let items) = logResponse.data {
-                    let sorted = items.sorted { $0.mtime > $1.mtime }
-                    self.logSummary = (items.count, sorted.first?.name ?? "")
-                }
+            if case .list(let items) = logResponse.data {
+                let sorted = items.sorted { $0.mtime > $1.mtime }
+                self.logSummary = (items.count, sorted.first?.name ?? "")
             }
         }
         
         // Configs
         if let configResponse: ConfigResponse = try? await apiClient.request("/api/configs") {
-            await MainActor.run {
-                if let items = configResponse.data {
-                    let sysCount = items.filter { 
-                        let cat = $0.category.lowercased()
-                        return cat == "system" || cat == "sys"
-                    }.count
-                    self.configSummary = (items.count, sysCount, items.count - sysCount)
-                }
+            if let items = configResponse.data {
+                let sysCount = items.filter { 
+                    let cat = $0.category.lowercased()
+                    return cat == "system" || cat == "sys"
+                }.count
+                self.configSummary = (items.count, sysCount, items.count - sysCount)
             }
         }
     }
@@ -417,9 +401,10 @@ struct DashboardView: View {
             .foregroundStyle(.secondary)
     }
     
+    @MainActor
     func startTimer() {
         fetchTask?.cancel()
-        fetchTask = Task {
+        fetchTask = Task { @MainActor in
             // Initial fetch
             await fetchData()
             await fetchAllSummaries()
@@ -440,6 +425,7 @@ struct DashboardView: View {
         }
     }
     
+    @MainActor
     func stopTimer() {
         fetchTask?.cancel()
         fetchTask = nil
@@ -448,11 +434,12 @@ struct DashboardView: View {
     @State private var aiAnalysis: String?
     @State private var isAnalyzing = false
     
+    @MainActor
     func analyzeSystem() {
         guard let stats = stats else { return }
         isAnalyzing = true
         aiAnalysis = nil
-        Task {
+        Task { @MainActor in
             do {
                 let prompt = """
 Help me analyze this system status output:

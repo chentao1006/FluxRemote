@@ -13,8 +13,7 @@ struct ServerPickerMenu: View {
                 } label: {
                     HStack {
                         if server.isOffline {
-                            Text("\(server.name) (\(languageManager.t("common.offline")))")
-                                .foregroundStyle(.secondary)
+                            Label("\(server.name) (\(languageManager.t("common.offline")))", systemImage: "wifi.slash")
                         } else {
                             Text(server.name)
                         }

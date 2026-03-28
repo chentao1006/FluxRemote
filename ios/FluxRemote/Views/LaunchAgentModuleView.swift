@@ -95,6 +95,7 @@ struct LaunchAgentModuleView: View {
                 }
             }
             .listStyle(.insetGrouped)
+            .tint(Color("AccentColor"))
             
             if isLoading && launchAgents.isEmpty {
                 LoadingView()
@@ -103,18 +104,15 @@ struct LaunchAgentModuleView: View {
         .navigationTitle(languageManager.t("launchagent.title"))
         .searchable(text: $searchText, prompt: languageManager.t("configs.searchPlaceholder"))
         .refreshable {
-            await withTaskGroup(of: Void.self) { group in
-                group.addTask { await fetchData() }
-                group.addTask { try? await Task.sleep(for: .milliseconds(600)) }
-                await group.waitForAll()
-            }
+            await fetchData()
+            try? await Task.sleep(for: .milliseconds(600))
         }
         .onAppear {
             if launchAgents.isEmpty && !apiClient.launchAgents.isEmpty {
                 self.launchAgents = apiClient.launchAgents
                 self.isLoading = false
             }
-            Task { await fetchData() }
+            Task { @MainActor in await fetchData() }
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -128,7 +126,7 @@ struct LaunchAgentModuleView: View {
         .sheet(isPresented: $showingAddAgent) {
             NavigationStack {
                 AddAgentView { name, content in
-                    Task {
+                    Task { @MainActor in
                         await createAgent(name: name, content: content)
                     }
                 }
@@ -224,24 +222,22 @@ struct LaunchAgentModuleView: View {
         }
     }
     
+    @MainActor
     func fetchData() async {
         guard selection == .launchagent else { return }
         do {
             let response: LaunchAgentResponse = try await apiClient.request("/api/launchagent/list")
-            await MainActor.run {
-                self.launchAgents = response.data
-                self.apiClient.launchAgents = response.data
-                self.errorMessage = nil
-                self.isLoading = false
-            }
+            self.launchAgents = response.data
+            self.apiClient.launchAgents = response.data
+            self.errorMessage = nil
+            self.isLoading = false
         } catch {
-            await MainActor.run {
-                self.errorMessage = error.localizedDescription
-                self.isLoading = false
-            }
+            self.errorMessage = error.localizedDescription
+            self.isLoading = false
         }
     }
     
+    @MainActor
     func createAgent(name: String, content: String) async {
         let firstPath = launchAgents.first?.path ?? "/Users/chentao/Library/LaunchAgents/placeholder.plist"
         let basePath = firstPath.components(separatedBy: "/").dropLast().joined(separator: "/") + "/"
@@ -252,26 +248,23 @@ struct LaunchAgentModuleView: View {
             let body: [String: Any] = ["action": "write", "filePath": path, "content": content]
             let _: ActionResponse = try await apiClient.request("/api/launchagent/action", method: "POST", body: body)
             await fetchData()
-            await MainActor.run {
-                self.showingAddAgent = false
-                // Select the new one to show details
-                self.selectedAgent = LaunchAgentItem(
-                    name: fullName,
-                    label: fullName.replacingOccurrences(of: ".plist", with: ""),
-                    path: path,
-                    isLoaded: false,
-                    size: Int64(content.utf8.count),
-                    mtime: Int64(Date().timeIntervalSince1970 * 1000)
-                )
-            }
+            self.showingAddAgent = false
+            // Select the new one to show details
+            self.selectedAgent = LaunchAgentItem(
+                name: fullName,
+                label: fullName.replacingOccurrences(of: ".plist", with: ""),
+                path: path,
+                isLoaded: false,
+                size: Int64(content.utf8.count),
+                mtime: Int64(Date().timeIntervalSince1970 * 1000)
+            )
         } catch {
             print("Create agent failed: \(error)")
-            await MainActor.run {
-                self.errorMessage = error.localizedDescription
-            }
+            self.errorMessage = error.localizedDescription
         }
     }
     
+    @MainActor
     func performAction(_ action: String, path: String) async {
         do {
             var body: [String: Any] = ["action": action, "filePath": path]
@@ -279,29 +272,24 @@ struct LaunchAgentModuleView: View {
                 body["sudoPassword"] = sudoPassword
             }
             let _: ActionResponse = try await apiClient.request("/api/launchagent/action", method: "POST", body: body)
-            await MainActor.run {
-                self.sudoPassword = ""
-                self.pendingAction = nil
-            }
+            self.sudoPassword = ""
+            self.pendingAction = nil
             await fetchData()
         } catch {
             print("Action failed: \(error)")
-            let errorMsg = error.localizedDescription
-            await MainActor.run {
-                let msg = errorMsg.lowercased()
-                let isPermissionError = msg.contains("sudo_required") || msg.contains("permission_denied") || msg.contains("permission denied") || msg.contains("eacces") || msg.contains("eperm")
-                
-                if isPermissionError && self.sudoPassword.isEmpty {
-                    self.pendingAction = (action, path)
-                    self.showingSudoPrompt = true
-                } else if msg.contains("sudo_password_incorrect") || msg.contains("incorrect password") || msg.contains("auth failed") {
-                    self.activeAlert = .error(languageManager.t("common.passwordIncorrect"))
-                    self.sudoPassword = ""
-                    self.pendingAction = nil
-                } else {
-                    self.activeAlert = .error(errorMsg)
-                    self.pendingAction = nil
-                }
+            let msg = error.localizedDescription.lowercased()
+            let isPermissionError = msg.contains("sudo_required") || msg.contains("permission_denied") || msg.contains("permission denied") || msg.contains("eacces") || msg.contains("eperm")
+            
+            if isPermissionError && self.sudoPassword.isEmpty {
+                self.pendingAction = (action, path)
+                self.showingSudoPrompt = true
+            } else if msg.contains("sudo_password_incorrect") || msg.contains("incorrect password") || msg.contains("auth failed") {
+                self.activeAlert = .error(languageManager.t("common.passwordIncorrect"))
+                self.sudoPassword = ""
+                self.pendingAction = nil
+            } else {
+                self.activeAlert = .error(error.localizedDescription)
+                self.pendingAction = nil
             }
         }
     }
@@ -393,7 +381,7 @@ struct AddAgentView: View {
             ToolbarItemGroup(placement: .confirmationAction) {
                 Button(action: { showingAIAssist = true }) {
                     Image(systemName: "wand.and.sparkles")
-                        .foregroundStyle(.purple)
+                        .foregroundStyle(Color("AccentColor"))
                 }
                 
                 Button(action: {
@@ -591,6 +579,7 @@ struct LaunchAgentDetailView: View {
         }
     }
     
+    @MainActor
     func saveConfig() async {
         isSaving = true
         errorMessage = nil
@@ -601,17 +590,14 @@ struct LaunchAgentDetailView: View {
             }
             let _: ActionResponse = try await apiClient.request("/api/launchagent/action", method: "POST", body: body)
             await onSave()
-            await MainActor.run { 
-                self.isSaving = false
-                self.sudoPassword = ""
-                dismiss()
-            }
+            self.isSaving = false
+            self.sudoPassword = ""
+            dismiss()
         } catch {
             print("Save agent plist failed: \(error)")
-            let errorMsg = error.localizedDescription
-            await MainActor.run { 
-                self.isSaving = false 
-            }
+            self.errorMessage = error.localizedDescription
+            self.showingError = true
+            self.isSaving = false 
         }
     }
 

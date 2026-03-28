@@ -51,6 +51,7 @@ struct ServerListView: View {
                 }
             }
         }
+        .tint(Color("AccentColor"))
         .refreshable {
             await ServerManager.shared.manualSync()
             try? await Task.sleep(nanoseconds: 800_000_000) // 0.8s delay for feedback
@@ -122,7 +123,19 @@ struct ServerRow: View {
                                 .background(Color.secondary.opacity(0.1))
                                 .foregroundStyle(.secondary)
                                 .clipShape(Capsule())
-                        } else if isActive {
+                        }
+                        
+                        if server.isLauncher {
+                            Text(languageManager.t("common.launcher"))
+                                .font(.caption2)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.orange.opacity(0.15))
+                                .foregroundStyle(.orange)
+                                .clipShape(Capsule())
+                        }
+                        
+                        if isActive && !server.isOffline && !server.isLauncher {
                             Text(languageManager.t("settings.active"))
                                 .font(.caption2)
                                 .padding(.horizontal, 6)
@@ -148,10 +161,6 @@ struct ServerRow: View {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(.green)
                         .font(.subheadline)
-                } else {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
-                        .font(.subheadline)
                 }
                 
                 Image(systemName: "chevron.right")
@@ -163,14 +172,17 @@ struct ServerRow: View {
         .buttonStyle(.plain)
         .disabled(server.isOffline)
         .swipeActions(edge: .trailing) {
-            Button(role: .destructive, action: onDelete) {
-                Label(languageManager.t("common.delete"), systemImage: "trash")
+            if !server.isLauncher {
+                Button(role: .destructive, action: onDelete) {
+                    Label(languageManager.t("common.delete"), systemImage: "trash")
+                }
+                .tint(.red)
+                
+                Button(action: onEdit) {
+                    Label(languageManager.t("common.edit"), systemImage: "pencil")
+                }
+                .tint(.orange)
             }
-            
-            Button(action: onEdit) {
-                Label(languageManager.t("common.edit"), systemImage: "pencil")
-            }
-            .tint(.orange)
         }
     }
 }
@@ -201,6 +213,7 @@ struct ServerEditView: View {
                         .textInputAutocapitalization(.never)
                 }
             }
+            .tint(Color("AccentColor"))
             .navigationTitle(languageManager.t("settings.editServer"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -224,5 +237,6 @@ struct ServerEditView: View {
                 }
             }
         }
+        .tint(.primary)
     }
 }

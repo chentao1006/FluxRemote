@@ -532,6 +532,23 @@
         }
       }
     },
+    "common.launcher" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Launcher"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启动器"
+          }
+        }
+      }
+    },
     "common.more" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -95,39 +95,19 @@ struct ProcessListView: View {
                                             
                                             Spacer()
                                             
-                                            HStack(spacing: 16) {
-                                                Button {
-                                                    if loadingAction[process.pid] == nil {
-                                                        processToActOn = process
-                                                        showingStopConfirmation = true
-                                                    }
-                                                } label: {
-                                                    if loadingAction[process.pid] == "stop" {
-                                                        ProgressView().controlSize(.small)
-                                                    } else {
-                                                        Image(systemName: "stop")
-                                                            .foregroundStyle(.orange)
-                                                    }
+                                            HStack(spacing: 8) {
+                                                actionButton(icon: "stop", color: .orange, isLoading: loadingAction[process.pid] == "stop") {
+                                                    processToActOn = process
+                                                    showingStopConfirmation = true
                                                 }
                                                 .disabled(loadingAction[process.pid] != nil)
                                                 
-                                                Button {
-                                                    if loadingAction[process.pid] == nil {
-                                                        processToActOn = process
-                                                        showingKillConfirmation = true
-                                                    }
-                                                } label: {
-                                                    if loadingAction[process.pid] == "kill" {
-                                                        ProgressView().controlSize(.small)
-                                                    } else {
-                                                        Image(systemName: "xmark")
-                                                            .foregroundStyle(.red)
-                                                    }
+                                                actionButton(icon: "trash", color: .red, isLoading: loadingAction[process.pid] == "kill") {
+                                                    processToActOn = process
+                                                    showingKillConfirmation = true
                                                 }
                                                 .disabled(loadingAction[process.pid] != nil)
                                             }
-                                            .buttonStyle(.borderless)
-                                            .font(.system(size: 16, weight: .semibold))
                                         }
                                         .padding(.bottom, 8)
                                     }
@@ -168,53 +148,23 @@ struct ProcessListView: View {
                                             }
                                             .frame(width: 80, alignment: .trailing)
 
-                                            HStack(spacing: 12) {
-                                                Button {
-                                                    if loadingAction[process.pid] == nil {
-                                                        processToActOn = process
-                                                        showingStopConfirmation = true
-                                                    }
-                                                } label: {
-                                                    if loadingAction[process.pid] == "stop" {
-                                                        ProgressView()
-                                                            .controlSize(.small)
-                                                    } else {
-                                                        Image(systemName: "stop")
-                                                            .foregroundStyle(.orange)
-                                                    }
+                                            HStack(spacing: 8) {
+                                                actionButton(icon: "stop", color: .orange, isLoading: loadingAction[process.pid] == "stop") {
+                                                    processToActOn = process
+                                                    showingStopConfirmation = true
                                                 }
                                                 .disabled(loadingAction[process.pid] != nil)
                                                 
-                                                Button {
-                                                    if loadingAction[process.pid] == nil {
-                                                        processToActOn = process
-                                                        showingKillConfirmation = true
-                                                    }
-                                                } label: {
-                                                    if loadingAction[process.pid] == "kill" {
-                                                        ProgressView()
-                                                            .controlSize(.small)
-                                                    } else {
-                                                        Image(systemName: "xmark")
-                                                            .foregroundStyle(.red)
-                                                    }
+                                                actionButton(icon: "trash", color: .red, isLoading: loadingAction[process.pid] == "kill") {
+                                                    processToActOn = process
+                                                    showingKillConfirmation = true
                                                 }
                                                 .disabled(loadingAction[process.pid] != nil)
                                             }
-                                            .buttonStyle(.borderless)
-                                            .font(.system(size: 16, weight: .semibold))
-                                            .padding(.leading, 4)
-                                            .frame(width: 65)
+                                            .frame(width: 80)
                                         }
                                         .padding(.vertical, 8)
                                     }
-                                }
-                            }
-                            .swipeActions(edge: .trailing) {
-                                Button(role: .destructive) {
-                                    Task { await killProcess(pid: process.pid) }
-                                } label: {
-                                    Label(languageManager.t("processes.kill"), systemImage: "xmark.circle")
                                 }
                             }
                         }
@@ -227,6 +177,7 @@ struct ProcessListView: View {
                 LoadingView()
             }
         }
+        .tint(Color("AccentColor"))
         .navigationTitle(languageManager.t("processes.title"))
         .searchable(text: $searchText, prompt: languageManager.t("processes.searchPlaceholder"))
         .refreshable {
@@ -359,6 +310,25 @@ struct ProcessListView: View {
         }
         loadingAction[pid] = nil
     }
+    
+    private func actionButton(icon: String, color: Color, isLoading: Bool = false, action: @escaping () -> Void) -> some View {
+        Group {
+            if isLoading {
+                ProgressView()
+                    .frame(width: 32, height: 32)
+            } else {
+                Button(action: action) {
+                    Image(systemName: icon)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(color)
+                        .frame(width: 32, height: 32)
+                        .background(color.opacity(0.1))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
 }
 struct ProcessDetailView: View {
     let process: RemoteProcess
@@ -459,7 +429,7 @@ struct ProcessDetailView: View {
                     Button(role: .destructive) {
                         showingKillConfirmation = true
                     } label: {
-                        Image(systemName: "xmark")
+                        Image(systemName: "trash")
                             .font(.system(size: 18, weight: .semibold))
                             .foregroundStyle(.red)
                     }

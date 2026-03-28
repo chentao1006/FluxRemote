@@ -21,6 +21,7 @@ struct AppContainerView: View {
                 NavigationStack {
                     ServerListView()
                 }
+                .tint(.primary)
             } else {
                 GeometryReader { geometry in
                     ZStack(alignment: .bottomTrailing) {
@@ -40,7 +41,7 @@ struct AppContainerView: View {
                                     .font(.title2)
                                     .foregroundStyle(.white)
                                     .frame(width: 56, height: 56)
-                                    .background(Color.accentColor)
+                                    .background(Color("AccentColor"))
                                     .clipShape(Circle())
                                     .shadow(radius: isDraggingTerminalButton ? 8 : 4, y: isDraggingTerminalButton ? 4 : 2)
                                     .scaleEffect(isDraggingTerminalButton ? 1.1 : 1.0)
@@ -135,6 +136,7 @@ struct AppContainerView: View {
                             .id(currentItem)
                             .navigationTitle(languageManager.t(currentItem.title))
                     }
+                    .tint(.primary)
                 } else {
                     ContentUnavailableView(languageManager.t("appTitle"), systemImage: "monitor.fill")
                 }
@@ -151,6 +153,7 @@ struct AppContainerView: View {
                                 }
                             }
                     }
+                    .tint(.primary)
                     .tabItem { Label(languageManager.t(NavigationItem.monitor.title), systemImage: NavigationItem.monitor.icon) }
                     .tag(Optional(NavigationItem.monitor))
                 }
@@ -160,6 +163,7 @@ struct AppContainerView: View {
                         contentView(for: .processes)
                             .navigationTitle(languageManager.t(NavigationItem.processes.title))
                     }
+                    .tint(.primary)
                     .tabItem { Label(languageManager.t(NavigationItem.processes.title), systemImage: NavigationItem.processes.icon) }
                     .tag(Optional(NavigationItem.processes))
                 }
@@ -169,6 +173,7 @@ struct AppContainerView: View {
                         contentView(for: .logs)
                             .navigationTitle(languageManager.t(NavigationItem.logs.title))
                     }
+                    .tint(.primary)
                     .tabItem { Label(languageManager.t(NavigationItem.logs.title), systemImage: NavigationItem.logs.icon) }
                     .tag(Optional(NavigationItem.logs))
                 }
@@ -178,6 +183,7 @@ struct AppContainerView: View {
                         contentView(for: .configs)
                             .navigationTitle(languageManager.t(NavigationItem.configs.title))
                     }
+                    .tint(.primary)
                     .tabItem { Label(languageManager.t(NavigationItem.configs.title), systemImage: NavigationItem.configs.icon) }
                     .tag(Optional(NavigationItem.configs))
                 }
@@ -188,6 +194,7 @@ struct AppContainerView: View {
                             contentView(for: item)
                         }
                 }
+                .tint(.primary)
                 .tabItem { Label(languageManager.t("common.more"), systemImage: "ellipsis.circle.fill") }
                 .tag(Optional(NavigationItem.more))
             }
@@ -200,6 +207,7 @@ struct AppContainerView: View {
                     morePath = [newValue]
                 }
             }
+            .tint(Color("AccentColor"))
         }
     }
     
@@ -229,12 +237,18 @@ struct AppContainerView: View {
                             apiClient.switchServer(to: server)
                         } label: {
                             HStack {
-                                Text(server.name)
+                                if server.isOffline {
+                                    Label("\(server.name) (\(languageManager.t("common.offline")))", systemImage: "wifi.slash")
+                                } else {
+                                    Text(server.name)
+                                }
+                                
                                 if server.id == ServerManager.shared.selectedServerId {
                                     Image(systemName: "checkmark")
                                 }
                             }
                         }
+                        .disabled(server.isOffline)
                     }
                     
                     Divider()
@@ -286,6 +300,7 @@ struct AppContainerView: View {
             }
         }
         .listStyle(.sidebar)
+        .tint(Color("AccentColor"))
     }
     
     private func isFeatureEnabled(for item: NavigationItem) -> Bool {
@@ -352,6 +367,8 @@ struct QuickTerminalView: View {
     @State private var aiAnalysis: String?
     @State private var showingAIPrompt = false
     @State private var aiPromptText = ""
+
+    @FocusState private var isFieldFocused: Bool
 
     static let defaultCommands: [QuickCommand] = [
         QuickCommand(name: "monitor.quickCmds.ls", command: "ls -FhG"),
@@ -421,12 +438,13 @@ struct QuickTerminalView: View {
                             } else {
                                 Image(systemName: "wand.and.sparkles")
                                     .font(.title3)
-                                    .foregroundStyle(.purple)
+                                    .foregroundStyle(Color("AccentColor"))
                             }
                         }
                         .disabled(isTranslating)
                         
                             TextField(languageManager.t("terminal.placeholder"), text: $command, axis: .vertical)
+                                .focused($isFieldFocused)
                                 .lineLimit(1...5)
                                 .font(.system(.body, design: .monospaced))
                             .onSubmit { 
@@ -640,6 +658,7 @@ struct QuickTerminalView: View {
                 await MainActor.run {
                     self.command = response.trimmingCharacters(in: .whitespacesAndNewlines)
                     self.isTranslating = false
+                    self.isFieldFocused = true
                 }
             } catch {
                 await MainActor.run {
@@ -868,6 +887,7 @@ struct TerminalAIPromptView: View {
     var onConfirm: @MainActor () -> Void
     var onCancel: () -> Void
     @Environment(AppLanguageManager.self) private var languageManager
+    @FocusState private var isFocused: Bool
     
     var body: some View {
         VStack(spacing: 0) {
@@ -904,12 +924,16 @@ struct TerminalAIPromptView: View {
                 
                 TextEditor(text: $text)
                     .font(.body)
+                    .focused($isFocused)
                     .scrollContentBackground(.hidden)
                     .padding(.horizontal, 12)
                     .padding(.top, 4)
                     .padding(.bottom, 20)
             }
             .background(Color(uiColor: .systemGroupedBackground))
+        }
+        .onAppear {
+            isFocused = true
         }
     }
 }
