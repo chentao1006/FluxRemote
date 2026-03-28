@@ -169,6 +169,12 @@ class ServerManager {
             saveLocalOnly()
             isCloudUpdating = false
         }
+        
+        // If local data is newer or has extra servers, push back to cloud
+        if (hasLocalNewer || localMissingInCloud) && isCloudSyncEnabled {
+            print("iCloud: Local data is newer or missing in cloud, uploading...")
+            CloudSyncManager.shared.upload(servers: self.servers)
+        }
     }
     
     var selectedServer: ServerConfig? {
