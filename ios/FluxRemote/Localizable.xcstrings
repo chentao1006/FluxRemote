@@ -3986,6 +3986,23 @@
         }
       }
     },
+    "settings.cloudSyncHelp" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud sync folder is located in the Files app under iCloud Drive > FluxRemote. Please open the Files app manually."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud 同步文件夹位于‘文件’应用的 iCloud 云盘 > FluxRemote 目录下。请手动打开‘文件’应用查看。"
+          }
+        }
+      }
+    },
     "settings.connection" : {
       "extractionState" : "manual",
       "localizations" : {

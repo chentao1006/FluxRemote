@@ -10,6 +10,7 @@ struct ServerPickerMenu: View {
             ForEach(ServerManager.shared.servers) { server in
                 Button {
                     apiClient.switchServer(to: server)
+                    selection = .monitor
                 } label: {
                     HStack {
                         if server.isOffline {

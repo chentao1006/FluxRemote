@@ -2,6 +2,7 @@
 import SwiftUI
 import Charts
 
+@MainActor
 struct DashboardView: View {
     @Environment(RemoteAPIClient.self) private var apiClient
     @Environment(AppLanguageManager.self) private var languageManager
@@ -109,6 +110,22 @@ struct DashboardView: View {
         }
         .onDisappear {
             stopTimer()
+        }
+        .onChange(of: apiClient.baseURL) { _, _ in
+            Task { @MainActor in
+                // Clear local states for a clean reset
+                stats = nil
+                history = []
+                dockerSummary = (0, 0)
+                nginxSummary = (0, 0)
+                procSummary = (0, "", "")
+                agentSummary = (0, 0)
+                logSummary = (0, "")
+                configSummary = (0, 0, 0)
+                aiAnalysis = nil
+                
+                await handleRefresh()
+            }
         }
     }
     
@@ -271,7 +288,7 @@ struct DashboardView: View {
                         Text(error)
                     } actions: {
                         Button(languageManager.t("common.retry")) {
-                            Task {
+                            Task { @MainActor in
                                 self.errorMessage = nil
                                 await fetchData()
                             }
@@ -293,13 +310,18 @@ struct DashboardView: View {
         }
         .tint(Color("AccentColor"))
         .refreshable {
-            await fetchData()
-            await fetchAllSummaries()
-            await MainActor.run {
-                lastSummaryFetch = Date()
-            }
-            try? await Task.sleep(for: .milliseconds(400))
+            await handleRefresh()
         }
+    }
+
+    @MainActor
+    private func handleRefresh() async {
+        await fetchData()
+        await fetchAllSummaries()
+        await MainActor.run {
+            lastSummaryFetch = Date()
+        }
+        try? await Task.sleep(for: .milliseconds(400))
     }
 
     
@@ -365,6 +387,7 @@ struct DashboardView: View {
         }
     }
     
+    @MainActor
     private func updateHistory(with stats: RemoteSystemStats) {
         let cpu = (stats.cpu?.user ?? 0) + (stats.cpu?.sys ?? 0)
         let mem = Double(stats.memory.usedMB) / Double(stats.memory.totalMB) * 100
@@ -408,7 +431,9 @@ struct DashboardView: View {
             // Initial fetch
             await fetchData()
             await fetchAllSummaries()
-            lastSummaryFetch = Date()
+            await MainActor.run {
+                lastSummaryFetch = Date()
+            }
             
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(5))
@@ -417,9 +442,15 @@ struct DashboardView: View {
                 await fetchData()
                 
                 // Fetch summaries every 30 seconds
-                if Date().timeIntervalSince(lastSummaryFetch) >= 30 {
+                let shouldFetchSummary = await MainActor.run {
+                    Date().timeIntervalSince(lastSummaryFetch) >= 30
+                }
+                
+                if shouldFetchSummary {
                     await fetchAllSummaries()
-                    lastSummaryFetch = Date()
+                    await MainActor.run {
+                        lastSummaryFetch = Date()
+                    }
                 }
             }
         }
@@ -457,11 +488,9 @@ LaunchAgents: \(agentSummary.loaded)/\(agentSummary.total) Loaded
 Please provide comments on health, resource usage, and any suggestions in \(languageManager.aiResponseLanguage). Use Markdown with emojis.
 """
                 let response = try await AIService.shared.analyze(prompt: prompt, systemPrompt: "You are a professional system assistant analyzing macOS health and resource usage.", apiClient: apiClient)
-                await MainActor.run {
-                    withAnimation {
-                        self.aiAnalysis = response
-                        self.isAnalyzing = false
-                    }
+                withAnimation {
+                    self.aiAnalysis = response
+                    self.isAnalyzing = false
                 }
             } catch {
                 await MainActor.run {
@@ -481,26 +510,23 @@ Please provide comments on health, resource usage, and any suggestions in \(lang
     @State private var capturedImage: UIImage?
     @State private var showScreenshotSheet = false
     
+    @MainActor
     func takeScreenshot() {
         isCapturingScreenshot = true
-        Task {
+        Task { @MainActor in
             do {
                 let response: ScreenshotResponse = try await apiClient.request("/api/system/screenshot", method: "POST")
                 if let base64 = response.data?.components(separatedBy: ",").last,
                    let data = Data(base64Encoded: base64),
                    let image = UIImage(data: data) {
-                    await MainActor.run {
-                        self.capturedImage = image
-                        self.showScreenshotSheet = true
-                        self.isCapturingScreenshot = false
-                    }
+                    self.capturedImage = image
+                    self.showScreenshotSheet = true
+                    self.isCapturingScreenshot = false
                 } else {
                     throw NSError(domain: "ScreenshotError", code: 0, userInfo: [NSLocalizedDescriptionKey: languageManager.t("monitor.decodeFailed")])
                 }
             } catch {
-                await MainActor.run {
-                    self.isCapturingScreenshot = false
-                }
+                self.isCapturingScreenshot = false
             }
         }
     }

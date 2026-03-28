@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var autoSaveTask: Task<Void, Never>?
     @State private var isSaving = false
     @State private var lastSavedTime: Date?
+    @Binding var selection: NavigationItem?
     
     private var appVersionString: String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
@@ -22,7 +23,7 @@ struct SettingsView: View {
                     .listRowBackground(Color.clear)
             } else {
                 Section(header: Text(languageManager.t("settings.connection"))) {
-                    NavigationLink(destination: ServerListView()) {
+                    NavigationLink(destination: ServerListView(selection: $selection)) {
                         LabeledContent(languageManager.t("settings.server"), value: ServerManager.shared.selectedServer?.name ?? languageManager.t("common.none"))
                     }
                     LabeledContent(languageManager.t("settings.version"), value: serverSettings?.version ?? languageManager.t("common.unknown"))
@@ -156,6 +157,7 @@ struct SettingsView: View {
                     apiClient.features = feats
                 }
                 apiClient.aiConfig = settings.ai
+                ServerManager.shared.sharedAIConfig = settings.ai
                 self.isSaving = false
                 self.lastSavedTime = Date()
             }

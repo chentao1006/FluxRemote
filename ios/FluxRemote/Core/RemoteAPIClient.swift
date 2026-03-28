@@ -51,6 +51,8 @@ class RemoteAPIClient {
             self.isAuthenticated = ServerManager.shared.isServerAuthenticated(server.id)
             self.currentUser = server.username
         }
+        
+        self.aiConfig = ServerManager.shared.sharedAIConfig
     }
     
     func switchServer(to server: ServerConfig) {
@@ -69,7 +71,7 @@ class RemoteAPIClient {
         self.processItems = []
         self.configItems = []
         self.features = FeatureToggles()
-        self.aiConfig = nil
+        // self.aiConfig remains from shared config
         
         ServerManager.shared.selectServer(server)
         
@@ -248,7 +250,12 @@ class RemoteAPIClient {
                 if let feats = response.data.features {
                     self.features = feats
                 }
-                self.aiConfig = response.data.ai
+                
+                // Only use server AI config if we don't have a custom one, 
+                // OR merge them (but here we prioritize local config)
+                if self.aiConfig == nil {
+                    self.aiConfig = response.data.ai
+                }
             }
         } catch {
             print("Fetch settings for features failed: \(error)")

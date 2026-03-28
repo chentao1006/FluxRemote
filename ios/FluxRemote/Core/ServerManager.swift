@@ -44,9 +44,23 @@ class ServerManager {
     }
     
     private let serversKey = "flux_remote_servers_v2"
+    private let aiConfigKey = "flux_remote_shared_ai_config"
     private var isCloudUpdating = false
     
+    var sharedAIConfig: AIConfig? {
+        didSet {
+            if let encoded = try? JSONEncoder().encode(sharedAIConfig) {
+                UserDefaults.standard.set(encoded, forKey: aiConfigKey)
+            }
+        }
+    }
+    
     init() {
+        if let data = UserDefaults.standard.data(forKey: aiConfigKey),
+           let decoded = try? JSONDecoder().decode(AIConfig.self, from: data) {
+            self.sharedAIConfig = decoded
+        }
+        
         self.isCloudSyncEnabled = UserDefaults.standard.object(forKey: "is_cloud_sync_enabled") as? Bool ?? true
         
         if let idString = UserDefaults.standard.string(forKey: "selected_server_id_v2") {
@@ -375,6 +389,11 @@ class CloudSyncManager {
         let prefix = self.filePrefix
         let ext = self.fileExtension
         
+        // Read-only logic: only upload servers that are NOT managed by launcher
+        let serversToUpload = servers.filter { !$0.isLauncher }
+        // We keep all known filenames (including launcher) in this set so we don't accidentally delete them
+        let allKnownFileNames = Set(servers.map { "\(prefix)\($0.id.uuidString).\(ext)" })
+        
         // Perform file modifications and coordinator work in Background
         Task.detached(priority: .utility) {
             let coordinator = NSFileCoordinator(filePresenter: nil)
@@ -383,13 +402,12 @@ class CloudSyncManager {
                 try? FileManager.default.createDirectory(at: docURL, withIntermediateDirectories: true)
             }
             
-            // 1. Clean up old files
+            // 1. Clean up old files (excluding those we currently know about, like launcher files)
             if let existingFiles = try? FileManager.default.contentsOfDirectory(at: docURL, includingPropertiesForKeys: nil) {
                 let serverFiles = existingFiles.filter { $0.lastPathComponent.hasPrefix(prefix) && $0.pathExtension == ext }
-                let currentFileNames = Set(servers.map { "\(prefix)\($0.id.uuidString).\(ext)" })
                 
                 for fileURL in serverFiles {
-                    if !currentFileNames.contains(fileURL.lastPathComponent) {
+                    if !allKnownFileNames.contains(fileURL.lastPathComponent) {
                         var error: NSError?
                         coordinator.coordinate(writingItemAt: fileURL, options: .forDeleting, error: &error) { deleteURL in
                             try? FileManager.default.removeItem(at: deleteURL)
@@ -398,8 +416,8 @@ class CloudSyncManager {
                 }
             }
 
-            // 2. Upload/Update each server
-            for server in servers {
+            // 2. Upload/Update only non-launcher servers
+            for server in serversToUpload {
                 let fileName = "\(prefix)\(server.id.uuidString).\(ext)"
                 let url = docURL.appendingPathComponent(fileName)
                 

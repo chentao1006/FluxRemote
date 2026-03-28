@@ -9,6 +9,7 @@ struct ServerListView: View {
     @State private var showingDeleteAlert = false
     @State private var serverToDelete: ServerConfig?
     @State private var showingLoginForServer: ServerConfig?
+    @Binding var selection: NavigationItem?
     
     var body: some View {
         List {
@@ -38,6 +39,7 @@ struct ServerListView: View {
                     ForEach(ServerManager.shared.servers) { server in
                         ServerRow(server: server, isActive: server.id == ServerManager.shared.selectedServerId) {
                             apiClient.switchServer(to: server)
+                            selection = .monitor
                             if !ServerManager.shared.isServerAuthenticated(server.id) {
                                 showingLoginForServer = server
                             }
@@ -57,6 +59,13 @@ struct ServerListView: View {
             try? await Task.sleep(nanoseconds: 800_000_000) // 0.8s delay for feedback
         }
         .navigationTitle(languageManager.t("settings.serverList"))
+        .onAppear {
+            if let server = ServerManager.shared.selectedServer, 
+               !ServerManager.shared.isServerAuthenticated(server.id),
+               !server.isOffline {
+                showingLoginForServer = server
+            }
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -134,16 +143,7 @@ struct ServerRow: View {
                                 .foregroundStyle(.orange)
                                 .clipShape(Capsule())
                         }
-                        
-                        if isActive && !server.isOffline && !server.isLauncher {
-                            Text(languageManager.t("settings.active"))
-                                .font(.caption2)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.primary.opacity(0.06))
-                                .foregroundStyle(.secondary)
-                                .clipShape(Capsule())
-                        }
+
                     }
                     
                     Text(server.url)
@@ -157,9 +157,9 @@ struct ServerRow: View {
                     Image(systemName: "wifi.slash")
                         .foregroundStyle(.secondary)
                         .font(.subheadline)
-                } else if ServerManager.shared.isServerAuthenticated(server.id) {
+                } else if ServerManager.shared.selectedServerId == server.id {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
+                        .foregroundStyle(Color("AccentColor"))
                         .font(.subheadline)
                 }
                 

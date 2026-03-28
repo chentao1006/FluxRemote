@@ -19,7 +19,7 @@ struct AppContainerView: View {
         Group {
             if !apiClient.isAuthenticated {
                 NavigationStack {
-                    ServerListView()
+                    ServerListView(selection: $selection)
                 }
                 .tint(.primary)
             } else {
@@ -335,8 +335,8 @@ struct AppContainerView: View {
         case .launchagent: LaunchAgentModuleView(selection: $selection)
         case .docker: DockerModuleView(selection: $selection)
         case .nginx: NginxModuleView(selection: $selection)
-        case .settings: SettingsView()
-        case .servers: ServerListView()
+        case .settings: SettingsView(selection: $selection)
+        case .servers: ServerListView(selection: $selection)
         case .more: EmptyView()
         }
     }

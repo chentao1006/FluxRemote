@@ -429,8 +429,9 @@ struct AddAgentView: View {
                     }
                 }
             } catch {
+                let errorMsg = error.localizedDescription
                 await MainActor.run {
-                    self.aiAnalysis = "Error: \(error.localizedDescription)"
+                    self.aiAnalysis = "Error: \(errorMsg)"
                     self.isAnalyzing = false
                 }
             }
@@ -621,8 +622,9 @@ struct LaunchAgentDetailView: View {
                     }
                 }
             } catch {
+                let errorMsg = error.localizedDescription
                 await MainActor.run {
-                    self.aiAnalysis = "Error: \(error.localizedDescription)"
+                    self.aiAnalysis = "Error: \(errorMsg)"
                     self.isAnalyzing = false
                 }
             }
