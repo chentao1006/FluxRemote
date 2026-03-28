@@ -4,6 +4,7 @@ struct ProcessListView: View {
         @State private var refreshTask: Task<Void, Never>? = nil
     @Environment(RemoteAPIClient.self) private var apiClient
     @Environment(AppLanguageManager.self) private var languageManager
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var processes: [RemoteProcess] = []
     @State private var searchText: String = ""
     @State private var isLoading: Bool = false
@@ -60,84 +61,154 @@ struct ProcessListView: View {
                         ContentUnavailableView(languageManager.t("processes.noData"), systemImage: "cpu.fill")
                     } else {
                         ForEach(filteredAndSortedProcesses) { process in
-                            HStack {
-                                Button {
-                                    selectedProcess = process
-                                } label: {
-                                    HStack {
-                                        Circle()
-                                            .fill(Color.green)
-                                            .frame(width: 8, height: 8)
-                                            .padding(.trailing, 4)
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(process.command)
-                                                .font(.subheadline)
-                                                .fontWeight(.medium)
-                                                .lineLimit(1)
-                                            Text("\(languageManager.t("processes.pid")): \(process.pid) · \(languageManager.t("processes.user")): \(process.user)")
-                                                .font(.caption2)
-                                                .foregroundStyle(.secondary)
+                            Group {
+                                if horizontalSizeClass == .compact {
+                                    VStack(alignment: .leading, spacing: 0) {
+                                        Button {
+                                            selectedProcess = process
+                                        } label: {
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(process.command)
+                                                    .font(.subheadline)
+                                                    .fontWeight(.medium)
+                                                    .lineLimit(1)
+                                                Text("\(languageManager.t("processes.pid")): \(process.pid) · \(languageManager.t("processes.user")): \(process.user)")
+                                                    .font(.caption2)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                            .padding(.top, 8)
+                                            .padding(.bottom, 4)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .contentShape(Rectangle())
                                         }
-                                        Spacer()
+                                        .buttonStyle(.plain)
+                                        
+                                        HStack {
+                                            HStack(spacing: 8) {
+                                                Text("\(process.cpu)% \(languageManager.t("processes.cpu"))")
+                                                    .foregroundStyle(.blue)
+                                                Text("\(process.mem)% \(languageManager.t("processes.mem"))")
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                            .font(.caption2)
+                                            .monospacedDigit()
+                                            
+                                            Spacer()
+                                            
+                                            HStack(spacing: 16) {
+                                                Button {
+                                                    if loadingAction[process.pid] == nil {
+                                                        processToActOn = process
+                                                        showingStopConfirmation = true
+                                                    }
+                                                } label: {
+                                                    if loadingAction[process.pid] == "stop" {
+                                                        ProgressView().controlSize(.small)
+                                                    } else {
+                                                        Image(systemName: "stop")
+                                                            .foregroundStyle(.orange)
+                                                    }
+                                                }
+                                                .disabled(loadingAction[process.pid] != nil)
+                                                
+                                                Button {
+                                                    if loadingAction[process.pid] == nil {
+                                                        processToActOn = process
+                                                        showingKillConfirmation = true
+                                                    }
+                                                } label: {
+                                                    if loadingAction[process.pid] == "kill" {
+                                                        ProgressView().controlSize(.small)
+                                                    } else {
+                                                        Image(systemName: "xmark")
+                                                            .foregroundStyle(.red)
+                                                    }
+                                                }
+                                                .disabled(loadingAction[process.pid] != nil)
+                                            }
+                                            .buttonStyle(.borderless)
+                                            .font(.system(size: 16, weight: .semibold))
+                                        }
+                                        .padding(.bottom, 8)
                                     }
-                                    .padding(.vertical, 8)
-                                    .contentShape(Rectangle())
-                                }
-                                .buttonStyle(.plain)
-                                
-                                VStack(alignment: .trailing, spacing: 2) {
-                                    Text("\(process.cpu)% \(languageManager.t("processes.cpu"))")
-                                        .font(.caption2)
-                                        .foregroundStyle(.blue)
-                                        .lineLimit(1)
-                                        .monospacedDigit()
-                                        .minimumScaleFactor(0.8)
-                                    Text("\(process.mem)% \(languageManager.t("processes.mem"))")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                        .monospacedDigit()
-                                        .minimumScaleFactor(0.8)
-                                }
-                                .frame(width: 100, alignment: .trailing)
+                                } else {
+                                    HStack(alignment: .top) {
+                                        Button {
+                                            selectedProcess = process
+                                        } label: {
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(process.command)
+                                                    .font(.subheadline)
+                                                    .fontWeight(.medium)
+                                                    .lineLimit(1)
+                                                Text("\(languageManager.t("processes.pid")): \(process.pid) · \(languageManager.t("processes.user")): \(process.user)")
+                                                    .font(.caption2)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                            .padding(.vertical, 8)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .contentShape(Rectangle())
+                                        }
+                                        .buttonStyle(.plain)
+                                        
+                                        HStack(spacing: 8) {
+                                            VStack(alignment: .trailing, spacing: 2) {
+                                                Text("\(process.cpu)% \(languageManager.t("processes.cpu"))")
+                                                    .font(.caption2)
+                                                    .foregroundStyle(.blue)
+                                                    .lineLimit(1)
+                                                    .monospacedDigit()
+                                                    .minimumScaleFactor(0.8)
+                                                Text("\(process.mem)% \(languageManager.t("processes.mem"))")
+                                                    .font(.caption2)
+                                                    .foregroundStyle(.secondary)
+                                                    .lineLimit(1)
+                                                    .monospacedDigit()
+                                                    .minimumScaleFactor(0.8)
+                                            }
+                                            .frame(width: 80, alignment: .trailing)
 
-                                HStack(spacing: 12) {
-                                    Button {
-                                        if loadingAction[process.pid] == nil {
-                                            processToActOn = process
-                                            showingStopConfirmation = true
+                                            HStack(spacing: 12) {
+                                                Button {
+                                                    if loadingAction[process.pid] == nil {
+                                                        processToActOn = process
+                                                        showingStopConfirmation = true
+                                                    }
+                                                } label: {
+                                                    if loadingAction[process.pid] == "stop" {
+                                                        ProgressView()
+                                                            .controlSize(.small)
+                                                    } else {
+                                                        Image(systemName: "stop")
+                                                            .foregroundStyle(.orange)
+                                                    }
+                                                }
+                                                .disabled(loadingAction[process.pid] != nil)
+                                                
+                                                Button {
+                                                    if loadingAction[process.pid] == nil {
+                                                        processToActOn = process
+                                                        showingKillConfirmation = true
+                                                    }
+                                                } label: {
+                                                    if loadingAction[process.pid] == "kill" {
+                                                        ProgressView()
+                                                            .controlSize(.small)
+                                                    } else {
+                                                        Image(systemName: "xmark")
+                                                            .foregroundStyle(.red)
+                                                    }
+                                                }
+                                                .disabled(loadingAction[process.pid] != nil)
+                                            }
+                                            .buttonStyle(.borderless)
+                                            .font(.system(size: 16, weight: .semibold))
+                                            .padding(.leading, 4)
+                                            .frame(width: 65)
                                         }
-                                    } label: {
-                                        if loadingAction[process.pid] == "stop" {
-                                            ProgressView()
-                                                .controlSize(.small)
-                                        } else {
-                                            Image(systemName: "stop")
-                                                .foregroundStyle(.orange)
-                                        }
+                                        .padding(.vertical, 8)
                                     }
-                                    .disabled(loadingAction[process.pid] != nil)
-                                    
-                                    Button {
-                                        if loadingAction[process.pid] == nil {
-                                            processToActOn = process
-                                            showingKillConfirmation = true
-                                        }
-                                    } label: {
-                                        if loadingAction[process.pid] == "kill" {
-                                            ProgressView()
-                                                .controlSize(.small)
-                                        } else {
-                                            Image(systemName: "xmark")
-                                                .foregroundStyle(.red)
-                                        }
-                                    }
-                                    .disabled(loadingAction[process.pid] != nil)
                                 }
-                                .buttonStyle(.borderless)
-                                .font(.system(size: 16, weight: .semibold))
-                                .padding(.leading, 8)
-                                .frame(width: 65)
                             }
                             .swipeActions(edge: .trailing) {
                                 Button(role: .destructive) {

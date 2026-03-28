@@ -10,6 +10,8 @@ struct FluxLoginView: View {
     @State private var serverName: String = ""
     @FocusState private var focusedField: Field?
     var isAddingServer: Bool = false
+    var initialURL: String? = nil
+    var initialServerName: String? = nil
     @Environment(\.dismiss) private var dismiss
     
     enum Field {
@@ -47,7 +49,7 @@ struct FluxLoginView: View {
                                     VStack(spacing: 0) {
                                         HStack(spacing: 12) {
                                             Image(systemName: "link")
-                                                .foregroundStyle(.blue)
+                                                .foregroundStyle(Color.accentColor)
                                                 .frame(width: 20)
                                             TextField(languageManager.t("login.serverURL"), text: $panelURL)
                                                 .keyboardType(.URL)
@@ -58,15 +60,16 @@ struct FluxLoginView: View {
                                         }
                                         .padding()
                                         
-                                        if isAddingServer {
+                                        if isAddingServer || !serverName.isEmpty {
                                             Divider()
                                                 .padding(.leading, 48)
                                             
                                             HStack(spacing: 12) {
                                                 Image(systemName: "tag")
-                                                    .foregroundStyle(.blue)
+                                                    .foregroundStyle(Color.accentColor)
                                                     .frame(width: 20)
                                                 TextField(languageManager.t("settings.serverName"), text: $serverName)
+                                                    .disabled(!isAddingServer)
                                                     .focused($focusedField, equals: .serverName)
                                                     .submitLabel(.next)
                                             }
@@ -88,7 +91,7 @@ struct FluxLoginView: View {
                                     VStack(spacing: 0) {
                                         HStack(spacing: 12) {
                                             Image(systemName: "person")
-                                                .foregroundStyle(.blue)
+                                                .foregroundStyle(Color.accentColor)
                                                 .frame(width: 20)
                                             TextField(languageManager.t("login.username"), text: $username)
                                                 .autocorrectionDisabled()
@@ -103,7 +106,7 @@ struct FluxLoginView: View {
                                         
                                         HStack(spacing: 12) {
                                             Image(systemName: "key")
-                                                .foregroundStyle(.blue)
+                                                .foregroundStyle(Color.accentColor)
                                                 .frame(width: 20)
                                             SecureField(languageManager.t("login.password"), text: $password)
                                                 .focused($focusedField, equals: .password)
@@ -175,6 +178,11 @@ struct FluxLoginView: View {
                     serverName = ""
                     username = ""
                     password = ""
+                } else if let initialURL {
+                    panelURL = initialURL
+                    if let initialServerName {
+                        serverName = initialServerName
+                    }
                 } else if let savedURL = UserDefaults.standard.string(forKey: "flux_remote_url") {
                     panelURL = savedURL
                 }

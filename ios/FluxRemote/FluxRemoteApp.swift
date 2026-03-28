@@ -20,6 +20,7 @@ struct FluxRemoteApp: App {
                 .environment(languageManager)
                 .environment(\.locale, languageManager.selectedLanguage.locale ?? .current)
                 .id(languageManager.selectedLanguage.rawValue) // Force redraw when language changes
+                .tint(Color.accentColor)
         }
     }
 }

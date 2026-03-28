@@ -40,7 +40,7 @@ struct AppContainerView: View {
                                     .font(.title2)
                                     .foregroundStyle(.white)
                                     .frame(width: 56, height: 56)
-                                    .background(Color.blue)
+                                    .background(Color.accentColor)
                                     .clipShape(Circle())
                                     .shadow(radius: isDraggingTerminalButton ? 8 : 4, y: isDraggingTerminalButton ? 4 : 2)
                                     .scaleEffect(isDraggingTerminalButton ? 1.1 : 1.0)
@@ -384,7 +384,7 @@ struct QuickTerminalView: View {
                         } label: {
                             Image(systemName: "pencil")
                                 .font(.title3)
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(Color.accentColor)
                         }
                         .padding(.leading, 16)
                         
@@ -396,8 +396,8 @@ struct QuickTerminalView: View {
                                     .font(.caption)
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 8)
-                                    .background(Color.blue.opacity(0.08))
-                                    .foregroundStyle(.blue)
+                                    .background(Color.accentColor.opacity(0.08))
+                                    .foregroundStyle(Color.accentColor)
                                     .clipShape(Capsule())
                             }
                             .buttonStyle(.plain)

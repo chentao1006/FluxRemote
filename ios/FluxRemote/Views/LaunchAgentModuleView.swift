@@ -391,11 +391,6 @@ struct AddAgentView: View {
                 Button(action: { dismiss() }) { Image(systemName: "xmark") }
             }
             ToolbarItemGroup(placement: .confirmationAction) {
-                Button(action: { analyzeAgent() }) {
-                    Image(systemName: "sparkle.text.clipboard")
-                        .foregroundStyle(.purple)
-                }
-                
                 Button(action: { showingAIAssist = true }) {
                     Image(systemName: "wand.and.sparkles")
                         .foregroundStyle(.purple)

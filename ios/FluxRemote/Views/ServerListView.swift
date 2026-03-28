@@ -71,7 +71,7 @@ struct ServerListView: View {
                 .environment(languageManager)
         }
         .sheet(item: $showingLoginForServer) { server in
-            FluxLoginView()
+            FluxLoginView(initialURL: server.url, initialServerName: server.name)
                 .environment(apiClient)
                 .environment(languageManager)
         }

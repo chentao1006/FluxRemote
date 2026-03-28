@@ -511,7 +511,12 @@ struct NginxSiteEditView: View {
             ToolbarItem(placement: .topBarLeading) {
                 Button(action: { dismiss() }) { Image(systemName: "xmark") }
             }
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button(action: { showingAIAssist = true }) {
+                    Image(systemName: "wand.and.sparkles")
+                        .foregroundStyle(.purple)
+                }
+                
                 Button(action: { Task { await save() } }) {
                     if isSaving {
                         ProgressView().controlSize(.small)
@@ -528,17 +533,6 @@ struct NginxSiteEditView: View {
                     withAnimation { aiAnalysis = nil; isAnalyzing = false }
                 }
                 .padding(.bottom, 20)
-            } else if !isLoading && !content.isEmpty {
-                HStack(spacing: horizontalSizeClass == .compact ? 8 : 12) {
-                    AIActionButton(languageManager.t("common.aiAnalyze"), systemImage: "sparkle.text.clipboard", isLoading: isAnalyzing) {
-                        analyzeNginx()
-                    }
-                    
-                    AIActionButton(languageManager.t("common.aiGenerate"), systemImage: "wand.and.sparkles") {
-                        showingAIAssist = true
-                    }
-                }
-                .padding(.bottom, 30)
             }
         }
         .sheet(isPresented: $showingAIAssist) {
