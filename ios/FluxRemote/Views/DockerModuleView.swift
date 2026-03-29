@@ -837,7 +837,7 @@ struct DockerAIAssistantView: View {
                     if isGenerating {
                         HStack {
                             ProgressView().controlSize(.small)
-                            Text(languageManager.t("common.analyzing")) // Reusing key
+                            Text(languageManager.t("common.generating"))
                         }
                     } else {
                         Label(languageManager.t("common.generate"), systemImage: "sparkles")

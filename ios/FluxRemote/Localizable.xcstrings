@@ -2231,13 +2231,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "AI generated content, for reference only"
+            "value": "AI analysis result, for reference only"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "AI 生成内容，仅供参考"
+            "value": "AI 分析结果，仅供参考"
           }
         }
       }
@@ -2282,13 +2282,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "AI Generated"
+            "value": "AI Analysis"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "AI 生成"
+            "value": "AI 分析"
           }
         }
       }
@@ -3003,6 +3003,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "屏幕快照"
+          }
+        }
+      }
+    },
+    "monitor.screenshotPermissionMessage": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Screen capture requires Screen Recording permission on the Mac side. When you see the system authorization request on your Mac, please click 'Allow' or 'OK'."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "获取屏幕快照需要在 Mac 端授予屏幕录制权限。Mac 端将弹出系统授权请求，请点击“允许”或“确定”以开启快照功能。"
+          }
+        }
+      }
+    },
+    "monitor.screenshotPermissionTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Screen Recording Permission"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "屏幕录制权限"
           }
         }
       }

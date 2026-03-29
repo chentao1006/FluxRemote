@@ -29,6 +29,9 @@ struct DashboardView: View {
     @State private var lastSummaryFetch: Date = .distantPast
     
     private var features: FeatureToggles { apiClient.features }
+    
+    @AppStorage("hasSeenScreenshotPermission") private var hasSeenScreenshotPermission: Bool = false
+    @State private var showingScreenshotPermissionAlert = false
 
     // 判断是否为 iPhone 横屏
     var isIPhoneLandscape: Bool {
@@ -75,6 +78,14 @@ struct DashboardView: View {
             
             mainContent
         }
+        .alert(languageManager.t("monitor.screenshotPermissionTitle"), isPresented: $showingScreenshotPermissionAlert) {
+            Button(languageManager.t("common.ok"), role: .cancel) { 
+                hasSeenScreenshotPermission = true
+                takeScreenshot()
+            }
+        } message: {
+            Text(languageManager.t("monitor.screenshotPermissionMessage"))
+        }
         .alert(languageManager.t("settings.aiDisabled"), isPresented: $showingAIDisabledAlert) {
             Button(languageManager.t("common.ok"), role: .cancel) { }
         } message: {
@@ -104,7 +115,13 @@ struct DashboardView: View {
             }
 
             ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: takeScreenshot) {
+                    Button(action: {
+                        if !hasSeenScreenshotPermission {
+                            showingScreenshotPermissionAlert = true
+                        } else {
+                            takeScreenshot()
+                        }
+                    }) {
                         if isCapturingScreenshot {
                             ProgressView().controlSize(.small)
                         } else {
