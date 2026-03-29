@@ -8,63 +8,63 @@
 
 /* Begin PBXBuildFile section */
 		110000000000000000000001 /* FluxRemoteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000011 /* FluxRemoteApp.swift */; };
-		110000000000000000000002 /* RemoteAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000012 /* RemoteAPIClient.swift */; };
-		110000000000000000000003 /* AppLanguageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000013 /* AppLanguageManager.swift */; };
-		110000000000000000000004 /* FluxLoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000014 /* FluxLoginView.swift */; };
-		110000000000000000000007 /* DockerModuleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000017 /* DockerModuleView.swift */; };
-		110000000000000000000008 /* NginxModuleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000018 /* NginxModuleView.swift */; };
-		110000000000000000000009 /* RemoteModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000019 /* RemoteModels.swift */; };
+		110000000000000000000002 /* Core/RemoteAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000012 /* Core/RemoteAPIClient.swift */; };
+		110000000000000000000003 /* Core/AppLanguageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000013 /* Core/AppLanguageManager.swift */; };
+		110000000000000000000004 /* Views/FluxLoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000014 /* Views/FluxLoginView.swift */; };
+		110000000000000000000007 /* Views/DockerModuleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000017 /* Views/DockerModuleView.swift */; };
+		110000000000000000000008 /* Views/NginxModuleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000018 /* Views/NginxModuleView.swift */; };
+		110000000000000000000009 /* Models/RemoteModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000019 /* Models/RemoteModels.swift */; };
 		11000000000000000000000A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001A /* Assets.xcassets */; };
-		11000000000000000000000C /* NavigationItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001C /* NavigationItem.swift */; };
-		11000000000000000000000D /* ServerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001D /* ServerManager.swift */; };
-		11000000000000000000000E /* ServerListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001E /* ServerListView.swift */; };
-		11000000000000000000000F /* ServerPickerMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001F /* ServerPickerMenu.swift */; };
-		110000000000000000000201 /* AppContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000211 /* AppContainerView.swift */; };
-		110000000000000000000202 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000212 /* DashboardView.swift */; };
-		110000000000000000000203 /* ProcessListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000213 /* ProcessListView.swift */; };
-		110000000000000000000204 /* LogModuleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000214 /* LogModuleView.swift */; };
-		110000000000000000000205 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000215 /* SettingsView.swift */; };
-		110000000000000000000301 /* ConfigsModuleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000311 /* ConfigsModuleView.swift */; };
-		110000000000000000000302 /* LaunchAgentModuleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000312 /* LaunchAgentModuleView.swift */; };
-		110000000000000000000A01 /* AIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000A11 /* AIService.swift */; };
-		110000000000000000000A02 /* LLMClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000A12 /* LLMClient.swift */; };
-		110000000000000000000A03 /* AISettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000A13 /* AISettingsView.swift */; };
+		11000000000000000000000C /* Core/NavigationItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001C /* Core/NavigationItem.swift */; };
+		11000000000000000000000D /* Core/ServerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001D /* Core/ServerManager.swift */; };
+		11000000000000000000000E /* Views/ServerListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001E /* Views/ServerListView.swift */; };
+		11000000000000000000000F /* Views/ServerPickerMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11000000000000000000001F /* Views/ServerPickerMenu.swift */; };
+		110000000000000000000201 /* Views/AppContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000211 /* Views/AppContainerView.swift */; };
+		110000000000000000000202 /* Views/DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000212 /* Views/DashboardView.swift */; };
+		110000000000000000000203 /* Views/ProcessListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000213 /* Views/ProcessListView.swift */; };
+		110000000000000000000204 /* Views/LogModuleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000214 /* Views/LogModuleView.swift */; };
+		110000000000000000000205 /* Views/SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000215 /* Views/SettingsView.swift */; };
+		110000000000000000000301 /* Views/ConfigsModuleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000311 /* Views/ConfigsModuleView.swift */; };
+		110000000000000000000302 /* Views/LaunchAgentModuleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000312 /* Views/LaunchAgentModuleView.swift */; };
+		110000000000000000000A01 /* Core/AIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000A11 /* Core/AIService.swift */; };
+		110000000000000000000A02 /* Core/LLMClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000A12 /* Core/LLMClient.swift */; };
+		110000000000000000000A03 /* Views/AISettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000A13 /* Views/AISettingsView.swift */; };
 		7CE3652A6A9ABB4A0CC38DD0 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = F9B3ACFF36B10B32D4D3456F /* LaunchScreen.storyboard */; };
 		C6C798322F6FC0F50036158B /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = C6C798312F6FC0F50036158B /* InfoPlist.strings */; };
 		C6C798412F6FC1170036158B /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = C6C798402F6FC1170036158B /* Localizable.xcstrings */; };
-		C6C798512F6FC1170036158B /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6C798502F6FC1170036158B /* Components.swift */; };
+		C6C798512F6FC1170036158B /* Components/Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6C798502F6FC1170036158B /* Components/Components.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		110000000000000000000011 /* FluxRemoteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FluxRemoteApp.swift; sourceTree = "<group>"; };
-		110000000000000000000012 /* RemoteAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/RemoteAPIClient.swift; sourceTree = "<group>"; };
-		110000000000000000000013 /* AppLanguageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/AppLanguageManager.swift; sourceTree = "<group>"; };
-		110000000000000000000014 /* FluxLoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/FluxLoginView.swift; sourceTree = "<group>"; };
-		110000000000000000000017 /* DockerModuleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/DockerModuleView.swift; sourceTree = "<group>"; };
-		110000000000000000000018 /* NginxModuleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/NginxModuleView.swift; sourceTree = "<group>"; };
-		110000000000000000000019 /* RemoteModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models/RemoteModels.swift; sourceTree = "<group>"; };
+		110000000000000000000012 /* Core/RemoteAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/RemoteAPIClient.swift; sourceTree = "<group>"; };
+		110000000000000000000013 /* Core/AppLanguageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/AppLanguageManager.swift; sourceTree = "<group>"; };
+		110000000000000000000014 /* Views/FluxLoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/FluxLoginView.swift; sourceTree = "<group>"; };
+		110000000000000000000017 /* Views/DockerModuleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/DockerModuleView.swift; sourceTree = "<group>"; };
+		110000000000000000000018 /* Views/NginxModuleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/NginxModuleView.swift; sourceTree = "<group>"; };
+		110000000000000000000019 /* Models/RemoteModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models/RemoteModels.swift; sourceTree = "<group>"; };
 		11000000000000000000001A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		11000000000000000000001C /* NavigationItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/NavigationItem.swift; sourceTree = "<group>"; };
-		11000000000000000000001D /* ServerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/ServerManager.swift; sourceTree = "<group>"; };
-		11000000000000000000001E /* ServerListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/ServerListView.swift; sourceTree = "<group>"; };
-		11000000000000000000001F /* ServerPickerMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/ServerPickerMenu.swift; sourceTree = "<group>"; };
+		11000000000000000000001C /* Core/NavigationItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/NavigationItem.swift; sourceTree = "<group>"; };
+		11000000000000000000001D /* Core/ServerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/ServerManager.swift; sourceTree = "<group>"; };
+		11000000000000000000001E /* Views/ServerListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/ServerListView.swift; sourceTree = "<group>"; };
+		11000000000000000000001F /* Views/ServerPickerMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/ServerPickerMenu.swift; sourceTree = "<group>"; };
 		110000000000000000000021 /* FluxRemote.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FluxRemote.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		110000000000000000000211 /* AppContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/AppContainerView.swift; sourceTree = "<group>"; };
-		110000000000000000000212 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/DashboardView.swift; sourceTree = "<group>"; };
-		110000000000000000000213 /* ProcessListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/ProcessListView.swift; sourceTree = "<group>"; };
-		110000000000000000000214 /* LogModuleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/LogModuleView.swift; sourceTree = "<group>"; };
-		110000000000000000000215 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/SettingsView.swift; sourceTree = "<group>"; };
-		110000000000000000000311 /* ConfigsModuleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/ConfigsModuleView.swift; sourceTree = "<group>"; };
-		110000000000000000000312 /* LaunchAgentModuleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/LaunchAgentModuleView.swift; sourceTree = "<group>"; };
-		110000000000000000000A11 /* AIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/AIService.swift; sourceTree = "<group>"; };
-		110000000000000000000A12 /* LLMClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/LLMClient.swift; sourceTree = "<group>"; };
-		110000000000000000000A13 /* AISettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/AISettingsView.swift; sourceTree = "<group>"; };
+		110000000000000000000211 /* Views/AppContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/AppContainerView.swift; sourceTree = "<group>"; };
+		110000000000000000000212 /* Views/DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/DashboardView.swift; sourceTree = "<group>"; };
+		110000000000000000000213 /* Views/ProcessListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/ProcessListView.swift; sourceTree = "<group>"; };
+		110000000000000000000214 /* Views/LogModuleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/LogModuleView.swift; sourceTree = "<group>"; };
+		110000000000000000000215 /* Views/SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/SettingsView.swift; sourceTree = "<group>"; };
+		110000000000000000000311 /* Views/ConfigsModuleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/ConfigsModuleView.swift; sourceTree = "<group>"; };
+		110000000000000000000312 /* Views/LaunchAgentModuleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/LaunchAgentModuleView.swift; sourceTree = "<group>"; };
+		110000000000000000000A11 /* Core/AIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/AIService.swift; sourceTree = "<group>"; };
+		110000000000000000000A12 /* Core/LLMClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Core/LLMClient.swift; sourceTree = "<group>"; };
+		110000000000000000000A13 /* Views/AISettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/AISettingsView.swift; sourceTree = "<group>"; };
 		110000000000000000000A14 /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 		C66C85D82F76CBF400848FC6 /* FluxRemote.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FluxRemote.entitlements; sourceTree = "<group>"; };
 		C6C798302F6FC0F50036158B /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		C6C798332F6FC1170036158B /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		C6C798402F6FC1170036158B /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
-		C6C798502F6FC1170036158B /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components/Components.swift; sourceTree = "<group>"; };
+		C6C798502F6FC1170036158B /* Components/Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components/Components.swift; sourceTree = "<group>"; };
 		F9B3ACFF36B10B32D4D3456F /* LaunchScreen.storyboard */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -92,31 +92,31 @@
 			children = (
 				C66C85D82F76CBF400848FC6 /* FluxRemote.entitlements */,
 				110000000000000000000A14 /* Config.xcconfig */,
-				C6C798502F6FC1170036158B /* Components.swift */,
+				C6C798502F6FC1170036158B /* Components/Components.swift */,
 				C6C798402F6FC1170036158B /* Localizable.xcstrings */,
 				C6C798312F6FC0F50036158B /* InfoPlist.strings */,
 				110000000000000000000011 /* FluxRemoteApp.swift */,
-				110000000000000000000A11 /* AIService.swift */,
-				110000000000000000000A12 /* LLMClient.swift */,
-				110000000000000000000012 /* RemoteAPIClient.swift */,
-				11000000000000000000001C /* NavigationItem.swift */,
-				11000000000000000000001D /* ServerManager.swift */,
-				110000000000000000000013 /* AppLanguageManager.swift */,
-				110000000000000000000014 /* FluxLoginView.swift */,
-				110000000000000000000A13 /* AISettingsView.swift */,
-				110000000000000000000017 /* DockerModuleView.swift */,
-				110000000000000000000018 /* NginxModuleView.swift */,
-				110000000000000000000019 /* RemoteModels.swift */,
+				110000000000000000000A11 /* Core/AIService.swift */,
+				110000000000000000000A12 /* Core/LLMClient.swift */,
+				110000000000000000000012 /* Core/RemoteAPIClient.swift */,
+				11000000000000000000001C /* Core/NavigationItem.swift */,
+				11000000000000000000001D /* Core/ServerManager.swift */,
+				110000000000000000000013 /* Core/AppLanguageManager.swift */,
+				110000000000000000000014 /* Views/FluxLoginView.swift */,
+				110000000000000000000A13 /* Views/AISettingsView.swift */,
+				110000000000000000000017 /* Views/DockerModuleView.swift */,
+				110000000000000000000018 /* Views/NginxModuleView.swift */,
+				110000000000000000000019 /* Models/RemoteModels.swift */,
 				11000000000000000000001A /* Assets.xcassets */,
-				110000000000000000000211 /* AppContainerView.swift */,
-				110000000000000000000212 /* DashboardView.swift */,
-				110000000000000000000213 /* ProcessListView.swift */,
-				110000000000000000000214 /* LogModuleView.swift */,
-				110000000000000000000215 /* SettingsView.swift */,
-				11000000000000000000001E /* ServerListView.swift */,
-				11000000000000000000001F /* ServerPickerMenu.swift */,
-				110000000000000000000311 /* ConfigsModuleView.swift */,
-				110000000000000000000312 /* LaunchAgentModuleView.swift */,
+				110000000000000000000211 /* Views/AppContainerView.swift */,
+				110000000000000000000212 /* Views/DashboardView.swift */,
+				110000000000000000000213 /* Views/ProcessListView.swift */,
+				110000000000000000000214 /* Views/LogModuleView.swift */,
+				110000000000000000000215 /* Views/SettingsView.swift */,
+				11000000000000000000001E /* Views/ServerListView.swift */,
+				11000000000000000000001F /* Views/ServerPickerMenu.swift */,
+				110000000000000000000311 /* Views/ConfigsModuleView.swift */,
+				110000000000000000000312 /* Views/LaunchAgentModuleView.swift */,
 				F9B3ACFF36B10B32D4D3456F /* LaunchScreen.storyboard */,
 			);
 			path = FluxRemote;
@@ -205,28 +205,28 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				110000000000000000000A01 /* AIService.swift in Sources */,
-				110000000000000000000A02 /* LLMClient.swift in Sources */,
-				110000000000000000000A03 /* AISettingsView.swift in Sources */,
-				C6C798512F6FC1170036158B /* Components.swift in Sources */,
+				110000000000000000000A01 /* Core/AIService.swift in Sources */,
+				110000000000000000000A02 /* Core/LLMClient.swift in Sources */,
+				110000000000000000000A03 /* Views/AISettingsView.swift in Sources */,
+				C6C798512F6FC1170036158B /* Components/Components.swift in Sources */,
 				110000000000000000000001 /* FluxRemoteApp.swift in Sources */,
-				110000000000000000000002 /* RemoteAPIClient.swift in Sources */,
-				11000000000000000000000C /* NavigationItem.swift in Sources */,
-				11000000000000000000000D /* ServerManager.swift in Sources */,
-				110000000000000000000003 /* AppLanguageManager.swift in Sources */,
-				110000000000000000000004 /* FluxLoginView.swift in Sources */,
-				110000000000000000000007 /* DockerModuleView.swift in Sources */,
-				110000000000000000000008 /* NginxModuleView.swift in Sources */,
-				110000000000000000000009 /* RemoteModels.swift in Sources */,
-				110000000000000000000201 /* AppContainerView.swift in Sources */,
-				110000000000000000000202 /* DashboardView.swift in Sources */,
-				110000000000000000000203 /* ProcessListView.swift in Sources */,
-				110000000000000000000204 /* LogModuleView.swift in Sources */,
-				110000000000000000000205 /* SettingsView.swift in Sources */,
-				11000000000000000000000E /* ServerListView.swift in Sources */,
-				11000000000000000000000F /* ServerPickerMenu.swift in Sources */,
-				110000000000000000000301 /* ConfigsModuleView.swift in Sources */,
-				110000000000000000000302 /* LaunchAgentModuleView.swift in Sources */,
+				110000000000000000000002 /* Core/RemoteAPIClient.swift in Sources */,
+				11000000000000000000000C /* Core/NavigationItem.swift in Sources */,
+				11000000000000000000000D /* Core/ServerManager.swift in Sources */,
+				110000000000000000000003 /* Core/AppLanguageManager.swift in Sources */,
+				110000000000000000000004 /* Views/FluxLoginView.swift in Sources */,
+				110000000000000000000007 /* Views/DockerModuleView.swift in Sources */,
+				110000000000000000000008 /* Views/NginxModuleView.swift in Sources */,
+				110000000000000000000009 /* Models/RemoteModels.swift in Sources */,
+				110000000000000000000201 /* Views/AppContainerView.swift in Sources */,
+				110000000000000000000202 /* Views/DashboardView.swift in Sources */,
+				110000000000000000000203 /* Views/ProcessListView.swift in Sources */,
+				110000000000000000000204 /* Views/LogModuleView.swift in Sources */,
+				110000000000000000000205 /* Views/SettingsView.swift in Sources */,
+				11000000000000000000000E /* Views/ServerListView.swift in Sources */,
+				11000000000000000000000F /* Views/ServerPickerMenu.swift in Sources */,
+				110000000000000000000301 /* Views/ConfigsModuleView.swift in Sources */,
+				110000000000000000000302 /* Views/LaunchAgentModuleView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -332,7 +332,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = FluxRemote/FluxRemote.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = U2NEAJ73J2;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -359,7 +359,7 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = FluxRemote/FluxRemote.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = U2NEAJ73J2;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;

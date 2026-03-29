@@ -33,8 +33,27 @@ struct DashboardView: View {
     // 判断是否为 iPhone 横屏
     var isIPhoneLandscape: Bool {
         UIDevice.current.userInterfaceIdiom == .phone &&
-        horizontalSizeClass == .compact &&
         verticalSizeClass == .compact
+    }
+
+    // summaryColumns 一行三个
+    var summaryColumns: [GridItem] {
+        if isIPhoneLandscape || horizontalSizeClass == .regular {
+            return Array(repeating: GridItem(.flexible()), count: 3)
+        } else {
+            return Array(repeating: GridItem(.flexible()), count: 2)
+        }
+    }
+
+    // detailColumns 一行三个
+    var detailColumns: [GridItem] {
+        if isIPhoneLandscape {
+            return Array(repeating: GridItem(.flexible()), count: 3)
+        } else if horizontalSizeClass == .regular {
+            return Array(repeating: GridItem(.flexible()), count: 4)
+        } else {
+            return Array(repeating: GridItem(.flexible()), count: 2)
+        }
     }
 
     // Chart 区域的列数
@@ -183,10 +202,6 @@ struct DashboardView: View {
                                 .font(.headline)
                                 .padding(.horizontal)
                             
-                            let summaryColumns = horizontalSizeClass == .regular ? 
-                                [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())] : 
-                                [GridItem(.flexible()), GridItem(.flexible())]
-                            
                             LazyVGrid(columns: summaryColumns, spacing: 12) {
                                 if features.processes != false {
                                     SummaryCard(
@@ -257,10 +272,6 @@ struct DashboardView: View {
                             Text(languageManager.t("monitor.info"))
                                 .font(.headline)
                                 .padding(.horizontal)
-                            
-                            let detailColumns = horizontalSizeClass == .regular ? 
-                                [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())] : 
-                                [GridItem(.flexible()), GridItem(.flexible())]
                             
                             LazyVGrid(columns: detailColumns, spacing: 12) {
                                 SystemDetailTile(icon: "desktopcomputer", title: languageManager.t("monitor.hostname"), value: stats.hostname)
@@ -647,6 +658,9 @@ struct ChartTile: View {
     var isNetwork: Bool = false
     
     var body: some View {
+        let now = Date()
+        let visibleRange = now.addingTimeInterval(-300)...now
+        
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
                 .font(.caption)
@@ -681,7 +695,7 @@ struct ChartTile: View {
                 .lineLimit(1)
                 .frame(height: 12)
             
-            chartContent
+            chartContent(now: now)
                 .frame(height: 70)
         }
         .padding(12)
@@ -691,7 +705,11 @@ struct ChartTile: View {
     }
     
     @ViewBuilder
-    private var chartContent: some View {
+    private func chartContent(now: Date) -> some View {
+        let visibleRange = now.addingTimeInterval(-300)...now
+        let visibleData = data.filter { visibleRange.contains($0.date) }
+        let currentDomain = calculateDomain(for: visibleData)
+        
         if isNetwork {
             ZStack {
                 // 下载图表
@@ -711,11 +729,11 @@ struct ChartTile: View {
                     .interpolationMethod(.monotone)
                 }
                 .chartXAxis(.hidden)
-                .chartXScale(domain: Date().addingTimeInterval(-300)...Date())
+                .chartXScale(domain: visibleRange)
                 .chartYAxis {
                     AxisMarks(position: .trailing)
                 }
-                .chartYScale(domain: chartsDomain)
+                .chartYScale(domain: currentDomain)
                 
                 // 上传图表
                 Chart(data) { point in
@@ -734,13 +752,13 @@ struct ChartTile: View {
                     .interpolationMethod(.monotone)
                 }
                 .chartXAxis(.hidden)
-                .chartXScale(domain: Date().addingTimeInterval(-300)...Date())
+                .chartXScale(domain: visibleRange)
                 .chartYAxis {
                     AxisMarks(position: .trailing) {
                         AxisValueLabel().foregroundStyle(.clear)
                     }
                 }
-                .chartYScale(domain: chartsDomain)
+                .chartYScale(domain: currentDomain)
             }
         } else if let keyPath = keyPath {
             Chart(data) { point in
@@ -759,17 +777,17 @@ struct ChartTile: View {
                 .interpolationMethod(.monotone)
             }
             .chartXAxis(.hidden)
-            .chartXScale(domain: Date().addingTimeInterval(-300)...Date())
+            .chartXScale(domain: visibleRange)
             .chartYAxis {
                 AxisMarks(position: .trailing, values: [0, 50, 100])
             }
-            .chartYScale(domain: chartsDomain)
+            .chartYScale(domain: currentDomain)
         }
     }
     
-    private var chartsDomain: ClosedRange<Double> {
+    private func calculateDomain(for visibleData: [MetricPoint]) -> ClosedRange<Double> {
         if isNetwork {
-            let maxVal = data.map { max($0.netIn, $0.netOut) }.max() ?? 10
+            let maxVal = visibleData.map { max($0.netIn, $0.netOut) }.max() ?? 10
             return 0.0...max(10.0, maxVal * 1.2)
         } else {
             return 0.0...100.0
