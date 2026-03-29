@@ -49,7 +49,7 @@ struct FluxLoginView: View {
                                     VStack(spacing: 0) {
                                         HStack(spacing: 12) {
                                             Image(systemName: "link")
-                                                .foregroundStyle(Color.accentColor)
+                                                .foregroundStyle(Color("AccentColor"))
                                                 .frame(width: 20)
                                             TextField(languageManager.t("login.serverURL"), text: $panelURL)
                                                 .keyboardType(.URL)
@@ -66,7 +66,7 @@ struct FluxLoginView: View {
                                             
                                             HStack(spacing: 12) {
                                                 Image(systemName: "tag")
-                                                    .foregroundStyle(Color.accentColor)
+                                                    .foregroundStyle(Color("AccentColor"))
                                                     .frame(width: 20)
                                                 TextField(languageManager.t("settings.serverName"), text: $serverName)
                                                     .disabled(!isAddingServer)
@@ -91,7 +91,7 @@ struct FluxLoginView: View {
                                     VStack(spacing: 0) {
                                         HStack(spacing: 12) {
                                             Image(systemName: "person")
-                                                .foregroundStyle(Color.accentColor)
+                                                .foregroundStyle(Color("AccentColor"))
                                                 .frame(width: 20)
                                             TextField(languageManager.t("login.username"), text: $username)
                                                 .autocorrectionDisabled()
@@ -106,7 +106,7 @@ struct FluxLoginView: View {
                                         
                                         HStack(spacing: 12) {
                                             Image(systemName: "key")
-                                                .foregroundStyle(Color.accentColor)
+                                                .foregroundStyle(Color("AccentColor"))
                                                 .frame(width: 20)
                                             SecureField(languageManager.t("login.password"), text: $password)
                                                 .focused($focusedField, equals: .password)
@@ -145,6 +145,7 @@ struct FluxLoginView: View {
                                 }
                             }
                             .buttonStyle(.borderedProminent)
+                            .tint(Color("AccentColor"))
                             .controlSize(.regular)
                             .padding(.horizontal)
                             .padding(.top, 10)

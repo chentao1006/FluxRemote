@@ -6,20 +6,18 @@ struct ServerConfig: Codable, Identifiable, Hashable {
     var name: String
     var url: String
     var username: String?
-    var isOffline: Bool = false
     var isLauncher: Bool = false
     var lastUpdatedAt: Date = Date()
     
     enum CodingKeys: String, CodingKey {
-        case id, name, url, username, isOffline, isLauncher, lastUpdatedAt
+        case id, name, url, username, isLauncher, lastUpdatedAt
     }
     
-    init(id: UUID = UUID(), name: String, url: String, username: String? = nil, isOffline: Bool = false, isLauncher: Bool = false, lastUpdatedAt: Date = Date()) {
+    init(id: UUID = UUID(), name: String, url: String, username: String? = nil, isLauncher: Bool = false, lastUpdatedAt: Date = Date()) {
         self.id = id
         self.name = name
         self.url = url
         self.username = username
-        self.isOffline = isOffline
         self.isLauncher = isLauncher
         self.lastUpdatedAt = lastUpdatedAt
     }
@@ -30,7 +28,6 @@ struct ServerConfig: Codable, Identifiable, Hashable {
         name = try container.decode(String.self, forKey: .name)
         url = try container.decode(String.self, forKey: .url)
         username = try container.decodeIfPresent(String.self, forKey: .username)
-        isOffline = try container.decodeIfPresent(Bool.self, forKey: .isOffline) ?? false
         isLauncher = try container.decodeIfPresent(Bool.self, forKey: .isLauncher) ?? false
         lastUpdatedAt = try container.decodeIfPresent(Date.self, forKey: .lastUpdatedAt) ?? Date(timeIntervalSince1970: 0)
     }
@@ -72,6 +69,7 @@ class ServerManager {
     private let serversKey = "flux_remote_servers_v2"
     private let aiConfigKey = "flux_remote_shared_ai_config"
     private var isCloudUpdating = false
+    private var isInitialCloudSyncDone = false
     
     var sharedAIConfig: AIConfig? {
         didSet {
@@ -80,6 +78,9 @@ class ServerManager {
             }
         }
     }
+    
+    private var reachabilityTimer: Timer?
+    var reachabilityStatuses: [UUID: Bool?] = [:] // nil = unknown, false = online, true = offline
     
     init() {
         if let data = UserDefaults.standard.data(forKey: aiConfigKey),
@@ -107,6 +108,8 @@ class ServerManager {
             try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s delay
             await manualSync()
         }
+        
+        startReachabilityTimer()
     }
     
     private func loadLocalServers() {
@@ -138,29 +141,41 @@ class ServerManager {
     private func mergeWithCloud(_ cloudServers: [ServerConfig]) {
         var merged: [ServerConfig] = self.servers
         var hasChangesFromCloud = false
-        var hasLocalNewer = false
+        var hasLocalChangesToUpload = false
+        
+        print("iCloud: Starting merge with \(cloudServers.count) cloud servers. InitialSyncDone: \(isInitialCloudSyncDone)")
         
         // 1. Add/Update servers from cloud
         for cloudServer in cloudServers {
             if let index = merged.firstIndex(where: { $0.id == cloudServer.id }) {
-                // Determine which one is newer
-                if cloudServer.lastUpdatedAt > merged[index].lastUpdatedAt {
+                // Determine which one is newer. 
+                // We trust BOTH the internal timestamp and the actual file system date.
+                let cloudDate = cloudServer.lastUpdatedAt
+                let localDate = merged[index].lastUpdatedAt
+                
+                // Also get the FS date we saw during download
+                let fsDate = CloudSyncManager.shared.getFileModificationDate(for: cloudServer.id) ?? Date(timeIntervalSince1970: 0)
+                
+                // If cloud JSON is newer, OR if FS is significantly newer than our current JSON date (indicating manual edit)
+                if cloudDate > localDate || fsDate.timeIntervalSince(localDate) > 60 {
+                    let reason = cloudDate > localDate ? "JSON newer" : "FS newer (\(fsDate))"
+                    print("iCloud: Updating '\(cloudServer.name)' because \(reason).")
                     merged[index] = cloudServer
                     hasChangesFromCloud = true
-                } else if cloudServer.lastUpdatedAt < merged[index].lastUpdatedAt {
-                    // Local is newer, let's make sure we push this back eventually
-                    hasLocalNewer = true
+                } else if cloudDate < localDate {
+                    print("iCloud: Local version of '\(merged[index].name)' is still newer (\(localDate) > \(cloudDate)).")
+                    hasLocalChangesToUpload = true
                 }
             } else {
                 // New from cloud
+                print("iCloud: Found new server '\(cloudServer.name)' in cloud. Adding.")
                 merged.append(cloudServer)
                 hasChangesFromCloud = true
             }
         }
         
-        // 2. Check if local has anything not in cloud
         let cloudIds = Set(cloudServers.map { $0.id })
-        let localMissingInCloud = self.servers.contains { !cloudIds.contains($0.id) }
+        let localNotYetInCloud = self.servers.filter { !cloudIds.contains($0.id) }
         
         if hasChangesFromCloud {
             isCloudUpdating = true
@@ -168,12 +183,18 @@ class ServerManager {
             sortServers()
             saveLocalOnly()
             isCloudUpdating = false
+            print("iCloud: Server list updated from cloud merge.")
         }
         
-        // If local data is newer or has extra servers, push back to cloud
-        if (hasLocalNewer || localMissingInCloud) && isCloudSyncEnabled {
-            print("iCloud: Local data is newer or missing in cloud, uploading...")
-            CloudSyncManager.shared.upload(servers: self.servers)
+        // IMPORTANT: Only upload if we've already performed at least one valid cloud discovery.
+        // This prevents overwriting newer cloud data with stale local data on first launch.
+        if isInitialCloudSyncDone && isCloudSyncEnabled {
+            if hasLocalChangesToUpload || !localNotYetInCloud.isEmpty {
+                print("iCloud: Uploading local changes to cloud...")
+                CloudSyncManager.shared.upload(servers: self.servers)
+            }
+        } else {
+            print("iCloud: Skipping upload - Initial sync not yet confirmed.")
         }
     }
     
@@ -181,7 +202,7 @@ class ServerManager {
         if let sid = selectedServerId, let server = servers.first(where: { $0.id == sid }) {
             return server
         }
-        return servers.first(where: { !$0.isOffline }) ?? servers.first
+        return servers.first { reachabilityStatuses[$0.id] == false } ?? servers.first
     }
     
     func selectServer(_ server: ServerConfig) {
@@ -241,27 +262,42 @@ class ServerManager {
     // loadLocalServers replaces the problematic loadServers to avoid blocking launch screen
     
     func manualSync() async {
-        print("iCloud: Manual sync requested.")
+        print("iCloud: FORCED Manual sync requested.")
         
-        // 1. Wait for URL initialization if it's still in progress (max 2 seconds)
+        // 1. Try to re-initialize ubiquity container if not ready
+        if CloudSyncManager.shared.ubiquityURL == nil {
+            CloudSyncManager.shared.setupUbiquity()
+        }
+        
+        // 2. Wait for URL initialization if it's still in progress (max 2 seconds)
         var retryCount = 0
         while CloudSyncManager.shared.ubiquityURL == nil && retryCount < 20 {
             try? await Task.sleep(nanoseconds: 100_000_000) // 0.1s
             retryCount += 1
         }
         
-        // 2. Force discovery and download
+        guard let _ = CloudSyncManager.shared.ubiquityURL else {
+            return
+        }
+        
+        // 3. Force discovery and download
         CloudSyncManager.shared.forceDownload()
         
-        // 3. Wait a bit for MetadataQuery to find changes
-        try? await Task.sleep(nanoseconds: 800_000_000) // 0.8s
+        // 4. Wait for query results
+        var cloudServers: [ServerConfig]?
+        for i in 0..<6 {
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s x 6 = 3s total
+            cloudServers = CloudSyncManager.shared.download()
+            if cloudServers != nil && !cloudServers!.isEmpty { 
+                print("iCloud: Found \(cloudServers!.count) servers after wait iter \(i)")
+                break 
+            }
+        }
         
-        // 4. Try to download current state
-        if let cloudServers = CloudSyncManager.shared.download() {
-            print("iCloud: Manual sync found \(cloudServers.count) servers.")
-            mergeWithCloud(cloudServers)
-        } else {
-            print("iCloud: Manual sync found no servers or container not ready.")
+        // 5. Final results and merge
+        self.isInitialCloudSyncDone = true
+        if let servers = cloudServers {
+            mergeWithCloud(servers)
         }
     }
     
@@ -280,6 +316,58 @@ class ServerManager {
     
     private func sortServers() {
         servers.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+    
+    // MARK: - Reachability
+    
+    private func startReachabilityTimer() {
+        reachabilityTimer?.invalidate()
+        reachabilityTimer = Timer.scheduledTimer(withTimeInterval: 15.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                await self?.checkAllServersReachability()
+            }
+        }
+        
+        // Initial check
+        Task {
+            await checkAllServersReachability()
+        }
+    }
+    
+    func checkAllServersReachability() async {
+        for server in servers {
+            let baseURL = server.baseURL
+            let isOffline = baseURL != nil ? await checkServerStatus(baseURL!) : true
+            
+            if reachabilityStatuses[server.id] != isOffline {
+                reachabilityStatuses[server.id] = isOffline
+            }
+        }
+    }
+    
+    private func checkServerStatus(_ url: URL) async -> Bool {
+        // We target the login endpoint to verify the Flux application is actually responding.
+        // This avoids false greens from tunnel relays (like InstaTunnel) that return 404 for 'tunnel not found'.
+        var request = URLRequest(url: url.appendingPathComponent("api/auth/login"))
+        request.httpMethod = "GET"
+        request.timeoutInterval = 3.0
+        
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            if let httpResponse = response as? HTTPURLResponse {
+                let statusCode = httpResponse.statusCode
+                // 200 (OK), 401 (Unauthorized - common if session is expired), 
+                // and 405 (Method Not Allowed) all prove the Flux app is reachable.
+                if statusCode == 200 || statusCode == 401 || statusCode == 405 {
+                    return false // online
+                }
+                // Any other status (404, 503, etc.) indicates the app is not truly reachable.
+                return true
+            }
+            return true
+        } catch {
+            return true
+        }
     }
 }
 
@@ -304,35 +392,45 @@ class CloudSyncManager {
     }
     
     private var metadataQuery: NSMetadataQuery?
+    private var isSyncing = false
     
     var onCloudDataChanged: (([ServerConfig]) -> Void)?
     
     init() {
-        // Defer all heavy setup to allow the App to finish launching visually
+        // Defer setup briefly to ensure app finish launching visually
         Task {
-            try? await Task.sleep(nanoseconds: 2_000_000_000) // 2s defer
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s defer
             setupUbiquity()
             setupQuery()
         }
     }
     
-    private func setupUbiquity() {
+    func setupUbiquity() {
         guard !isInitializingUbiquity else { return }
         isInitializingUbiquity = true
         
-        print("iCloud: Starting ubiquity initialization for \(containerIdentifier)...")
-        Task.detached(priority: .background) {
-            let url = FileManager.default.url(forUbiquityContainerIdentifier: self.containerIdentifier)
+        let targetID = containerIdentifier
+        print("iCloud: Starting ubiquity initialization for \(targetID)...")
+        
+        Task.detached(priority: .userInitiated) {
+            // Try specific container first
+            var url = FileManager.default.url(forUbiquityContainerIdentifier: targetID)
+            
+            // Fallback to default (nil) if specific fails
+            if url == nil {
+                print("iCloud: Specific container \(targetID) failed, trying default container...")
+                url = FileManager.default.url(forUbiquityContainerIdentifier: nil)
+            }
+            
             await MainActor.run {
                 self.cachedUbiquityURL = url
                 self.isInitializingUbiquity = false
                 
                 if let url = url {
                     print("iCloud: Container ready at \(url.path)")
-                    // Once container is ready, we need to restart the query to ensure it searches the newly discovered path
                     self.restartQuery()
                 } else {
-                    print("iCloud: ERROR - Container NOT available. Check Apple ID, iCloud Drive status, and entitlements.")
+                    print("iCloud: ERROR - Container NOT available. Please verify entitlements and iCloud settings.")
                 }
             }
         }
@@ -347,10 +445,8 @@ class CloudSyncManager {
     private func setupQuery() {
         let query = NSMetadataQuery()
         query.notificationBatchingInterval = 1
-        // Using both Documents and Data scopes to ensure we find files regardless of where the system places them
         query.searchScopes = [NSMetadataQueryUbiquitousDocumentsScope, NSMetadataQueryUbiquitousDataScope]
         
-        // Match files starting with server_ and ending with .json
         query.predicate = NSPredicate(format: "%K BEGINSWITH %@ AND %K ENDSWITH %@", 
                                     NSMetadataItemFSNameKey, filePrefix,
                                     NSMetadataItemFSNameKey, fileExtension)
@@ -370,16 +466,18 @@ class CloudSyncManager {
     }
     
     private func processCloudChanges() async {
-        guard let query = metadataQuery else { return }
+        guard let query = metadataQuery, !isSyncing else { return }
+        isSyncing = true
+        defer { isSyncing = false }
+        
         query.disableUpdates()
-        defer { query.enableUpdates() }
-        
         let results = query.results as! [NSMetadataItem]
-        if results.count > 0 {
-            print("iCloud: Query found \(results.count) potential server files.")
-        }
+        query.enableUpdates()
         
-        // Extract Sendable information from non-sendable NSMetadataItems before passing to detached Task
+        if results.isEmpty { return }
+        
+        print("iCloud: Query found \(results.count) potential server files.")
+        
         struct CloudFileInfo: Sendable {
             let url: URL
             let isCurrent: Bool
@@ -391,7 +489,6 @@ class CloudSyncManager {
             return CloudFileInfo(url: fileURL, isCurrent: downloadingStatus == NSMetadataUbiquitousItemDownloadingStatusCurrent)
         }
         
-        // Offload the heavy NSFileCoordinator and decoding work to a background thread
         let allServers = await Task.detached(priority: .userInitiated) { () -> [ServerConfig] in
             var decodedServers: [ServerConfig] = []
             let coordinator = NSFileCoordinator(filePresenter: nil)
@@ -400,20 +497,34 @@ class CloudSyncManager {
                 let fileURL = info.url
                 
                 if !info.isCurrent {
-                    print("iCloud: File \(fileURL.lastPathComponent) is not local. Starting download...")
+                    print("iCloud: Metadata updated but Bytes not Current for \(fileURL.lastPathComponent). Downloading...")
                     try? FileManager.default.startDownloadingUbiquitousItem(at: fileURL)
+                    // We also want to skip reading it now to avoid stale reads, 
+                    // and rely on the next metadata update when it becomes current.
                     continue
                 }
                 
                 var server: ServerConfig?
                 var error: NSError?
-                // coordinate is blocking; we are safe here since we are in Task.detached
-                coordinator.coordinate(readingItemAt: fileURL, options: .withoutChanges, error: &error) { readURL in
+                // Using empty options but we check for 'Current' status above
+                coordinator.coordinate(readingItemAt: fileURL, options: [], error: &error) { readURL in
                     do {
-                        let data = try Data(contentsOf: readURL)
+                        // Use .mappedIfSafe to avoid some caching issues
+                        let data = try Data(contentsOf: readURL, options: .mappedIfSafe)
                         server = try JSONDecoder().decode(ServerConfig.self, from: data)
+                        
+                        // SANITY CHECK: If FS date is significantly newer than the internal JSON date, 
+                        // it might mean the file content is still being streamed/synced.
+                        if let server = server {
+                            let attrs = try? FileManager.default.attributesOfItem(atPath: readURL.path)
+                            if let fsDate = attrs?[.modificationDate] as? Date {
+                                if fsDate.timeIntervalSince(server.lastUpdatedAt) > 60 {
+                                    print("iCloud: WARNING - '\(server.name)' FS date (\(fsDate)) is much newer than internal JSON date (\(server.lastUpdatedAt)). Results might be stale.")
+                                }
+                            }
+                        }
                     } catch {
-                        print("iCloud: Error decoding \(fileURL.lastPathComponent): \(error)")
+                        print("iCloud: Read/Decode failed for \(fileURL.lastPathComponent): \(error)")
                     }
                 }
                 
@@ -425,39 +536,25 @@ class CloudSyncManager {
         }.value
         
         if !allServers.isEmpty {
-            print("iCloud: Successfully processed \(allServers.count) servers from cloud.")
             onCloudDataChanged?(allServers)
         }
     }
     
     func upload(servers: [ServerConfig]) {
-        guard let docURL = documentsURL else { 
-            print("iCloud: Upload skipped - Container URL not ready yet.")
-            return 
-        }
-        
-        // Capture local copies of constants for Sendable transfer
+        guard let docURL = documentsURL else { return }
         let prefix = self.filePrefix
         let ext = self.fileExtension
-        
-        // Read-only logic: only upload servers that are NOT managed by launcher
         let serversToUpload = servers.filter { !$0.isLauncher }
         
-        // Perform file modifications and coordinator work in Background
         Task.detached(priority: .utility) {
             let coordinator = NSFileCoordinator(filePresenter: nil)
-            
             if !FileManager.default.fileExists(atPath: docURL.path) {
                 try? FileManager.default.createDirectory(at: docURL, withIntermediateDirectories: true)
             }
             
-            // 1. Upload/Update only non-launcher servers
-            // NOTE: We only upload servers that have been touched (timestamp > 1970)
-            // and we never delete files blindly to avoid sync race conditions.
             for server in serversToUpload {
-                // If it's a legacy or uninitialized timestamp, don't push it to cloud.
-                // We only want to push data that was explicitly created or modified on this device.
-                guard server.lastUpdatedAt.timeIntervalSince1970 > 0 else { continue }
+                // Skip uninitialized/migration data
+                guard server.lastUpdatedAt.timeIntervalSince1970 > 10000 else { continue }
                 
                 let fileName = "\(prefix)\(server.id.uuidString).\(ext)"
                 let url = docURL.appendingPathComponent(fileName)
@@ -465,16 +562,11 @@ class CloudSyncManager {
                 do {
                     let data = try JSONEncoder().encode(server)
                     var error: NSError?
-                    
                     coordinator.coordinate(writingItemAt: url, options: .forReplacing, error: &error) { writeURL in
-                        do {
-                            try data.write(to: writeURL, options: .atomic)
-                        } catch {
-                            print("iCloud: Write error (\(fileName)): \(error)")
-                        }
+                        try? data.write(to: writeURL, options: .atomic)
                     }
                 } catch {
-                    print("iCloud: Encoding error for \(server.name): \(error)")
+                    print("iCloud: Upload encoding error for \(server.name)")
                 }
             }
         }
@@ -495,52 +587,84 @@ class CloudSyncManager {
     }
     
     func download() -> [ServerConfig]? {
-        // Since download is used in manualSync (Task-based), it should be fine but ideally it should match the async pattern
-        // For debugging purposes, it remains as is but it's called within ServerManager's manualSync which is sync-within-a-Task
-        guard let docURL = documentsURL, FileManager.default.fileExists(atPath: docURL.path) else { return nil }
+        // Preferred way is now via processCloudChanges, but we keep this for manualSync fallback
+        // Improved to use Query results if available
+        if let query = metadataQuery {
+            let results = query.results as! [NSMetadataItem]
+            if !results.isEmpty {
+                var cached: [ServerConfig] = []
+                let coordinator = NSFileCoordinator(filePresenter: nil)
+                for item in results {
+                    // Check if actually current/downloaded
+                    let status = item.value(forAttribute: NSMetadataUbiquitousItemDownloadingStatusKey) as? String
+                    guard status == NSMetadataUbiquitousItemDownloadingStatusCurrent else { continue }
+                    
+                    if let url = item.value(forAttribute: NSMetadataItemURLKey) as? URL {
+                        var error: NSError?
+                        coordinator.coordinate(readingItemAt: url, options: [], error: &error) { readURL in
+                            if let data = try? Data(contentsOf: readURL, options: .mappedIfSafe),
+                               let server = try? JSONDecoder().decode(ServerConfig.self, from: data) {
+                                cached.append(server)
+                            }
+                        }
+                    }
+                }
+                if !cached.isEmpty { return cached }
+            }
+        }
         
+        // Final fallback: direct directory listing (can be stale, handle with care)
+        guard let docURL = documentsURL, FileManager.default.fileExists(atPath: docURL.path) else { return nil }
         let coordinator = NSFileCoordinator(filePresenter: nil)
         var allServers: [ServerConfig] = []
         
-        do {
-            let files = try FileManager.default.contentsOfDirectory(at: docURL, includingPropertiesForKeys: nil)
-            let serverFiles = files.filter { $0.lastPathComponent.hasPrefix(filePrefix) && $0.pathExtension == fileExtension }
-            
-            for fileURL in serverFiles {
-                var server: ServerConfig?
-                var error: NSError?
-                coordinator.coordinate(readingItemAt: fileURL, options: .withoutChanges, error: &error) { readURL in
-                    if let data = try? Data(contentsOf: readURL),
-                       let decoded = try? JSONDecoder().decode(ServerConfig.self, from: data) {
-                        server = decoded
-                    }
-                }
-                if let server = server {
-                    allServers.append(server)
-                }
-            }
-        } catch {
-            print("iCloud: Directory listing error: \(error)")
-            return nil
+        let files = (try? FileManager.default.contentsOfDirectory(at: docURL, includingPropertiesForKeys: [.ubiquitousItemDownloadingStatusKey])) ?? []
+        let serverFiles = files.filter { 
+            ($0.lastPathComponent.hasPrefix(filePrefix) || $0.lastPathComponent.hasPrefix(".\(filePrefix)")) && 
+            ($0.pathExtension == fileExtension || $0.absoluteString.contains(".icloud"))
         }
         
+        for fileURL in serverFiles {
+            // Filter out non-current files from manual poll
+            let values = try? fileURL.resourceValues(forKeys: [.ubiquitousItemDownloadingStatusKey])
+            if values?.ubiquitousItemDownloadingStatus != .current {
+                try? FileManager.default.startDownloadingUbiquitousItem(at: fileURL)
+                continue
+            }
+            
+            var error: NSError?
+            coordinator.coordinate(readingItemAt: fileURL, options: [], error: &error) { readURL in
+                if let data = try? Data(contentsOf: readURL, options: .mappedIfSafe),
+                   let decoded = try? JSONDecoder().decode(ServerConfig.self, from: data) {
+                    allServers.append(decoded)
+                }
+            }
+        }
         return allServers.isEmpty ? nil : allServers
     }
     
     func forceDownload() {
         guard let docURL = documentsURL else { 
-            print("iCloud: forceDownload deferred - Container not ready.")
-            setupUbiquity() // Try to re-init
+            setupUbiquity()
             return 
         }
         
+        // Trigger download for everything in directory including stubs
         if let files = try? FileManager.default.contentsOfDirectory(at: docURL, includingPropertiesForKeys: nil) {
-            let serverFiles = files.filter { $0.lastPathComponent.hasPrefix(filePrefix) && $0.pathExtension == fileExtension }
-            for fileURL in serverFiles {
+            for fileURL in files {
+                // Just trigger download without eviction, to avoid disappearing files
                 try? FileManager.default.startDownloadingUbiquitousItem(at: fileURL)
             }
         }
-        
         restartQuery()
+    }
+    
+    func getFileModificationDate(for serverId: UUID) -> Date? {
+        guard let docURL = documentsURL else { return nil }
+        let fileName = "\(filePrefix)\(serverId.uuidString).\(fileExtension)"
+        let url = docURL.appendingPathComponent(fileName)
+        
+        let attrs = try? FileManager.default.attributesOfItem(atPath: url.path)
+        return attrs?[.modificationDate] as? Date
     }
 }

@@ -485,7 +485,7 @@ Docker: \(dockerSummary.running)/\(dockerSummary.total) Running
 Nginx: \(nginxSummary.active)/\(nginxSummary.total) Active
 LaunchAgents: \(agentSummary.loaded)/\(agentSummary.total) Loaded
 
-Please provide comments on health, resource usage, and any suggestions in \(languageManager.aiResponseLanguage). Use Markdown with emojis.
+Please provide comments on health, resource usage, and any suggestions in \(languageManager.aiResponseLanguage). Use clean Markdown formatting.
 """
                 let response = try await AIService.shared.analyze(prompt: prompt, systemPrompt: "You are a professional system assistant analyzing macOS health and resource usage.", apiClient: apiClient)
                 withAnimation {

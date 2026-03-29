@@ -50,21 +50,24 @@ struct SettingsView: View {
                     NavigationLink(destination: AISettingsView(
                         languageManager: languageManager,
                         aiConfig: Binding(
-                            get: { serverSettings?.ai },
-                            set: { serverSettings?.ai = $0 }
+                            get: { ServerManager.shared.sharedAIConfig },
+                            set: { newValue in
+                                ServerManager.shared.sharedAIConfig = newValue
+                                apiClient.aiConfig = newValue
+                            }
                         ),
-                        onSave: { triggerAutoSave() },
+                        onSave: { /* Local save is handled by ServerManager didSet */ },
                         apiClient: apiClient
                     )) {
                         HStack {
                             Text(languageManager.t("settings.aiConfig"))
                             Spacer()
-                            if !(serverSettings?.ai?.enabled ?? false) {
+                            if !(ServerManager.shared.sharedAIConfig?.enabled ?? false) {
                                 Text(languageManager.t("common.off"))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             } else {
-                                Text(serverSettings?.ai?.usePublicService ?? true ? languageManager.t("settings.publicService") : (serverSettings?.ai?.model ?? languageManager.t("common.none")))
+                                Text(ServerManager.shared.sharedAIConfig?.usePublicService ?? true ? languageManager.t("settings.publicService") : (ServerManager.shared.sharedAIConfig?.model ?? languageManager.t("common.none")))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -151,13 +154,16 @@ struct SettingsView: View {
         guard let settings = serverSettings else { return }
         await MainActor.run { isSaving = true }
         do {
+            var settings = settings
+            settings.ai = nil // Do not send AI config to server, it's local only
             let _: ActionResponse = try await apiClient.request("/api/settings", method: "POST", encodableBody: settings)
             await MainActor.run {
                 if let feats = settings.features {
                     apiClient.features = feats
                 }
-                apiClient.aiConfig = settings.ai
-                ServerManager.shared.sharedAIConfig = settings.ai
+                // self.isSaving = false ... handled below
+            }
+            await MainActor.run {
                 self.isSaving = false
                 self.lastSavedTime = Date()
             }

@@ -14,6 +14,7 @@ struct AppContainerView: View {
     @State private var terminalButtonOffset: CGSize = .zero
     @State private var lastTerminalButtonOffset: CGSize = .zero
     @State private var isDraggingTerminalButton = false
+    @State private var showingServerManagement = false
     
     var body: some View {
         Group {
@@ -98,15 +99,26 @@ struct AppContainerView: View {
         .sheet(isPresented: $showingQuickTerminal) {
             QuickTerminalView()
         }
+        .sheet(isPresented: $showingServerManagement) {
+            NavigationStack {
+                ServerListView(selection: $selection)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button { showingServerManagement = false } label: {
+                                Image(systemName: "xmark")
+                            }
+                        }
+                    }
+            }
+        }
         .onChange(of: ServerManager.shared.selectedServerId) { checkOfflineStatus() }
         .onChange(of: ServerManager.shared.servers) { checkOfflineStatus() }
     }
     
     private func checkOfflineStatus() {
         if let sid = ServerManager.shared.selectedServerId,
-           let server = ServerManager.shared.servers.first(where: { $0.id == sid }),
-           server.isOffline {
-            selection = .servers
+           ServerManager.shared.reachabilityStatuses[sid] == true {
+            showingServerManagement = true
         }
     }
 
@@ -149,7 +161,7 @@ struct AppContainerView: View {
                             .navigationTitle(languageManager.t(NavigationItem.monitor.title))
                             .toolbar {
                                 ToolbarItem(placement: .topBarLeading) {
-                                    ServerPickerMenu(selection: $selection)
+                                    ServerPickerMenu(selection: $selection, onManageServers: { showingServerManagement = true })
                                 }
                             }
                     }
@@ -237,24 +249,28 @@ struct AppContainerView: View {
                             apiClient.switchServer(to: server)
                         } label: {
                             HStack {
-                                if server.isOffline {
-                                    Label("\(server.name) (\(languageManager.t("common.offline")))", systemImage: "wifi.slash")
-                                } else {
-                                    Text(server.name)
-                                }
+                                let status = ServerManager.shared.reachabilityStatuses[server.id]
+                                Circle()
+                                    .fill(status == nil ? Color.gray : (status == true ? Color.red : Color.green))
+                                    .frame(width: 8, height: 8)
+                                
+                                Text(server.name)
+                                    .foregroundStyle(status == true ? .secondary : .primary)
                                 
                                 if server.id == ServerManager.shared.selectedServerId {
+                                    Spacer()
                                     Image(systemName: "checkmark")
+                                        .font(.body)
                                 }
                             }
                         }
-                        .disabled(server.isOffline)
+                        .disabled(ServerManager.shared.reachabilityStatuses[server.id] == true)
                     }
                     
                     Divider()
                     
                     Button {
-                        selection = .servers
+                        showingServerManagement = true
                     } label: {
                         Label(languageManager.t("settings.serverList"), systemImage: "list.bullet.rectangle.portrait")
                     }
@@ -365,8 +381,8 @@ struct QuickTerminalView: View {
     @State private var isTranslating = false
     @State private var isAnalyzingOutput = false
     @State private var aiAnalysis: String?
-    @State private var showingAIPrompt = false
-    @State private var aiPromptText = ""
+    @State private var showingAIHint = false
+    @State private var hintTask: Task<Void, Never>? = nil
 
     @FocusState private var isFieldFocused: Bool
 
@@ -423,54 +439,60 @@ struct QuickTerminalView: View {
                     .padding(.vertical, 12)
                 }
                 
-                // Input Bar
+                // Input Bar (Redesigned)
                 VStack(spacing: 0) {
-                    HStack(spacing: 12) {
-                        Button {
-                            if apiClient.aiConfig?.enabled ?? false {
-                                showingAIPrompt = true
-                            } else {
-                                showingAIDisabledAlert = true
+                    HStack(spacing: 8) {
+                        // Input Field
+                        TextField(languageManager.t("terminal.placeholder"), text: $command, axis: .vertical)
+                            .focused($isFieldFocused)
+                            .lineLimit(1...5)
+                            .font(.system(.body, design: .monospaced))
+                            .onSubmit {
+                                if !isExecuting {
+                                    executionTask = Task { await execute() }
+                                }
                             }
-                        } label: {
-                            if isTranslating {
-                                ProgressView().controlSize(.small)
-                            } else {
+                        
+                        // Action Buttons (Right Side)
+                        HStack(spacing: 12) {
+                            // AI Wand Button
+                            Button {
+                                if apiClient.aiConfig?.enabled ?? false {
+                                    if command.isEmpty {
+                                        showAIUsageHint()
+                                    } else {
+                                        translateAIContent()
+                                    }
+                                } else {
+                                    showingAIDisabledAlert = true
+                                }
+                            } label: {
                                 Image(systemName: "wand.and.sparkles")
                                     .font(.title3)
                                     .foregroundStyle(Color("AccentColor"))
                             }
-                        }
-                        .disabled(isTranslating)
-                        
-                            TextField(languageManager.t("terminal.placeholder"), text: $command, axis: .vertical)
-                                .focused($isFieldFocused)
-                                .lineLimit(1...5)
-                                .font(.system(.body, design: .monospaced))
-                            .onSubmit { 
-                                if !isExecuting {
-                                    executionTask = Task { await execute() } 
+                            .disabled(isTranslating)
+                            
+                            // Execution Button
+                            if isExecuting {
+                                Button {
+                                    executionTask?.cancel()
+                                    isExecuting = false
+                                } label: {
+                                    Image(systemName: "stop.circle.fill")
+                                        .font(.title2)
+                                        .foregroundStyle(.red)
                                 }
+                            } else {
+                                Button {
+                                    executionTask = Task { await execute() }
+                                } label: {
+                                    Image(systemName: "play.circle.fill")
+                                        .font(.title2)
+                                        .foregroundStyle(command.isEmpty ? Color.secondary : Color.blue)
+                                }
+                                .disabled(command.isEmpty)
                             }
-                        
-                        if isExecuting {
-                            Button {
-                                executionTask?.cancel()
-                                isExecuting = false
-                            } label: {
-                                Image(systemName: "stop.circle.fill")
-                                    .font(.title2)
-                                    .foregroundStyle(.red)
-                            }
-                        } else {
-                            Button {
-                                executionTask = Task { await execute() }
-                            } label: {
-                                Image(systemName: "play.circle.fill")
-                                    .font(.title2)
-                                    .foregroundStyle(command.isEmpty ? Color.secondary : Color.blue)
-                            }
-                            .disabled(command.isEmpty)
                         }
                     }
                     .padding(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
@@ -482,13 +504,27 @@ struct QuickTerminalView: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 0) {
                             if output.isEmpty {
-                                Text(languageManager.t("terminal.waiting"))
-                                    .font(.system(.caption, design: .monospaced))
-                                    .foregroundStyle(.secondary)
-                                    .frame(maxWidth: .infinity, minHeight: 100, alignment: .center)
-                                    .background(Color.black.opacity(0.02))
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                                    .padding(.horizontal)
+                                VStack(spacing: 8) {
+                                    if isTranslating {
+                                        ProgressView().controlSize(.small)
+                                        Text(languageManager.t("terminal.aiTranslating"))
+                                    } else if showingAIHint {
+                                        Image(systemName: "sparkles")
+                                            .font(.title)
+                                            .foregroundStyle(Color("AccentColor"))
+                                        Text(languageManager.t("terminal.aiHint"))
+                                            .multilineTextAlignment(.center)
+                                            .padding(.horizontal)
+                                    } else {
+                                        Text(languageManager.t("terminal.waiting"))
+                                    }
+                                }
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, minHeight: 100, alignment: .center)
+                                .background(Color.black.opacity(0.02))
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                .padding(.horizontal)
                             } else {
                                 LazyVStack(alignment: .leading, spacing: 0) {
                                     let lines = output.components(separatedBy: .newlines)
@@ -541,33 +577,24 @@ struct QuickTerminalView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Button(action: { dismiss() }) { Image(systemName: "xmark") }
                 }
+                
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(action: { clearTerminal() }) {
+                        Image(systemName: "eraser")
+                    }
+                    .disabled(isExecuting)
+                }
             }
             .sheet(isPresented: $showingManageCommands) {
                 ManageCommandsView(commands: $commands)
             }
-            .overlay {
-                if showingAIPrompt {
-                    ZStack {
-                        Color.black.opacity(0.4)
-                            .ignoresSafeArea()
-                            .onTapGesture { showingAIPrompt = false }
-                        
-                        TerminalAIPromptView(text: $aiPromptText) {
-                            translateAI()
-                            showingAIPrompt = false
-                        } onCancel: {
-                            showingAIPrompt = false
-                        }
-                        .frame(maxWidth: 400)
-                        .frame(height: 320)
-                        .clipShape(RoundedRectangle(cornerRadius: 24))
-                        .shadow(radius: 20)
-                        .padding(20)
-                    }
-                    .transition(.opacity.combined(with: .scale(0.9)))
+            .onAppear { 
+                loadCommands() 
+                // Auto focus the input field
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    isFieldFocused = true
                 }
             }
-            .onAppear { loadCommands() }
             .onChange(of: commands) { _, newValue in saveCommands(newValue) }
         }
     }
@@ -589,6 +616,7 @@ struct QuickTerminalView: View {
     
     private func execute() async {
         guard !command.isEmpty else { return }
+        isFieldFocused = false // Dismiss keyboard
         isExecuting = true
         output = "\(languageManager.t("terminal.executing")): \(command)...\n\n"
         
@@ -633,18 +661,17 @@ struct QuickTerminalView: View {
         }
     }
 
-    private func translateAI() {
-        guard !aiPromptText.isEmpty else { return }
+    private func translateAIContent() {
+        guard !command.isEmpty else { return }
+        showingAIHint = false
         isTranslating = true
-        let requirement = aiPromptText
-        aiPromptText = ""
+        let userInput = command
         
         Task {
             do {
-                // Incorporate strict instructions directly into the prompt to ensure they are followed
                 let strictPrompt = """
-                Task: Convert the following requirement into a single-line macOS bash command.
-                Requirement: \(requirement)
+                Task: Convert the following natural language requirement into a single-line macOS bash command.
+                Requirement: \(userInput)
                 
                 Mandatory Rule: Return ONLY the command text. No explanations. No markdown. No intro. No quotes.
                 Command:
@@ -656,13 +683,15 @@ struct QuickTerminalView: View {
                     apiClient: apiClient
                 )
                 await MainActor.run {
-                    self.command = response.trimmingCharacters(in: .whitespacesAndNewlines)
-                    self.isTranslating = false
-                    self.isFieldFocused = true
+                    withAnimation {
+                        self.command = response.trimmingCharacters(in: .whitespacesAndNewlines)
+                        self.isTranslating = false
+                        self.isFieldFocused = true
+                    }
                 }
             } catch {
                 await MainActor.run {
-                    self.isTranslating = false
+                    withAnimation { self.isTranslating = false }
                 }
             }
         }
@@ -685,6 +714,28 @@ struct QuickTerminalView: View {
                     self.aiAnalysis = "Error: \(error.localizedDescription)"
                     self.isAnalyzingOutput = false
                 }
+            }
+        }
+    }
+
+    private func clearTerminal() {
+        withAnimation {
+            command = ""
+            output = ""
+            aiAnalysis = nil
+            showingAIHint = false
+        }
+        isFieldFocused = true
+    }
+
+    private func showAIUsageHint() {
+        hintTask?.cancel()
+        withAnimation { showingAIHint = true }
+        hintTask = Task {
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                withAnimation { showingAIHint = false }
             }
         }
     }
@@ -713,6 +764,10 @@ struct SudoPasswordView: View {
             Form {
                 Section {
                     SecureField(languageManager.t("common.sudoPasswordPlaceholder"), text: $password)
+                        .submitLabel(.done)
+                        .onSubmit {
+                            onConfirm()
+                        }
                         .textContentType(.password)
                 } header: {
                     Text(languageManager.t("common.sudoRequired"))

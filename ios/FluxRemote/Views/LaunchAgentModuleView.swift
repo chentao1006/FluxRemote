@@ -142,17 +142,32 @@ struct LaunchAgentModuleView: View {
                         Button(action: { selectedAgent = nil }) { Image(systemName: "xmark") }
                     }
                 }
-                .sheet(isPresented: Binding(
+                .alert(languageManager.t("common.sudoRequired"), isPresented: Binding(
                     get: { showingSudoPrompt && selectedAgent != nil },
                     set: { if !$0 { showingSudoPrompt = false } }
                 )) {
-                    SudoPasswordView(password: $sudoPassword) {
+                    SecureField(languageManager.t("common.sudoPasswordPlaceholder"), text: $sudoPassword)
+                        .submitLabel(.done)
+                        .onSubmit {
+                            Task {
+                                if let pending = pendingAction {
+                                    await performAction(pending.0, path: pending.0 == "delete" ? pending.1 : pending.1)
+                                }
+                                showingSudoPrompt = false
+                            }
+                        }
+                    Button(languageManager.t("common.ok")) {
                         Task {
                             if let pending = pendingAction {
-                                await performAction(pending.0, path: pending.1)
+                                await performAction(pending.0, path: pending.0 == "delete" ? pending.1 : pending.1)
                             }
                         }
                     }
+                    Button(languageManager.t("common.cancel"), role: .cancel) {
+                        sudoPassword = ""
+                    }
+                } message: {
+                    Text(languageManager.t("common.sudoRequired"))
                 }
                 .alert(item: Binding(
                     get: { selectedAgent != nil ? activeAlert : nil },
@@ -182,17 +197,32 @@ struct LaunchAgentModuleView: View {
                 }
             }
         }
-        .sheet(isPresented: Binding(
+        .alert(languageManager.t("common.sudoRequired"), isPresented: Binding(
             get: { showingSudoPrompt && selectedAgent == nil },
             set: { if !$0 { showingSudoPrompt = false } }
         )) {
-            SudoPasswordView(password: $sudoPassword) {
+            SecureField(languageManager.t("common.sudoPasswordPlaceholder"), text: $sudoPassword)
+                .submitLabel(.done)
+                .onSubmit {
+                    Task {
+                        if let pending = pendingAction {
+                            await performAction(pending.0, path: pending.1)
+                        }
+                        showingSudoPrompt = false
+                    }
+                }
+            Button(languageManager.t("common.ok")) {
                 Task {
                     if let pending = pendingAction {
                         await performAction(pending.0, path: pending.1)
                     }
                 }
             }
+            Button(languageManager.t("common.cancel"), role: .cancel) {
+                sudoPassword = ""
+            }
+        } message: {
+            Text(languageManager.t("common.sudoRequired"))
         }
         .alert(item: Binding(
             get: { selectedAgent == nil ? activeAlert : nil },
@@ -224,7 +254,7 @@ struct LaunchAgentModuleView: View {
     
     @MainActor
     func fetchData() async {
-        guard selection == .launchagent else { return }
+        guard selection == .launchagent || selection == .more else { return }
         do {
             let response: LaunchAgentResponse = try await apiClient.request("/api/launchagent/list")
             self.launchAgents = response.data
@@ -289,6 +319,7 @@ struct LaunchAgentModuleView: View {
                 self.pendingAction = nil
             } else {
                 self.activeAlert = .error(error.localizedDescription)
+                self.sudoPassword = ""
                 self.pendingAction = nil
             }
         }
@@ -534,10 +565,21 @@ struct LaunchAgentDetailView: View {
                 Text(error)
             }
         }
-        .sheet(isPresented: $showingSudoPrompt) {
-            SudoPasswordView(password: $sudoPassword) {
+        .alert(languageManager.t("common.sudoRequired"), isPresented: $showingSudoPrompt) {
+            SecureField(languageManager.t("common.sudoPasswordPlaceholder"), text: $sudoPassword)
+                .submitLabel(.done)
+                .onSubmit {
+                    Task { await saveConfig() }
+                    showingSudoPrompt = false
+                }
+            Button(languageManager.t("common.ok")) {
                 Task { await saveConfig() }
             }
+            Button(languageManager.t("common.cancel"), role: .cancel) {
+                sudoPassword = ""
+            }
+        } message: {
+            Text(languageManager.t("common.sudoRequired"))
         }
     }
     

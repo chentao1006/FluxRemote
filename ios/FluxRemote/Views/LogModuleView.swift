@@ -72,17 +72,32 @@ struct LogModuleView: View {
                                 Text(action == "delete" ? languageManager.t("logs.deleteConfirm") : (action == "remove" ? languageManager.t("logs.removeConfirm") : languageManager.t("logs.clearConfirm")))
                             }
                         }
-                        .sheet(isPresented: Binding(
+                        .alert(languageManager.t("common.sudoRequired"), isPresented: Binding(
                             get: { showingSudoPrompt && selectedLog != nil },
                             set: { if !$0 { showingSudoPrompt = false } }
                         )) {
-                            SudoPasswordView(password: $sudoPassword) {
+                            SecureField(languageManager.t("common.sudoPasswordPlaceholder"), text: $sudoPassword)
+                                .submitLabel(.done)
+                                .onSubmit {
+                                    if let file = actionTarget, let action = actionType {
+                                        let pwd = sudoPassword
+                                        sudoPassword = ""
+                                        Task { await performAction(file: file, action: action, password: pwd) }
+                                    }
+                                    showingSudoPrompt = false
+                                }
+                            Button(languageManager.t("common.ok")) {
                                 if let file = actionTarget, let action = actionType {
                                     let pwd = sudoPassword
                                     sudoPassword = ""
                                     Task { await performAction(file: file, action: action, password: pwd) }
                                 }
                             }
+                            Button(languageManager.t("common.cancel"), role: .cancel) {
+                                sudoPassword = ""
+                            }
+                        } message: {
+                            Text(languageManager.t("common.sudoRequired"))
                         }
                         .alert(languageManager.t("common.error"), isPresented: Binding(
                             get: { showingActionError && selectedLog != nil },
@@ -114,17 +129,32 @@ struct LogModuleView: View {
                     Text(action == "delete" ? languageManager.t("logs.deleteConfirm") : (action == "remove" ? languageManager.t("logs.removeConfirm") : languageManager.t("logs.clearConfirm")))
                 }
             }
-            .sheet(isPresented: Binding(
+            .alert(languageManager.t("common.sudoRequired"), isPresented: Binding(
                 get: { showingSudoPrompt && selectedLog == nil },
                 set: { if !$0 { showingSudoPrompt = false } }
             )) {
-                SudoPasswordView(password: $sudoPassword) {
+                SecureField(languageManager.t("common.sudoPasswordPlaceholder"), text: $sudoPassword)
+                    .submitLabel(.done)
+                    .onSubmit {
+                        if let file = actionTarget, let action = actionType {
+                            let pwd = sudoPassword
+                            sudoPassword = ""
+                            Task { await performAction(file: file, action: action, password: pwd) }
+                        }
+                        showingSudoPrompt = false
+                    }
+                Button(languageManager.t("common.ok")) {
                     if let file = actionTarget, let action = actionType {
                         let pwd = sudoPassword
                         sudoPassword = ""
                         Task { await performAction(file: file, action: action, password: pwd) }
                     }
                 }
+                Button(languageManager.t("common.cancel"), role: .cancel) {
+                    sudoPassword = ""
+                }
+            } message: {
+                Text(languageManager.t("common.sudoRequired"))
             }
             .alert(languageManager.t("common.error"), isPresented: Binding(
                 get: { showingActionError && selectedLog == nil },

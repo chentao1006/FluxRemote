@@ -351,11 +351,14 @@ struct AIAssistView: View {
     @State private var generatedContent: String?
     @State private var isProcessing: Bool = false
     @State private var errorMessage: String?
+    @State private var showingApplyConfirmation = false
+    @FocusState private var isFieldFocused: Bool
 
     var body: some View {
         Form {
             Section(header: Text(languageManager.t("common.aiGenerate"))) {
                 TextEditor(text: $prompt)
+                    .focused($isFieldFocused)
                     .frame(minHeight: 120)
                     .overlay(
                         Group {
@@ -376,7 +379,7 @@ struct AIAssistView: View {
                     HStack {
                         Spacer()
                         ProgressView()
-                        Text(languageManager.t("common.analyzing"))
+                        Text(languageManager.t("common.generating"))
                             .padding(.leading, 8)
                         Spacer()
                     }
@@ -412,12 +415,9 @@ struct AIAssistView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 if generatedContent != nil {
-                    Button(action: { 
-                        onApply(generatedContent!)
-                        dismiss()
-                    }) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .symbolRenderingMode(.hierarchical)
+                    Button(action: { showingApplyConfirmation = true }) {
+                        Text(languageManager.t("common.apply"))
+                            .fontWeight(.bold)
                     }
                 } else {
                     Button(action: generate) {
@@ -431,10 +431,27 @@ struct AIAssistView: View {
                 }
             }
         }
+        .alert(languageManager.t("common.confirmApply"), isPresented: $showingApplyConfirmation) {
+            Button(languageManager.t("common.apply"), role: .destructive) {
+                if let generated = generatedContent {
+                    onApply(generated)
+                    dismiss()
+                }
+            }
+            Button(languageManager.t("common.cancel"), role: .cancel) { }
+        } message: {
+            Text(languageManager.t("common.confirmApplyDesc"))
+        }
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                isFieldFocused = true
+            }
+        }
     }
     
     func generate() {
         guard !prompt.isEmpty else { return }
+        isFieldFocused = false
         isProcessing = true
         errorMessage = nil
         
@@ -519,8 +536,8 @@ struct AIActionButton: View {
                     .lineLimit(1)
             }
             .font(.system(horizontalSizeClass == .compact ? .footnote : .subheadline))
-            .padding(.horizontal, horizontalSizeClass == .compact ? 14 : 20)
-            .padding(.vertical, horizontalSizeClass == .compact ? 10 : 12)
+            .padding(.horizontal, horizontalSizeClass == .compact ? 16 : 24)
+            .frame(height: horizontalSizeClass == .compact ? 40 : 44)
             .background(.ultraThinMaterial)
             .background(apiClient.aiConfig?.enabled ?? false ? color.opacity(0.6) : Color.gray.opacity(0.4))
             .foregroundStyle(.white)

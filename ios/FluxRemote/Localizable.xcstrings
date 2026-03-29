@@ -439,6 +439,23 @@
         }
       }
     },
+    "common.generating": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Generating..."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在生成..."
+          }
+        }
+      }
+    },
     "common.generate": {
       "extractionState": "manual",
       "localizations": {
@@ -826,6 +843,57 @@
           "stringUnit": {
             "state": "translated",
             "value": "服务"
+          }
+        }
+      }
+    },
+    "common.apply": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apply"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "应用"
+          }
+        }
+      }
+    },
+    "common.confirmApply": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirm Apply"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "确认应用"
+          }
+        }
+      }
+    },
+    "common.confirmApplyDesc": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This will overwrite current content. Are you sure?"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这将会覆盖当前内容，确定要应用吗？"
           }
         }
       }
@@ -2163,13 +2231,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "AI Suggestions"
+            "value": "AI generated content, for reference only"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "AI 建议"
+            "value": "AI 生成内容，仅供参考"
           }
         }
       }
@@ -2214,13 +2282,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "AI Analysis"
+            "value": "AI Generated"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "AI 分析"
+            "value": "AI 生成"
           }
         }
       }
@@ -5087,13 +5155,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Enter command or tap AI icon..."
+            "value": "Command or Natural Language..."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "输入命令或轻点左侧图标 AI 生成..."
+            "value": "输入命令或自然语言..."
           }
         }
       }
@@ -5145,6 +5213,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "等待指令..."
+          }
+        }
+      }
+    },
+    "terminal.aiTranslating": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Converting to command..."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在转换成命令..."
+          }
+        }
+      }
+    },
+    "terminal.aiHint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type natural language (e.g. 'find files larger than 100MB') then tap the magic wand"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请先输入自然语言（例如：查找超过 100MB 的文件），再点击魔棒图标"
           }
         }
       }

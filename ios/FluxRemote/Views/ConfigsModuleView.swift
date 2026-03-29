@@ -309,10 +309,21 @@ struct ConfigDetailView: View {
                 Text(error)
             }
         }
-        .sheet(isPresented: $showingSudoPrompt) {
-            SudoPasswordView(password: $sudoPassword) {
+        .alert(languageManager.t("common.sudoRequired"), isPresented: $showingSudoPrompt) {
+            SecureField(languageManager.t("common.sudoPasswordPlaceholder"), text: $sudoPassword)
+                .submitLabel(.done)
+                .onSubmit {
+                    Task { await saveConfig() }
+                    showingSudoPrompt = false
+                }
+            Button(languageManager.t("common.ok")) {
                 Task { await saveConfig() }
             }
+            Button(languageManager.t("common.cancel"), role: .cancel) {
+                sudoPassword = ""
+            }
+        } message: {
+            Text(languageManager.t("common.sudoRequired"))
         }
     }
     
@@ -362,6 +373,7 @@ struct ConfigDetailView: View {
                 } else {
                     self.errorMessage = errorMsg
                     self.showingError = true
+                    self.sudoPassword = ""
                 }
                 self.isSaving = false 
             }

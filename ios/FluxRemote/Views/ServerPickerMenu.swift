@@ -4,6 +4,7 @@ struct ServerPickerMenu: View {
     @Environment(RemoteAPIClient.self) private var apiClient
     @Environment(AppLanguageManager.self) private var languageManager
     @Binding var selection: NavigationItem?
+    var onManageServers: (() -> Void)? = nil
     
     var body: some View {
         Menu {
@@ -13,24 +14,30 @@ struct ServerPickerMenu: View {
                     selection = .monitor
                 } label: {
                     HStack {
-                        if server.isOffline {
-                            Label("\(server.name) (\(languageManager.t("common.offline")))", systemImage: "wifi.slash")
-                        } else {
-                            Text(server.name)
-                        }
+                        let status = ServerManager.shared.reachabilityStatuses[server.id]
+                        Circle()
+                            .fill(status == nil ? Color.gray : (status == true ? Color.red : Color.green))
+                            .frame(width: 8, height: 8)
+                        
+                        Text(server.name)
                         
                         if server.id == ServerManager.shared.selectedServerId {
                             Image(systemName: "checkmark")
+                                .font(.body)
                         }
                     }
                 }
-                .disabled(server.isOffline)
+                .disabled(ServerManager.shared.reachabilityStatuses[server.id] == true)
             }
             
             Divider()
             
             Button {
-                selection = NavigationItem.servers
+                if let onManageServers = onManageServers {
+                    onManageServers()
+                } else {
+                    selection = NavigationItem.servers
+                }
             } label: {
                 Label(languageManager.t("settings.serverList"), systemImage: "list.bullet.rectangle.portrait")
             }

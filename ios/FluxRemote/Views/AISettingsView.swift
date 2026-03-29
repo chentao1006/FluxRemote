@@ -14,7 +14,14 @@ struct AISettingsView: View {
             Section {
                 Toggle(languageManager.t("settings.aiEnabled"), isOn: Binding(
                     get: { aiConfig?.enabled ?? false },
-                    set: { aiConfig?.enabled = $0; onSave() }
+                    set: { 
+                        if aiConfig == nil {
+                            aiConfig = AIConfig(enabled: $0, url: "https://api.openai.com/v1", key: "", model: "gpt-4o", usePublicService: true)
+                        } else {
+                            aiConfig?.enabled = $0
+                        }
+                        onSave()
+                    }
                 ))
             }
             

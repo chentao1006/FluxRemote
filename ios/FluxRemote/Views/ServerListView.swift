@@ -10,6 +10,7 @@ struct ServerListView: View {
     @State private var serverToDelete: ServerConfig?
     @State private var showingLoginForServer: ServerConfig?
     @Binding var selection: NavigationItem?
+    @Environment(\.dismiss) private var dismiss
     
     var body: some View {
         List {
@@ -72,6 +73,7 @@ struct ServerListView: View {
                                 .padding(.vertical, 4)
                         }
                         .buttonStyle(.borderedProminent)
+                        .tint(Color("AccentColor"))
                         .padding(.horizontal, 24)
                     }
                     .padding(.top, 40)
@@ -84,6 +86,9 @@ struct ServerListView: View {
                             selection = .monitor
                             if !ServerManager.shared.isServerAuthenticated(server.id) {
                                 showingLoginForServer = server
+                            } else {
+                                // Close the modal if we're authenticated
+                                dismiss()
                             }
                         } onEdit: {
                             serverToEdit = server
@@ -98,13 +103,14 @@ struct ServerListView: View {
         .tint(Color("AccentColor"))
         .refreshable {
             await ServerManager.shared.manualSync()
-            try? await Task.sleep(nanoseconds: 800_000_000) // 0.8s delay for feedback
+            try? await Task.sleep(nanoseconds: 500_000_000) 
         }
         .navigationTitle(languageManager.t("settings.serverList"))
         .onAppear {
+            let status = ServerManager.shared.reachabilityStatuses[ServerManager.shared.selectedServerId ?? UUID()]
             if let server = ServerManager.shared.selectedServer, 
                !ServerManager.shared.isServerAuthenticated(server.id),
-               !server.isOffline {
+               status == false {
                 showingLoginForServer = server
             }
         }
@@ -159,22 +165,17 @@ struct ServerRow: View {
 
     var body: some View {
         Button(action: onSelect) {
-            HStack(spacing: 16) {
+            HStack(spacing: 12) {
+                // Reachability dot
+                let status = ServerManager.shared.reachabilityStatuses[server.id]
+                Circle()
+                    .fill(status == nil ? Color.gray : (status == true ? Color.red : Color.green))
+                    .frame(width: 8, height: 8)
+                
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text(server.name)
                             .font(.headline)
-                            .foregroundStyle(server.isOffline ? .secondary : .primary)
-                        
-                        if server.isOffline {
-                            Text(languageManager.t("common.offline"))
-                                .font(.caption2)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.secondary.opacity(0.1))
-                                .foregroundStyle(.secondary)
-                                .clipShape(Capsule())
-                        }
                         
                         if server.isLauncher {
                             Text(languageManager.t("common.launcher"))
@@ -185,7 +186,6 @@ struct ServerRow: View {
                                 .foregroundStyle(.orange)
                                 .clipShape(Capsule())
                         }
-
                     }
                     
                     Text(server.url)
@@ -195,24 +195,16 @@ struct ServerRow: View {
                 
                 Spacer()
                 
-                if server.isOffline {
-                    Image(systemName: "wifi.slash")
-                        .foregroundStyle(.secondary)
-                        .font(.subheadline)
-                } else if ServerManager.shared.selectedServerId == server.id {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(Color("AccentColor"))
-                        .font(.subheadline)
+                if ServerManager.shared.selectedServerId == server.id {
+                    Image(systemName: "checkmark")
+                        .font(.title3)
+                        .foregroundStyle(.primary)
                 }
-                
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(server.isOffline)
+        .disabled(ServerManager.shared.reachabilityStatuses[server.id] == true)
         .swipeActions(edge: .trailing) {
             if !server.isLauncher {
                 Button(role: .destructive, action: onDelete) {

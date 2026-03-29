@@ -406,7 +406,7 @@ struct DockerModuleView: View {
     @State private var fetchTask: Task<Void, Never>?
     
     func fetchData() async {
-        guard selection == .docker else { return }
+        guard selection == .docker || selection == .more else { return }
         fetchTask?.cancel()
         
         fetchTask = Task {

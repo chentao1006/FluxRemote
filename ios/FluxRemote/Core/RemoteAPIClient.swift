@@ -251,11 +251,8 @@ class RemoteAPIClient {
                     self.features = feats
                 }
                 
-                // Only use server AI config if we don't have a custom one, 
-                // OR merge them (but here we prioritize local config)
-                if self.aiConfig == nil {
-                    self.aiConfig = response.data.ai
-                }
+                // Do NOT overwrite local AI config with server config.
+                // The AI toggle is stored locally in ServerManager and sharedAIConfig.
             }
         } catch {
             print("Fetch settings for features failed: \(error)")

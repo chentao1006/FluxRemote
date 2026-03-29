@@ -88,11 +88,24 @@ struct NginxModuleView: View {
         .sheet(isPresented: $showingAddSite) {
             NavigationStack {
                 NginxSiteEditView(site: nil) { await fetchData() }
-                .sheet(isPresented: Binding(
+                .alert(languageManager.t("common.sudoRequired"), isPresented: Binding(
                     get: { showingSudoPrompt && showingAddSite },
                     set: { if !$0 { showingSudoPrompt = false } }
                 )) {
-                    SudoPasswordView(password: $sudoPassword) {
+                    SecureField(languageManager.t("common.sudoPasswordPlaceholder"), text: $sudoPassword)
+                        .submitLabel(.done)
+                        .onSubmit {
+                            Task {
+                                if let site = currentSite {
+                                    if currentAction == "toggle" { await toggleSite(site) }
+                                    else if currentAction == "delete" { await deleteSite(site) }
+                                } else if let action = currentServiceAction {
+                                    await performAction(action)
+                                }
+                                showingSudoPrompt = false
+                            }
+                        }
+                    Button(languageManager.t("common.ok")) {
                         Task {
                             if let site = currentSite {
                                 if currentAction == "toggle" { await toggleSite(site) }
@@ -102,6 +115,11 @@ struct NginxModuleView: View {
                             }
                         }
                     }
+                    Button(languageManager.t("common.cancel"), role: .cancel) {
+                        sudoPassword = ""
+                    }
+                } message: {
+                    Text(languageManager.t("common.sudoRequired"))
                 }
                 .alert(languageManager.t("common.error"), isPresented: Binding(
                     get: { errorMessage != nil && !showingSudoPrompt && showingAddSite },
@@ -121,11 +139,24 @@ struct NginxModuleView: View {
         .sheet(item: $editingSite) { site in
             NavigationStack {
                 NginxSiteEditView(site: site) { await fetchData() }
-                .sheet(isPresented: Binding(
+                .alert(languageManager.t("common.sudoRequired"), isPresented: Binding(
                     get: { showingSudoPrompt && editingSite != nil },
                     set: { if !$0 { showingSudoPrompt = false } }
                 )) {
-                    SudoPasswordView(password: $sudoPassword) {
+                    SecureField(languageManager.t("common.sudoPasswordPlaceholder"), text: $sudoPassword)
+                        .submitLabel(.done)
+                        .onSubmit {
+                            Task {
+                                if let site = currentSite {
+                                    if currentAction == "toggle" { await toggleSite(site) }
+                                    else if currentAction == "delete" { await deleteSite(site) }
+                                } else if let action = currentServiceAction {
+                                    await performAction(action)
+                                }
+                                showingSudoPrompt = false
+                            }
+                        }
+                    Button(languageManager.t("common.ok")) {
                         Task {
                             if let site = currentSite {
                                 if currentAction == "toggle" { await toggleSite(site) }
@@ -135,6 +166,11 @@ struct NginxModuleView: View {
                             }
                         }
                     }
+                    Button(languageManager.t("common.cancel"), role: .cancel) {
+                        sudoPassword = ""
+                    }
+                } message: {
+                    Text(languageManager.t("common.sudoRequired"))
                 }
                 .alert(languageManager.t("common.error"), isPresented: Binding(
                     get: { errorMessage != nil && !showingSudoPrompt && editingSite != nil },
@@ -146,11 +182,24 @@ struct NginxModuleView: View {
                 }
             }
         }
-        .sheet(isPresented: Binding(
+        .alert(languageManager.t("common.sudoRequired"), isPresented: Binding(
             get: { showingSudoPrompt && editingSite == nil && !showingAddSite },
             set: { if !$0 { showingSudoPrompt = false } }
         )) {
-            SudoPasswordView(password: $sudoPassword) {
+            SecureField(languageManager.t("common.sudoPasswordPlaceholder"), text: $sudoPassword)
+                .submitLabel(.done)
+                .onSubmit {
+                    Task {
+                        if let site = currentSite {
+                            if currentAction == "toggle" { await toggleSite(site) }
+                            else if currentAction == "delete" { await deleteSite(site) }
+                        } else if let action = currentServiceAction {
+                            await performAction(action)
+                        }
+                        showingSudoPrompt = false
+                    }
+                }
+            Button(languageManager.t("common.ok")) {
                 Task {
                     if let site = currentSite {
                         if currentAction == "toggle" { await toggleSite(site) }
@@ -160,6 +209,11 @@ struct NginxModuleView: View {
                     }
                 }
             }
+            Button(languageManager.t("common.cancel"), role: .cancel) {
+                sudoPassword = ""
+            }
+        } message: {
+            Text(languageManager.t("common.sudoRequired"))
         }
         .alert(languageManager.t("common.error"), isPresented: Binding(
             get: { errorMessage != nil && !showingSudoPrompt && editingSite == nil && !showingAddSite },
@@ -181,7 +235,7 @@ struct NginxModuleView: View {
         Section {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 8) {
-                    StatusBadge(status: serviceStatus?.running == true ? "running" : "stopped", size: 14)
+                    StatusBadge(status: serviceStatus?.running == true ? "running" : "stopped", showLabel: serviceStatus?.running != true, size: 14)
                     if let pids = serviceStatus?.pids, !pids.isEmpty {
                         Text("\(languageManager.t("common.pids")): \(pids.joined(separator: ", "))")
                             .font(.subheadline)
@@ -315,7 +369,7 @@ struct NginxModuleView: View {
     }
     
     func fetchData() async {
-        guard selection == .nginx else { return }
+        guard selection == .nginx || selection == .more else { return }
         isLoading = true
         errorMessage = nil
         do {
@@ -373,6 +427,7 @@ struct NginxModuleView: View {
             } else {
                 await MainActor.run {
                     self.errorMessage = response.details ?? response.error ?? languageManager.t("common.failed")
+                    self.sudoPassword = ""
                     resetCurrentAction()
                 }
             }
@@ -387,6 +442,7 @@ struct NginxModuleView: View {
                     self.showingSudoPrompt = true
                 } else {
                     self.errorMessage = errorMsg
+                    self.sudoPassword = ""
                     resetCurrentAction()
                 }
             }
