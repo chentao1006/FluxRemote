@@ -703,7 +703,7 @@ struct QuickTerminalView: View {
         aiAnalysis = nil
         Task {
             do {
-                let prompt = "Analyze this terminal output and provide explanations or suggestions in Chinese:\n\(output)\nPlease use Markdown formatting."
+                let prompt = "Analyze this terminal output and provide explanations or suggestions in \(languageManager.aiResponseLanguage):\n\(output)\nPlease use Markdown formatting."
                 let response = try await AIService.shared.analyze(prompt: prompt, systemPrompt: "You are a terminal output analyzer.", apiClient: apiClient)
                 await MainActor.run {
                     self.aiAnalysis = response

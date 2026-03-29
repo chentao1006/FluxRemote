@@ -40,6 +40,8 @@
 		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 	</array>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>ServiceSecret</key>
 	<string>$(SERVICE_SECRET)</string>
 	<key>PublicServiceURL</key>
