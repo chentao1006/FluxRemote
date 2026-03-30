@@ -77,10 +77,18 @@ class RemoteAPIClient {
         
         if isAuthenticated {
             Task { await fetchSettings() }
+        } else if server.autoLogin, let username = server.username, let password = server.savedPassword {
+            // Attempt auto login
+            Task {
+                await login(urlString: server.url, credentials: [
+                    "username": username,
+                    "password": password
+                ], rememberPassword: server.rememberPassword, autoLogin: server.autoLogin)
+            }
         }
     }
     
-    func login(urlString: String, credentials: [String: String]) async {
+    func login(urlString: String, credentials: [String: String], rememberPassword: Bool = false, autoLogin: Bool = false) async {
         isLoading = true
         errorMessage = nil
         
@@ -118,35 +126,56 @@ class RemoteAPIClient {
             // Success
             isAuthenticated = true
             currentUser = credentials["username"]
+            let password = credentials["password"]
             
             // Update ServerManager
             if let existingServer = ServerManager.shared.servers.first(where: { $0.url == cleanURL }) {
                 var updated = existingServer
                 updated.username = currentUser
+                updated.rememberPassword = rememberPassword
+                updated.autoLogin = autoLogin
+                updated.savedPassword = rememberPassword ? password : nil
+                
                 ServerManager.shared.setAuthenticated(true, for: updated.id)
                 ServerManager.shared.updateServer(updated)
                 ServerManager.shared.selectServer(updated) // Ensure it's selected
             } else {
                 // Should not happen if we add server before login, but just in case
-                let newServer = ServerConfig(name: cleanURL, url: cleanURL, username: currentUser)
+                let newServer = ServerConfig(
+                    name: cleanURL, 
+                    url: cleanURL, 
+                    username: currentUser,
+                    rememberPassword: rememberPassword,
+                    autoLogin: autoLogin,
+                    savedPassword: rememberPassword ? password : nil
+                )
                 ServerManager.shared.addServer(newServer)
                 ServerManager.shared.setAuthenticated(true, for: newServer.id)
             }
             
             isLoading = false
+            await fetchSettings()
         } catch {
             errorMessage = error.localizedDescription
             isLoading = false
         }
     }
     
-    func logout() {
+    func logout(shouldClearCredentials: Bool = false) {
         isAuthenticated = false
         currentUser = nil
         
         // Update ServerManager
         if let server = ServerManager.shared.selectedServer {
             ServerManager.shared.setAuthenticated(false, for: server.id)
+            
+            if shouldClearCredentials {
+                var updated = server
+                updated.rememberPassword = false
+                updated.autoLogin = false
+                updated.savedPassword = nil
+                ServerManager.shared.updateServer(updated)
+            }
         }
     }
     

@@ -16,6 +16,7 @@ struct ServerListView: View {
         List {
             Section {
                 Toggle(languageManager.t("settings.cloudSync"), isOn: Bindable(ServerManager.shared).isCloudSyncEnabled)
+                    .tint(Color("AccentColor"))
             }
             
             Section {
@@ -226,6 +227,8 @@ struct ServerEditView: View {
     @Environment(AppLanguageManager.self) private var languageManager
     @State private var name: String
     @State private var url: String
+    @State private var rememberPassword: Bool
+    @State private var autoLogin: Bool
     var server: ServerConfig
     var onSave: (ServerConfig) -> Void
     
@@ -234,6 +237,8 @@ struct ServerEditView: View {
         self.onSave = onSave
         _name = State(initialValue: server.name)
         _url = State(initialValue: server.url)
+        _rememberPassword = State(initialValue: server.rememberPassword)
+        _autoLogin = State(initialValue: server.autoLogin)
     }
     
     var body: some View {
@@ -245,6 +250,17 @@ struct ServerEditView: View {
                         .keyboardType(.URL)
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
+                }
+                
+                Section {
+                    Toggle(languageManager.t("login.autoLogin"), isOn: $autoLogin)
+                        .tint(Color("AccentColor"))
+                } footer: {
+                    if !autoLogin && server.savedPassword != nil {
+                        Text(languageManager.t("settings.passwordWillBeCleared"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
             .tint(Color("AccentColor"))
@@ -261,6 +277,11 @@ struct ServerEditView: View {
                         var updated = server
                         updated.name = name
                         updated.url = url
+                        updated.rememberPassword = autoLogin // Implicitly same
+                        updated.autoLogin = autoLogin
+                        if !autoLogin {
+                            updated.savedPassword = nil
+                        }
                         onSave(updated)
                         dismiss()
                     } label: {

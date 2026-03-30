@@ -32,7 +32,7 @@ struct SettingsView: View {
                 Section(languageManager.t("settings.account")) {
                     LabeledContent(languageManager.t("settings.currentUser"), value: apiClient.currentUser ?? languageManager.t("common.unknown"))
                     Button(languageManager.t("settings.logout"), role: .destructive) {
-                        apiClient.logout()
+                        apiClient.logout(shouldClearCredentials: true)
                     }
                 }
                 

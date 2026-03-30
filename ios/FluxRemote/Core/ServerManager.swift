@@ -9,17 +9,25 @@ struct ServerConfig: Codable, Identifiable, Hashable {
     var isLauncher: Bool = false
     var lastUpdatedAt: Date = Date()
     
+    // New fields for remember password and auto login
+    var rememberPassword: Bool = false
+    var autoLogin: Bool = false
+    var savedPassword: String? = nil
+    
     enum CodingKeys: String, CodingKey {
-        case id, name, url, username, isLauncher, lastUpdatedAt
+        case id, name, url, username, isLauncher, lastUpdatedAt, rememberPassword, autoLogin, savedPassword
     }
     
-    init(id: UUID = UUID(), name: String, url: String, username: String? = nil, isLauncher: Bool = false, lastUpdatedAt: Date = Date()) {
+    init(id: UUID = UUID(), name: String, url: String, username: String? = nil, isLauncher: Bool = false, lastUpdatedAt: Date = Date(), rememberPassword: Bool = false, autoLogin: Bool = false, savedPassword: String? = nil) {
         self.id = id
         self.name = name
         self.url = url
         self.username = username
         self.isLauncher = isLauncher
         self.lastUpdatedAt = lastUpdatedAt
+        self.rememberPassword = rememberPassword
+        self.autoLogin = autoLogin
+        self.savedPassword = savedPassword
     }
 
     init(from decoder: Decoder) throws {
@@ -30,6 +38,10 @@ struct ServerConfig: Codable, Identifiable, Hashable {
         username = try container.decodeIfPresent(String.self, forKey: .username)
         isLauncher = try container.decodeIfPresent(Bool.self, forKey: .isLauncher) ?? false
         lastUpdatedAt = try container.decodeIfPresent(Date.self, forKey: .lastUpdatedAt) ?? Date(timeIntervalSince1970: 0)
+        
+        rememberPassword = try container.decodeIfPresent(Bool.self, forKey: .rememberPassword) ?? false
+        autoLogin = try container.decodeIfPresent(Bool.self, forKey: .autoLogin) ?? false
+        savedPassword = try container.decodeIfPresent(String.self, forKey: .savedPassword)
     }
     
     var baseURL: URL? {
@@ -42,7 +54,10 @@ struct ServerConfig: Codable, Identifiable, Hashable {
         return name == other.name && 
                url == other.url && 
                username == other.username && 
-               isLauncher == other.isLauncher
+               isLauncher == other.isLauncher &&
+               rememberPassword == other.rememberPassword &&
+               autoLogin == other.autoLogin &&
+               savedPassword == other.savedPassword
     }
 }
 

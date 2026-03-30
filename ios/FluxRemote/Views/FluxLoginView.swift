@@ -8,6 +8,8 @@ struct FluxLoginView: View {
     @State private var username: String = ""
     @State private var password: String = ""
     @State private var serverName: String = ""
+    @State private var rememberPassword: Bool = true
+    @State private var autoLogin: Bool = false
     @FocusState private var focusedField: Field?
     var isAddingServer: Bool = false
     var initialURL: String? = nil
@@ -33,7 +35,7 @@ struct FluxLoginView: View {
                                     .font(.title)
                                     .fontWeight(.bold)
                             }
-                            .padding(.top, 60)
+                            .padding(.top, 10)
                             .padding(.bottom, 10)
                             
                             // Form Section
@@ -117,6 +119,22 @@ struct FluxLoginView: View {
                                     .background(Color(.secondarySystemGroupedBackground))
                                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                                 }
+                                
+                                // Auto Login
+                                VStack(spacing: 0) {
+                                    Toggle(isOn: $autoLogin) {
+                                        HStack(spacing: 12) {
+                                            Image(systemName: "bolt.square")
+                                                .foregroundStyle(Color("AccentColor"))
+                                                .frame(width: 20)
+                                            Text(languageManager.t("login.autoLogin"))
+                                        }
+                                    }
+                                    .padding()
+                                    .tint(Color("AccentColor"))
+                                }
+                                .background(Color(.secondarySystemGroupedBackground))
+                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                             }
                             .padding(.horizontal)
                             
@@ -133,7 +151,7 @@ struct FluxLoginView: View {
                             
                             Button(action: login) {
                                 Group {
-                                    if apiClient.isLoading {
+                                    if apiClient.isLoading || apiClient.isAuthenticated {
                                         ProgressView()
                                             .tint(.white)
                                     } else {
@@ -179,10 +197,24 @@ struct FluxLoginView: View {
                     serverName = ""
                     username = ""
                     password = ""
+                    rememberPassword = true
+                    autoLogin = false
                 } else if let initialURL {
                     panelURL = initialURL
                     if let initialServerName {
                         serverName = initialServerName
+                    }
+                    
+                    // Load existing server config if available
+                    var cleanURL = initialURL
+                    if cleanURL.hasSuffix("/") { cleanURL.removeLast() }
+                    if let existing = ServerManager.shared.servers.first(where: { $0.url == cleanURL }) {
+                        username = existing.username ?? ""
+                        rememberPassword = existing.rememberPassword
+                        autoLogin = existing.autoLogin
+                        if rememberPassword {
+                            password = existing.savedPassword ?? ""
+                        }
                     }
                 } else if let savedURL = UserDefaults.standard.string(forKey: "flux_remote_url") {
                     panelURL = savedURL
@@ -193,6 +225,8 @@ struct FluxLoginView: View {
                     focusedField = .url
                 } else if username.isEmpty {
                     focusedField = .username
+                } else if password.isEmpty {
+                    focusedField = .password
                 }
             }
         }
@@ -222,10 +256,15 @@ struct FluxLoginView: View {
                 }
             }
             
-            await apiClient.login(urlString: finalURL, credentials: [
-                "username": username.trimmingCharacters(in: .whitespacesAndNewlines),
-                "password": password
-            ])
+            await apiClient.login(
+                urlString: finalURL, 
+                credentials: [
+                    "username": username.trimmingCharacters(in: .whitespacesAndNewlines),
+                    "password": password
+                ],
+                rememberPassword: autoLogin, // Always remember if auto login is on
+                autoLogin: autoLogin
+            )
             
             if apiClient.isAuthenticated {
                 if isAddingServer {

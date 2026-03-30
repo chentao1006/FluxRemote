@@ -23,6 +23,7 @@ struct AISettingsView: View {
                         onSave()
                     }
                 ))
+                .tint(Color("AccentColor"))
             }
             
             if aiConfig?.enabled ?? false {
