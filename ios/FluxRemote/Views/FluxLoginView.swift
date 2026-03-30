@@ -112,7 +112,7 @@ struct FluxLoginView: View {
                                                 .frame(width: 20)
                                             SecureField(languageManager.t("login.password"), text: $password)
                                                 .focused($focusedField, equals: .password)
-                                                .submitLabel(.go)
+                                                .submitLabel(.done)
                                         }
                                         .padding()
                                     }
@@ -180,7 +180,7 @@ struct FluxLoginView: View {
                 case .url: focusedField = isAddingServer ? .serverName : .username
                 case .serverName: focusedField = .username
                 case .username: focusedField = .password
-                default: login()
+                default: break
                 }
             }
             .toolbar {

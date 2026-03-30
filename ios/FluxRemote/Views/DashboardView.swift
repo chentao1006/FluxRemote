@@ -693,6 +693,11 @@ struct ChartTile: View {
                             .foregroundStyle(.blue)
                         Label("\(up)", systemImage: "arrow.up")
                             .foregroundStyle(.green)
+                        
+                        Text("KB/s")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .padding(.leading, 4)
                     }
                     .font(.title3)
                     .fontWeight(.bold)
