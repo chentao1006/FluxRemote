@@ -9,6 +9,7 @@ struct SettingsView: View {
     @State private var isSaving = false
     @State private var lastSavedTime: Date?
     @Binding var selection: NavigationItem?
+    @State private var showingLogoutAlert = false
     
     private var appVersionString: String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
@@ -32,7 +33,7 @@ struct SettingsView: View {
                 Section(languageManager.t("settings.account")) {
                     LabeledContent(languageManager.t("settings.currentUser"), value: apiClient.currentUser ?? languageManager.t("common.unknown"))
                     Button(languageManager.t("settings.logout"), role: .destructive) {
-                        apiClient.logout(shouldClearCredentials: true)
+                        showingLogoutAlert = true
                     }
                 }
                 
@@ -112,6 +113,14 @@ struct SettingsView: View {
         }
         .onAppear {
             Task { await fetchData() }
+        }
+        .alert(languageManager.t("settings.logoutConfirmTitle"), isPresented: $showingLogoutAlert) {
+            Button(languageManager.t("settings.logout"), role: .destructive) {
+                apiClient.logout(shouldClearCredentials: true)
+            }
+            Button(languageManager.t("common.cancel"), role: .cancel) { }
+        } message: {
+            Text(languageManager.t("settings.logoutConfirmMessage"))
         }
     }
     
