@@ -508,6 +508,7 @@ struct DockerLogView: View {
     @State private var isAnalyzing = false
     @State private var aiAnalysis: String?
     @State private var logTask: Task<Void, Never>? = nil
+    @State private var aiTask: Task<Void, Never>?
     
     var body: some View {
         // Precompute displayLines to help the compiler
@@ -580,7 +581,12 @@ struct DockerLogView: View {
         .safeAreaInset(edge: .bottom) {
             if isAnalyzing || aiAnalysis != nil {
                 AIAnalysisCard(analysis: aiAnalysis, isAnalyzing: isAnalyzing) {
-                    withAnimation { aiAnalysis = nil; isAnalyzing = false }
+                    withAnimation {
+                        aiTask?.cancel()
+                        aiTask = nil
+                        aiAnalysis = nil
+                        isAnalyzing = false
+                    }
                 }
                 .padding(.bottom, 10)
             } else if !isLoading && !logs.isEmpty {
@@ -613,14 +619,43 @@ struct DockerLogView: View {
         
         let last50Lines = logs.components(separatedBy: .newlines).suffix(50).joined(separator: "\n")
         
-        Task {
+        aiTask = Task {
             do {
                 let prompt = "Analyze these Docker container logs and provide diagnosis or suggestions in \(languageManager.aiResponseLanguage):\n\(last50Lines)\nUse Markdown formatting."
-                let response = try await AIService.shared.analyze(prompt: prompt, systemPrompt: "You are a systems expert.", apiClient: apiClient)
-                await MainActor.run {
-                    withAnimation {
-                        self.aiAnalysis = response
+                let stream = AIService.shared.analyzeStream(prompt: prompt, systemPrompt: "You are a systems expert.", apiClient: apiClient)
+                
+                var buffer = ""
+                var lastUpdate = Date()
+                
+                for try await chunk in stream {
+                    try Task.checkCancellation()
+                    buffer += chunk
+                    
+                    if !buffer.isEmpty && (buffer.count > 20 || Date().timeIntervalSince(lastUpdate) > 0.1) {
+                        let contentToAppend = buffer
+                        buffer = ""
+                        lastUpdate = Date()
+                        
+                        await MainActor.run {
+                            if self.aiAnalysis == nil {
+                                self.aiAnalysis = ""
+                            }
+                            self.isAnalyzing = false
+                            self.aiAnalysis! += contentToAppend
+                        }
+                    }
+                }
+                
+                if !buffer.isEmpty || self.aiAnalysis == nil {
+                    let finalContent = buffer
+                    await MainActor.run {
+                        if self.aiAnalysis == nil {
+                            self.aiAnalysis = finalContent.isEmpty ? "Error: No response from AI." : ""
+                        }
                         self.isAnalyzing = false
+                        if !finalContent.isEmpty {
+                            self.aiAnalysis! += finalContent
+                        }
                     }
                 }
             } catch {
@@ -811,6 +846,7 @@ struct DockerAIAssistantView: View {
     @State private var isGenerating = false
     @State private var isExecuting = false
     @State private var errorMessage: String?
+    @State private var aiTask: Task<Void, Never>?
     
     var onComplete: () -> Void
     
@@ -885,7 +921,10 @@ struct DockerAIAssistantView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button(action: { dismiss() }) {
+                Button(action: {
+                    aiTask?.cancel()
+                    dismiss()
+                }) {
                     Image(systemName: "xmark")
                 }
             }
@@ -896,13 +935,37 @@ struct DockerAIAssistantView: View {
         isGenerating = true
         errorMessage = nil
         
-        Task {
+        aiTask = Task {
             do {
                 let systemPrompt = "You are a professional Docker assistant. Convert the description to a valid `docker run` command. CRITICAL: Return ONLY the final command itself, NO explanations, NO intro/outro text, and NO Markdown code block delimiters (e.g. ```)."
-                let response = try await AIService.shared.analyze(prompt: prompt, systemPrompt: systemPrompt, apiClient: apiClient)
+                let stream = AIService.shared.analyzeStream(prompt: prompt, systemPrompt: systemPrompt, apiClient: apiClient)
+                
+                var buffer = ""
+                var lastUpdate = Date()
+                
+                for try await chunk in stream {
+                    try Task.checkCancellation()
+                    buffer += chunk
+                    
+                    if !buffer.isEmpty && (buffer.count > 10 || Date().timeIntervalSince(lastUpdate) > 0.05) {
+                        let contentToAppend = buffer
+                        buffer = ""
+                        lastUpdate = Date()
+                        
+                        await MainActor.run {
+                            self.generatedCommand += contentToAppend
+                        }
+                    }
+                }
+                
+                if !buffer.isEmpty {
+                    let finalContent = buffer
+                    await MainActor.run {
+                        self.generatedCommand += finalContent
+                    }
+                }
                 
                 await MainActor.run {
-                    self.generatedCommand = response
                     self.isGenerating = false
                 }
             } catch {

@@ -14,6 +14,7 @@ struct FluxLoginView: View {
     var isAddingServer: Bool = false
     var initialURL: String? = nil
     var initialServerName: String? = nil
+    var serverId: UUID? = nil
     @Environment(\.dismiss) private var dismiss
     
     enum Field {
@@ -208,7 +209,12 @@ struct FluxLoginView: View {
                     // Load existing server config if available
                     var cleanURL = initialURL
                     if cleanURL.hasSuffix("/") { cleanURL.removeLast() }
-                    if let existing = ServerManager.shared.servers.first(where: { $0.url == cleanURL }) {
+                    let targetURL = cleanURL
+                    if let existing = ServerManager.shared.servers.first(where: { 
+                        var serverURL = $0.url
+                        if serverURL.hasSuffix("/") { serverURL.removeLast() }
+                        return serverURL == targetURL
+                    }) {
                         username = existing.username ?? ""
                         rememberPassword = existing.rememberPassword
                         autoLogin = existing.autoLogin
@@ -262,6 +268,7 @@ struct FluxLoginView: View {
                     "username": username.trimmingCharacters(in: .whitespacesAndNewlines),
                     "password": password
                 ],
+                serverId: serverId,
                 rememberPassword: autoLogin, // Always remember if auto login is on
                 autoLogin: autoLogin
             )

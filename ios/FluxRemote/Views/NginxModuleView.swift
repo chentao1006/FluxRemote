@@ -535,6 +535,7 @@ struct NginxSiteEditView: View {
     @State private var sudoPassword = ""
     @State private var isAnalyzing = false
     @State private var aiAnalysis: String?
+    @State private var aiTask: Task<Void, Never>?
     @State private var showingAIAssist = false
     
     var body: some View {
@@ -587,7 +588,12 @@ struct NginxSiteEditView: View {
         .overlay(alignment: .bottom) {
             if isAnalyzing || aiAnalysis != nil {
                 AIAnalysisCard(analysis: aiAnalysis, isAnalyzing: isAnalyzing) {
-                    withAnimation { aiAnalysis = nil; isAnalyzing = false }
+                    withAnimation {
+                        aiTask?.cancel()
+                        aiTask = nil
+                        aiAnalysis = nil
+                        isAnalyzing = false
+                    }
                 }
                 .padding(.bottom, 20)
             }
@@ -703,13 +709,20 @@ server {
                 let prompt = "Explain the following Nginx configuration and provide optimization suggestions in \(languageManager.aiResponseLanguage):\n\nContext:\n\(contextInfo)\n\nContent:\n\(content)\n\nUse Markdown formatting for the response."
                 let systemPrompt = "You are an Nginx expert. Explain configuration blocks and suggest optimizations."
                 
-                let response = try await AIService.shared.analyze(prompt: prompt, systemPrompt: systemPrompt, apiClient: apiClient)
+                let stream = AIService.shared.analyzeStream(prompt: prompt, systemPrompt: systemPrompt, apiClient: apiClient)
+                
+                for try await chunk in stream {
+                    await MainActor.run {
+                        if self.aiAnalysis == nil {
+                            self.aiAnalysis = ""
+                            self.isAnalyzing = false
+                        }
+                        self.aiAnalysis! += chunk
+                    }
+                }
                 
                 await MainActor.run {
-                    withAnimation {
-                        self.aiAnalysis = response
-                        self.isAnalyzing = false
-                    }
+                    self.isAnalyzing = false
                 }
             } catch {
                 await MainActor.run {
@@ -737,6 +750,7 @@ struct NginxLogView: View {
     @State private var selectedTab = "error" // "error" or "access"
     @State private var isAnalyzing = false
     @State private var aiAnalysis: String?
+    @State private var aiTask: Task<Void, Never>?
     
     var body: some View {
         VStack(spacing: 0) {
@@ -800,7 +814,12 @@ struct NginxLogView: View {
         .safeAreaInset(edge: .bottom) {
             if isAnalyzing || aiAnalysis != nil {
                 AIAnalysisCard(analysis: aiAnalysis, isAnalyzing: isAnalyzing) {
-                    withAnimation { aiAnalysis = nil; isAnalyzing = false }
+                    withAnimation {
+                        aiTask?.cancel()
+                        aiTask = nil
+                        aiAnalysis = nil
+                        isAnalyzing = false
+                    }
                 }
                 .padding(.bottom, 10)
             } else if !isLoading && !logs.isEmpty {
@@ -835,14 +854,43 @@ struct NginxLogView: View {
         
         let last50Lines = logs.components(separatedBy: .newlines).suffix(50).joined(separator: "\n")
         
-        Task {
+        aiTask = Task {
             do {
                 let prompt = "Analyze these Nginx \(selectedTab) logs and provide diagnosis or suggestions in \(languageManager.aiResponseLanguage):\n\(last50Lines)\nUse Markdown formatting."
-                let response = try await AIService.shared.analyze(prompt: prompt, systemPrompt: "You are an Nginx logs expert.", apiClient: apiClient)
-                await MainActor.run {
-                    withAnimation {
-                        self.aiAnalysis = response
+                let stream = AIService.shared.analyzeStream(prompt: prompt, systemPrompt: "You are an Nginx logs expert.", apiClient: apiClient)
+                
+                var buffer = ""
+                var lastUpdate = Date()
+                
+                for try await chunk in stream {
+                    try Task.checkCancellation()
+                    buffer += chunk
+                    
+                    if !buffer.isEmpty && (buffer.count > 20 || Date().timeIntervalSince(lastUpdate) > 0.1) {
+                        let contentToAppend = buffer
+                        buffer = ""
+                        lastUpdate = Date()
+                        
+                        await MainActor.run {
+                            if self.aiAnalysis == nil {
+                                self.aiAnalysis = ""
+                                self.isAnalyzing = false
+                            }
+                            self.aiAnalysis! += contentToAppend
+                        }
+                    }
+                }
+                
+                if !buffer.isEmpty || self.aiAnalysis == nil {
+                    let finalContent = buffer
+                    await MainActor.run {
+                        if self.aiAnalysis == nil {
+                            self.aiAnalysis = finalContent.isEmpty ? "Error: No response from AI." : ""
+                        }
                         self.isAnalyzing = false
+                        if !finalContent.isEmpty {
+                            self.aiAnalysis! += finalContent
+                        }
                     }
                 }
             } catch {

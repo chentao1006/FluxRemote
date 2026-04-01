@@ -16,7 +16,7 @@ struct AISettingsView: View {
                     get: { aiConfig?.enabled ?? false },
                     set: { 
                         if aiConfig == nil {
-                            aiConfig = AIConfig(enabled: $0, url: "https://api.openai.com/v1", key: "", model: "gpt-4o", usePublicService: true)
+                            aiConfig = AIConfig(enabled: $0, url: "https://api.openai.com/v1", key: "", model: "gpt-4o", usePublicService: true, stream: true)
                         } else {
                             aiConfig?.enabled = $0
                         }
@@ -24,6 +24,21 @@ struct AISettingsView: View {
                     }
                 ))
                 .tint(Color("AccentColor"))
+                
+                if aiConfig?.enabled ?? false {
+                    Toggle(languageManager.t("settings.streamOutput"), isOn: Binding(
+                        get: { aiConfig?.stream ?? true },
+                        set: { 
+                            if aiConfig == nil {
+                                aiConfig = AIConfig(enabled: true, url: "https://api.openai.com/v1", key: "", model: "gpt-4o", usePublicService: true, stream: $0)
+                            } else {
+                                aiConfig?.stream = $0
+                            }
+                            onSave()
+                        }
+                    ))
+                    .tint(Color("AccentColor"))
+                }
             }
             
             if aiConfig?.enabled ?? false {
@@ -102,11 +117,17 @@ struct AISettingsView: View {
                 // we should make sure RemoteAPIClient has the latest config for testing.
                 apiClient.aiConfig = aiConfig
                 
-                let _ = try await AIService.shared.analyze(
+                let stream = AIService.shared.analyzeStream(
                     prompt: "Ping",
                     systemPrompt: "Respond with 'Pong'",
                     apiClient: apiClient
                 )
+                
+                for try await _ in stream {
+                    // Just need one chunk to verify connection
+                    break
+                }
+                
                 await MainActor.run {
                     testResult = "✅ " + languageManager.t("settings.connectionSuccess")
                     isTesting = false

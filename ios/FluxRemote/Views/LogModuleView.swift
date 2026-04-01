@@ -499,6 +499,7 @@ struct LogDetailView: View {
     @State private var isSilentRefresh = false // 静默刷新标记
     @State private var isAnalyzing = false
     @State private var aiAnalysis: String?
+    @State private var aiTask: Task<Void, Never>?
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -569,7 +570,12 @@ struct LogDetailView: View {
         .overlay(alignment: .bottom) {
             if isAnalyzing || aiAnalysis != nil {
                 AIAnalysisCard(analysis: aiAnalysis, isAnalyzing: isAnalyzing) {
-                    withAnimation { aiAnalysis = nil; isAnalyzing = false }
+                    withAnimation {
+                        aiTask?.cancel()
+                        aiTask = nil
+                        aiAnalysis = nil
+                        isAnalyzing = false
+                    }
                 }
                 .padding(.bottom, 20)
             } else if !isReading && !logContent.isEmpty {
@@ -670,18 +676,46 @@ struct LogDetailView: View {
         let lines = logContent.components(separatedBy: .newlines)
         let lastLines = lines.suffix(100).joined(separator: "\n")
         
-        Task {
+        aiTask = Task {
             do {
                 let contextInfo = "Log File: \(file.name)\nPath: \(file.path)"
                 let prompt = "Analyze the following logs and provide diagnosis or suggestions in \(languageManager.aiResponseLanguage):\n\nContext:\n\(contextInfo)\n\nContent:\n\(lastLines)\n\nUse Markdown formatting for the response."
                 let systemPrompt = "You are a systems expert. Analyze the provided logs to diagnose issues and provide solutions."
                 
-                let response = try await AIService.shared.analyze(prompt: prompt, systemPrompt: systemPrompt, apiClient: apiClient)
+                let stream = AIService.shared.analyzeStream(prompt: prompt, systemPrompt: systemPrompt, apiClient: apiClient)
                 
-                await MainActor.run {
-                    withAnimation {
-                        self.aiAnalysis = response
+                var buffer = ""
+                var lastUpdate = Date()
+                
+                for try await chunk in stream {
+                    try Task.checkCancellation()
+                    buffer += chunk
+                    
+                    if !buffer.isEmpty && (buffer.count > 20 || Date().timeIntervalSince(lastUpdate) > 0.1) {
+                        let contentToAppend = buffer
+                        buffer = ""
+                        lastUpdate = Date()
+                        
+                        await MainActor.run {
+                            if self.aiAnalysis == nil {
+                                self.aiAnalysis = ""
+                            }
+                            self.isAnalyzing = false
+                            self.aiAnalysis! += contentToAppend
+                        }
+                    }
+                }
+                
+                if !buffer.isEmpty || self.aiAnalysis == nil {
+                    let finalContent = buffer
+                    await MainActor.run {
+                        if self.aiAnalysis == nil {
+                            self.aiAnalysis = finalContent.isEmpty ? "Error: No response from AI." : ""
+                        }
                         self.isAnalyzing = false
+                        if !finalContent.isEmpty {
+                            self.aiAnalysis! += finalContent
+                        }
                     }
                 }
             } catch {

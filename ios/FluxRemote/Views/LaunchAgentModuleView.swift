@@ -357,6 +357,7 @@ struct AddAgentView: View {
     
     @State private var isAnalyzing = false
     @State private var aiAnalysis: String?
+    @State private var aiTask: Task<Void, Never>?
     @State private var showingAIAssist = false
     
     init(onAdd: @escaping (String, String) -> Void) {
@@ -427,7 +428,12 @@ struct AddAgentView: View {
         .overlay(alignment: .bottom) {
             if isAnalyzing || aiAnalysis != nil {
                 AIAnalysisCard(analysis: aiAnalysis, isAnalyzing: isAnalyzing) {
-                    withAnimation { aiAnalysis = nil; isAnalyzing = false }
+                    withAnimation {
+                        aiTask?.cancel()
+                        aiTask = nil
+                        aiAnalysis = nil
+                        isAnalyzing = false
+                    }
                 }
                 .padding(.bottom, 20)
             }
@@ -443,21 +449,26 @@ struct AddAgentView: View {
 
     func analyzeAgent() {
         guard !content.isEmpty else { return }
-        isAnalyzing = true
-        aiAnalysis = nil
-        
-        Task {
+        aiTask = Task {
             do {
                 let prompt = "Explain the following macOS LaunchAgent configuration and provide optimization suggestions in \(languageManager.aiResponseLanguage):\n\nContent:\n\(content)\n\nUse Markdown formatting for the response."
                 let systemPrompt = "You are a macOS systems expert. Explain LaunchAgent segments and suggest optimizations."
                 
-                let response = try await AIService.shared.analyze(prompt: prompt, systemPrompt: systemPrompt, apiClient: apiClient)
+                let stream = AIService.shared.analyzeStream(prompt: prompt, systemPrompt: systemPrompt, apiClient: apiClient)
+                
+                for try await chunk in stream {
+                    try Task.checkCancellation()
+                    await MainActor.run {
+                        if self.aiAnalysis == nil {
+                            self.aiAnalysis = ""
+                        }
+                        self.isAnalyzing = false
+                        self.aiAnalysis! += chunk
+                    }
+                }
                 
                 await MainActor.run {
-                    withAnimation {
-                        self.aiAnalysis = response
-                        self.isAnalyzing = false
-                    }
+                    self.isAnalyzing = false
                 }
             } catch {
                 let errorMsg = error.localizedDescription
@@ -488,6 +499,7 @@ struct LaunchAgentDetailView: View {
     @State private var sudoPassword = ""
     @State private var isAnalyzing = false
     @State private var aiAnalysis: String?
+    @State private var aiTask: Task<Void, Never>?
     @State private var showingAIAssist = false
     
     var body: some View {
@@ -518,7 +530,12 @@ struct LaunchAgentDetailView: View {
         .overlay(alignment: .bottom) {
             if isAnalyzing || aiAnalysis != nil {
                 AIAnalysisCard(analysis: aiAnalysis, isAnalyzing: isAnalyzing) {
-                    withAnimation { aiAnalysis = nil; isAnalyzing = false }
+                    withAnimation {
+                        aiTask?.cancel()
+                        aiTask = nil
+                        aiAnalysis = nil
+                        isAnalyzing = false
+                    }
                 }
                 .padding(.bottom, 20)
             } else if !isLoading && !content.isEmpty {
@@ -655,18 +672,45 @@ struct LaunchAgentDetailView: View {
                 let prompt = "Explain the following macOS LaunchAgent configuration and provide optimization suggestions in \(languageManager.aiResponseLanguage):\n\nContext:\n\(contextInfo)\n\nContent:\n\(content)\n\nUse Markdown formatting for the response."
                 let systemPrompt = "You are a macOS systems expert. Explain LaunchAgent segments and suggest optimizations."
                 
-                let response = try await AIService.shared.analyze(prompt: prompt, systemPrompt: systemPrompt, apiClient: apiClient)
+                let stream = AIService.shared.analyzeStream(prompt: prompt, systemPrompt: systemPrompt, apiClient: apiClient)
                 
-                await MainActor.run {
-                    withAnimation {
-                        self.aiAnalysis = response
+                var buffer = ""
+                var lastUpdate = Date()
+                
+                for try await chunk in stream {
+                    try Task.checkCancellation()
+                    buffer += chunk
+                    
+                    if !buffer.isEmpty && (buffer.count > 20 || Date().timeIntervalSince(lastUpdate) > 0.1) {
+                        let contentToAppend = buffer
+                        buffer = ""
+                        lastUpdate = Date()
+                        
+                        await MainActor.run {
+                            if self.aiAnalysis == nil {
+                                self.aiAnalysis = ""
+                            }
+                            self.isAnalyzing = false
+                            self.aiAnalysis! += contentToAppend
+                        }
+                    }
+                }
+                
+                if !buffer.isEmpty || self.aiAnalysis == nil {
+                    let finalContent = buffer
+                    await MainActor.run {
+                        if self.aiAnalysis == nil {
+                            self.aiAnalysis = finalContent.isEmpty ? "Error: No response from AI." : ""
+                        }
                         self.isAnalyzing = false
+                        if !finalContent.isEmpty {
+                            self.aiAnalysis! += finalContent
+                        }
                     }
                 }
             } catch {
-                let errorMsg = error.localizedDescription
                 await MainActor.run {
-                    self.aiAnalysis = "Error: \(errorMsg)"
+                    self.aiAnalysis = "Error: \(error.localizedDescription)"
                     self.isAnalyzing = false
                 }
             }

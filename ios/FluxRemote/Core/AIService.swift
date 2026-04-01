@@ -15,14 +15,39 @@ class AIService {
             throw NSError(domain: "AIService", code: 403, userInfo: [NSLocalizedDescriptionKey: "AI features are disabled in settings."])
         }
         
-        let usePublic = aiConfig?.usePublicService ?? true
+        return try await client.sendRequest(systemPrompt: systemPrompt, userPrompt: prompt, customConfig: aiConfig)
+    }
+    
+    func analyzeStream(prompt: String, systemPrompt: String, apiClient: RemoteAPIClient) -> AsyncThrowingStream<String, Error> {
+        var aiConfig = apiClient.aiConfig
         
-        if usePublic {
-            return try await client.sendPublicRequest(systemPrompt: systemPrompt, userPrompt: prompt)
+        // Fallback to ServerManager shared config if apiClient one is nil or disabled
+        if aiConfig == nil || !(aiConfig?.enabled ?? false) {
+            aiConfig = ServerManager.shared.sharedAIConfig
+        }
+        
+        guard let config = aiConfig, config.enabled ?? false else {
+            return AsyncThrowingStream { continuation in
+                continuation.finish(throwing: NSError(domain: "AIService", code: 403, userInfo: [NSLocalizedDescriptionKey: "AI features are disabled in settings."]))
+            }
+        }
+        
+        let shouldStream = aiConfig?.stream ?? true
+        
+        if shouldStream {
+            return client.sendRequestStream(systemPrompt: systemPrompt, userPrompt: prompt, customConfig: aiConfig)
         } else {
-            // Use server-side /api/ai
-            let response: AIResponse = try await apiClient.request("/api/ai", method: "POST", body: ["prompt": prompt, "system_prompt": systemPrompt])
-            return response.data
+            return AsyncThrowingStream { continuation in
+                Task {
+                    do {
+                        let response = try await client.sendRequest(systemPrompt: systemPrompt, userPrompt: prompt, customConfig: aiConfig)
+                        continuation.yield(response)
+                        continuation.finish()
+                    } catch {
+                        continuation.finish(throwing: error)
+                    }
+                }
+            }
         }
     }
 }

@@ -130,7 +130,7 @@ struct ServerListView: View {
                 .environment(languageManager)
         }
         .sheet(item: $showingLoginForServer) { server in
-            FluxLoginView(initialURL: server.url, initialServerName: server.name)
+            FluxLoginView(initialURL: server.url, initialServerName: server.name, serverId: server.id)
                 .environment(apiClient)
                 .environment(languageManager)
         }
@@ -274,6 +274,7 @@ struct ServerEditView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
+                        let urlChanged = url != server.url
                         var updated = server
                         updated.name = name
                         updated.url = url
@@ -282,6 +283,11 @@ struct ServerEditView: View {
                         if !autoLogin {
                             updated.savedPassword = nil
                         }
+                        
+                        if urlChanged {
+                            ServerManager.shared.setAuthenticated(false, for: server.id)
+                        }
+                        
                         onSave(updated)
                         dismiss()
                     } label: {

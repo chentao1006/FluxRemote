@@ -236,6 +236,7 @@ struct ConfigDetailView: View {
     @State private var sudoPassword = ""
     @State private var isAnalyzing = false
     @State private var aiAnalysis: String?
+    @State private var aiTask: Task<Void, Never>?
     @State private var showingAIAssist = false
     
     var body: some View {
@@ -263,7 +264,12 @@ struct ConfigDetailView: View {
         .overlay(alignment: .bottom) {
             if isAnalyzing || aiAnalysis != nil {
                 AIAnalysisCard(analysis: aiAnalysis, isAnalyzing: isAnalyzing) {
-                    withAnimation { aiAnalysis = nil; isAnalyzing = false }
+                    withAnimation {
+                        aiTask?.cancel()
+                        aiTask = nil
+                        aiAnalysis = nil
+                        isAnalyzing = false
+                    }
                 }
                 .padding(.bottom, 20)
             } else if !isLoading && !content.isEmpty {
@@ -385,21 +391,26 @@ struct ConfigDetailView: View {
         isAnalyzing = true
         aiAnalysis = nil
         
-        Task {
+        aiTask = Task {
             do {
                 let contextInfo = "File Path: \(config.path)"
                 let prompt = "Explain the following configuration and provide optimization suggestions in \(languageManager.aiResponseLanguage):\n\nContext:\n\(contextInfo)\n\nContent:\n\(content)\n\nUse Markdown formatting for the response."
                 let systemPrompt = "You are a configuration expert. Explain segments and suggest optimizations."
                 
-                let response = try await AIService.shared.analyze(prompt: prompt, systemPrompt: systemPrompt, apiClient: apiClient)
+                let stream = AIService.shared.analyzeStream(prompt: prompt, systemPrompt: systemPrompt, apiClient: apiClient)
                 
-                await MainActor.run {
-                    withAnimation {
-                        self.aiAnalysis = response
-                        self.isAnalyzing = false
+                for try await chunk in stream {
+                    try Task.checkCancellation()
+                    await MainActor.run {
+                        if self.aiAnalysis == nil {
+                            self.aiAnalysis = ""
+                            self.isAnalyzing = false
+                        }
+                        self.aiAnalysis! += chunk
                     }
                 }
             } catch {
+                if error is CancellationError { return }
                 await MainActor.run {
                     self.aiAnalysis = "Error: \(error.localizedDescription)"
                     self.isAnalyzing = false

@@ -26,6 +26,7 @@ struct DashboardView: View {
     @State private var logSummary: (total: Int, lastFile: String) = (0, "")
     @State private var configSummary: (total: Int, sysCount: Int, userCount: Int) = (0, 0, 0)
     @State private var fetchTask: Task<Void, Never>?
+    @State private var aiTask: Task<Void, Never>?
     @State private var lastSummaryFetch: Date = .distantPast
     
     private var features: FeatureToggles { apiClient.features }
@@ -174,7 +175,10 @@ struct DashboardView: View {
                         if isAnalyzing || aiAnalysis != nil {
                             AIAnalysisCard(analysis: aiAnalysis, isAnalyzing: isAnalyzing) {
                                 withAnimation {
+                                    aiTask?.cancel()
+                                    aiTask = nil
                                     aiAnalysis = nil
+                                    isAnalyzing = false
                                 }
                             }
                             .padding(.horizontal)
@@ -498,9 +502,8 @@ struct DashboardView: View {
         guard let stats = stats else { return }
         isAnalyzing = true
         aiAnalysis = nil
-        Task { @MainActor in
-            do {
-                let prompt = """
+        
+        let prompt = """
 Help me analyze this system status output:
 Hostname: \(stats.hostname)
 OS: \(stats.osVersion)
@@ -515,21 +518,51 @@ LaunchAgents: \(agentSummary.loaded)/\(agentSummary.total) Loaded
 
 Please provide comments on health, resource usage, and any suggestions in \(languageManager.aiResponseLanguage). Use clean Markdown formatting.
 """
-                let response = try await AIService.shared.analyze(prompt: prompt, systemPrompt: "You are a professional system assistant analyzing macOS health and resource usage.", apiClient: apiClient)
-                withAnimation {
-                    self.aiAnalysis = response
-                    self.isAnalyzing = false
+        aiTask = Task { @MainActor in
+            do {
+                let stream = AIService.shared.analyzeStream(prompt: prompt, systemPrompt: "You are a professional system assistant analyzing macOS health and resource usage.", apiClient: apiClient)
+                
+                var buffer = ""
+                var lastUpdate = Date()
+                
+                for try await chunk in stream {
+                    try Task.checkCancellation()
+                    buffer += chunk
+                    
+                    // Update UI if buffer has enough content or enough time passed
+                    if !buffer.isEmpty && (buffer.count > 20 || Date().timeIntervalSince(lastUpdate) > 0.1) {
+                        let contentToAppend = buffer
+                        buffer = ""
+                        lastUpdate = Date()
+                        
+                        if self.aiAnalysis == nil {
+                            self.aiAnalysis = ""
+                        }
+                        self.isAnalyzing = false
+                        self.aiAnalysis! += contentToAppend
+                    }
                 }
-            } catch {
-                await MainActor.run {
-                    let errorMsg = error.localizedDescription
-                    if errorMsg.contains("AI_CONFIG_MISSING") {
-                        self.aiAnalysis = "\(languageManager.t("common.errors.aiConfigMissing")): \(languageManager.t("common.errors.aiConfigMissingDetail"))"
-                    } else {
-                        self.aiAnalysis = "\(languageManager.t("monitor.analysisFailed")): \(errorMsg)"
+                
+                // Final flush
+                if !buffer.isEmpty || self.aiAnalysis == nil {
+                    let finalContent = buffer
+                    if self.aiAnalysis == nil {
+                        self.aiAnalysis = finalContent.isEmpty ? "Error: No response from AI." : ""
                     }
                     self.isAnalyzing = false
+                    if !finalContent.isEmpty {
+                        self.aiAnalysis! += finalContent
+                    }
                 }
+            } catch {
+                if error is CancellationError { return }
+                let errorMsg = error.localizedDescription
+                if errorMsg.contains("AI_CONFIG_MISSING") {
+                    self.aiAnalysis = "\(languageManager.t("common.errors.aiConfigMissing")): \(languageManager.t("common.errors.aiConfigMissingDetail"))"
+                } else {
+                    self.aiAnalysis = "\(languageManager.t("monitor.analysisFailed")): \(errorMsg)"
+                }
+                self.isAnalyzing = false
             }
         }
     }
@@ -676,7 +709,6 @@ struct ChartTile: View {
     
     var body: some View {
         let now = Date()
-        let visibleRange = now.addingTimeInterval(-300)...now
         
         VStack(alignment: .leading, spacing: 6) {
             Text(title)

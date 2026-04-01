@@ -83,12 +83,12 @@ class RemoteAPIClient {
                 await login(urlString: server.url, credentials: [
                     "username": username,
                     "password": password
-                ], rememberPassword: server.rememberPassword, autoLogin: server.autoLogin)
+                ], serverId: server.id, rememberPassword: server.rememberPassword, autoLogin: server.autoLogin)
             }
         }
     }
     
-    func login(urlString: String, credentials: [String: String], rememberPassword: Bool = false, autoLogin: Bool = false) async {
+    func login(urlString: String, credentials: [String: String], serverId: UUID? = nil, rememberPassword: Bool = false, autoLogin: Bool = false) async {
         isLoading = true
         errorMessage = nil
         
@@ -129,8 +129,23 @@ class RemoteAPIClient {
             let password = credentials["password"]
             
             // Update ServerManager
-            if let existingServer = ServerManager.shared.servers.first(where: { $0.url == cleanURL }) {
+            var match: ServerConfig?
+            if let sid = serverId {
+                match = ServerManager.shared.servers.first(where: { $0.id == sid })
+            }
+            
+            if match == nil {
+                let targetURL = cleanURL
+                match = ServerManager.shared.servers.first(where: { 
+                    var serverURL = $0.url
+                    if serverURL.hasSuffix("/") { serverURL.removeLast() }
+                    return serverURL == targetURL
+                })
+            }
+
+            if let existingServer = match {
                 var updated = existingServer
+                updated.url = cleanURL // Important: if URL was updated by user, ensure it matches what we logged in to
                 updated.username = currentUser
                 updated.rememberPassword = rememberPassword
                 updated.autoLogin = autoLogin

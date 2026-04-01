@@ -677,20 +677,30 @@ struct QuickTerminalView: View {
                 Command:
                 """
                 
-                let response = try await AIService.shared.analyze(
+                let stream = AIService.shared.analyzeStream(
                     prompt: strictPrompt,
                     systemPrompt: "You are a terminal command generator. Output ONLY raw bash commands.",
                     apiClient: apiClient
                 )
+                
+                var fullCommand = ""
+                for try await chunk in stream {
+                    fullCommand += chunk
+                    let currentCommand = fullCommand.trimmingCharacters(in: .whitespacesAndNewlines)
+                    await MainActor.run {
+                        self.command = currentCommand
+                    }
+                }
+                
                 await MainActor.run {
                     withAnimation {
-                        self.command = response.trimmingCharacters(in: .whitespacesAndNewlines)
                         self.isTranslating = false
                         self.isFieldFocused = true
                     }
                 }
             } catch {
                 await MainActor.run {
+                    self.command = "Error: \(error.localizedDescription)"
                     withAnimation { self.isTranslating = false }
                 }
             }
@@ -704,9 +714,19 @@ struct QuickTerminalView: View {
         Task {
             do {
                 let prompt = "Analyze this terminal output and provide explanations or suggestions in \(languageManager.aiResponseLanguage):\n\(output)\nPlease use Markdown formatting."
-                let response = try await AIService.shared.analyze(prompt: prompt, systemPrompt: "You are a terminal output analyzer.", apiClient: apiClient)
+                let stream = AIService.shared.analyzeStream(prompt: prompt, systemPrompt: "You are a terminal output analyzer.", apiClient: apiClient)
+                
+                for try await chunk in stream {
+                    await MainActor.run {
+                        if self.aiAnalysis == nil {
+                            self.aiAnalysis = ""
+                            self.isAnalyzingOutput = false
+                        }
+                        self.aiAnalysis! += chunk
+                    }
+                }
+                
                 await MainActor.run {
-                    self.aiAnalysis = response
                     self.isAnalyzingOutput = false
                 }
             } catch {

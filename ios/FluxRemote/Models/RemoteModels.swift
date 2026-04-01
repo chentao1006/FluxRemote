@@ -304,6 +304,7 @@ struct AIConfig: Codable {
     var key: String?
     var model: String?
     var usePublicService: Bool?
+    var stream: Bool?
 }
 
 struct FeatureToggles: Codable {

@@ -216,7 +216,6 @@ class ServerManager {
             }
         }
         
-        let cloudIds = Set(cloudServers.map { $0.id })
         // Only upload back "missing" servers if we have a reasonably high confidence the cloud isn't just lagging.
         // For now, only upload if it's explicitly NOT a launcher and NOT just seen in the merged list.
         let cloudIdList = Set(cloudServers.map { $0.id })

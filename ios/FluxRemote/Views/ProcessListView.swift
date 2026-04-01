@@ -335,11 +335,15 @@ struct ProcessDetailView: View {
     @Environment(RemoteAPIClient.self) private var apiClient
     @Environment(AppLanguageManager.self) private var languageManager
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(\.dismiss) private var dismiss
     @State private var detailedProcess: DetailedProcess?
     @State private var isLoading = true
     @State private var isExecutingAction = false
+    @State private var showingStopConfirmation = false
+    @State private var showingKillConfirmation = false
     @State private var isAnalyzing = false
     @State private var aiAnalysis: String?
+    @State private var aiTask: Task<Void, Never>?
     
     struct DetailedProcess: Codable {
         let pid: String
@@ -401,7 +405,12 @@ struct ProcessDetailView: View {
         .overlay(alignment: .bottom) {
             if isAnalyzing || aiAnalysis != nil {
                 AIAnalysisCard(analysis: aiAnalysis, isAnalyzing: isAnalyzing) {
-                    withAnimation { aiAnalysis = nil; isAnalyzing = false }
+                    withAnimation {
+                        aiTask?.cancel()
+                        aiTask = nil
+                        aiAnalysis = nil
+                        isAnalyzing = false
+                    }
                 }
                 .padding(.bottom, 20)
             } else if !isLoading {
@@ -457,10 +466,6 @@ struct ProcessDetailView: View {
         }
     }
     
-    @State private var showingKillConfirmation = false
-    @State private var showingStopConfirmation = false
-    @Environment(\.dismiss) private var dismiss
-    
     func killProcess() async {
         isExecutingAction = true
         do {
@@ -502,18 +507,28 @@ struct ProcessDetailView: View {
         isAnalyzing = true
         aiAnalysis = nil
         
-        Task {
+        aiTask = Task {
             do {
                 let info = "PID: \(dp.pid), PPID: \(dp.ppid) (\(dp.ppidName)), Command: \(dp.command), Full Command: \(dp.fullCommand), CPU: \(dp.cpu)%, MEM: \(dp.mem)%, State: \(dp.state), Start: \(dp.start), User: \(dp.user), Open Files: \(dp.openFiles.joined(separator: ", "))"
                 let prompt = "Analyze this macOS process and provide diagnosis or suggestions in \(languageManager.aiResponseLanguage):\n\(info)\nUse Markdown formatting."
                 
-                let response = try await AIService.shared.analyze(prompt: prompt, systemPrompt: "You are a macOS systems expert.", apiClient: apiClient)
+                let stream = AIService.shared.analyzeStream(prompt: prompt, systemPrompt: "You are a macOS systems expert.", apiClient: apiClient)
+                
+                for try await chunk in stream {
+                    try Task.checkCancellation()
+                    await MainActor.run {
+                        withAnimation {
+                            if self.aiAnalysis == nil {
+                                self.aiAnalysis = ""
+                                self.isAnalyzing = false
+                            }
+                            self.aiAnalysis! += chunk
+                        }
+                    }
+                }
                 
                 await MainActor.run {
-                    withAnimation {
-                        self.aiAnalysis = response
-                        self.isAnalyzing = false
-                    }
+                    self.isAnalyzing = false
                 }
             } catch {
                 await MainActor.run {

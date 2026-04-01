@@ -71,9 +71,14 @@ struct MarkdownView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
     
-    private struct MarkdownBlock: Identifiable {
-        let id = UUID()
+    private struct MarkdownBlock: Identifiable, Equatable {
+        let id: Int
         let type: BlockType
+        
+        static func == (lhs: MarkdownBlock, rhs: MarkdownBlock) -> Bool {
+            lhs.id == rhs.id
+        }
+
         enum BlockType {
             case header(Int, String)
             case list(String)
@@ -85,42 +90,59 @@ struct MarkdownView: View {
     
     private var blocks: [MarkdownBlock] {
         var parsedBlocks: [MarkdownBlock] = []
-        var lines = text.components(separatedBy: .newlines)
-        while !lines.isEmpty {
-            let line = lines.removeFirst().trimmingCharacters(in: .whitespaces)
-            if line.isEmpty { continue }
+        let lines = text.components(separatedBy: .newlines)
+        var i = 0
+        var lineIndex = 0
+        
+        while lineIndex < lines.count {
+            let line = lines[lineIndex].trimmingCharacters(in: .whitespaces)
+            if line.isEmpty { 
+                lineIndex += 1
+                continue 
+            }
             
-            // 1. Code Block (Improved with better closing detection)
+            // 1. Code Block
             if line.hasPrefix("```") {
                 var content = ""
-                while !lines.isEmpty {
-                    let nextLine = lines.first!
+                lineIndex += 1
+                while lineIndex < lines.count {
+                    let nextLine = lines[lineIndex]
                     if nextLine.trimmingCharacters(in: .whitespaces).hasPrefix("```") {
-                        lines.removeFirst() // Remove closing ```
+                        lineIndex += 1
                         break
                     }
-                    content += lines.removeFirst() + "\n"
+                    content += lines[lineIndex] + "\n"
+                    lineIndex += 1
                 }
-                parsedBlocks.append(MarkdownBlock(type: .code(content.trimmingCharacters(in: .newlines))))
-            } else if (line.starts(with: "|") || line.contains("|")) && lines.count > 0 && lines[0].contains("-") && lines[0].contains("|") {
+                parsedBlocks.append(MarkdownBlock(id: i, type: .code(content.trimmingCharacters(in: .newlines))))
+                i += 1
+            } else if (line.starts(with: "|") || line.contains("|")) && (lineIndex + 1 < lines.count) && lines[lineIndex+1].contains("-") && lines[lineIndex+1].contains("|") {
                 var rows: [[String]] = []
                 func parseRow(_ r: String) -> [String] {
                     r.split(separator: "|").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
                 }
                 rows.append(parseRow(line))
-                lines.removeFirst()
-                while !lines.isEmpty && (lines[0].starts(with: "|") || lines[0].contains("|")) {
-                    rows.append(parseRow(lines.removeFirst()))
+                lineIndex += 2 // skip header and separator
+                while lineIndex < lines.count && (lines[lineIndex].starts(with: "|") || lines[lineIndex].contains("|")) {
+                    rows.append(parseRow(lines[lineIndex]))
+                    lineIndex += 1
                 }
-                parsedBlocks.append(MarkdownBlock(type: .table(rows)))
+                parsedBlocks.append(MarkdownBlock(id: i, type: .table(rows)))
+                i += 1
             } else if line.hasPrefix("#") {
                 let level = line.prefix(while: { $0 == "#" }).count
                 let content = line.drop { $0 == "#" || $0 == " " }
-                parsedBlocks.append(MarkdownBlock(type: .header(level, String(content))))
+                parsedBlocks.append(MarkdownBlock(id: i, type: .header(level, String(content))))
+                i += 1
+                lineIndex += 1
             } else if line.hasPrefix("- ") || line.hasPrefix("* ") {
-                parsedBlocks.append(MarkdownBlock(type: .list(String(line.dropFirst(2)))))
+                parsedBlocks.append(MarkdownBlock(id: i, type: .list(String(line.dropFirst(2)))))
+                i += 1
+                lineIndex += 1
             } else {
-                parsedBlocks.append(MarkdownBlock(type: .paragraph(line)))
+                parsedBlocks.append(MarkdownBlock(id: i, type: .paragraph(line)))
+                i += 1
+                lineIndex += 1
             }
         }
         return parsedBlocks
@@ -178,7 +200,7 @@ struct AIAnalysisCard: View {
     @Environment(AppLanguageManager.self) private var languageManager
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading) {
             HStack {
                 Label(languageManager.t("monitor.aiAnalysisTitle"), systemImage: "sparkles")
                     .font(.headline)
@@ -307,6 +329,7 @@ struct AIAnalyzeView: View {
         guard !originalContent.isEmpty else { return }
         isProcessing = true
         errorMessage = nil
+        analysisResult = nil
         
         Task {
             do {
@@ -319,13 +342,23 @@ struct AIAnalyzeView: View {
                     ? "Analyze the following logs and provide diagnosis or suggestions in \(languageManager.aiResponseLanguage):\n\nContext:\n\(contextInfo)\n\nContent:\n\(originalContent)\n\nUse Markdown formatting for the response."
                     : "Explain the following configuration and provide optimization suggestions in \(languageManager.aiResponseLanguage):\n\nContext:\n\(contextInfo)\n\nContent:\n\(originalContent)\n\nUse Markdown formatting for the response."
                 
-                let response = try await AIService.shared.analyze(
+                let stream = AIService.shared.analyzeStream(
                     prompt: prompt,
                     systemPrompt: systemPrompt,
                     apiClient: apiClient
                 )
+                
+                for try await chunk in stream {
+                    await MainActor.run {
+                        if self.analysisResult == nil {
+                            self.analysisResult = ""
+                            self.isProcessing = false
+                        }
+                        self.analysisResult! += chunk
+                    }
+                }
+                
                 await MainActor.run {
-                    self.analysisResult = response
                     self.isProcessing = false
                 }
             } catch {
@@ -454,6 +487,7 @@ struct AIAssistView: View {
         isFieldFocused = false
         isProcessing = true
         errorMessage = nil
+        generatedContent = nil
         
         Task {
             do {
@@ -475,14 +509,23 @@ struct AIAssistView: View {
                 \(originalContent)
                 """
                 
-                let response = try await AIService.shared.analyze(
+                let stream = AIService.shared.analyzeStream(
                     prompt: userPrompt,
                     systemPrompt: systemPrompt,
                     apiClient: apiClient
                 )
                 
+                for try await chunk in stream {
+                    await MainActor.run {
+                        if self.generatedContent == nil {
+                            self.generatedContent = ""
+                            self.isProcessing = false
+                        }
+                        self.generatedContent! += chunk
+                    }
+                }
+                
                 await MainActor.run {
-                    self.generatedContent = response
                     self.isProcessing = false
                 }
             } catch {
