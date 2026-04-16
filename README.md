@@ -24,6 +24,13 @@ Flux Remote is the official mobile application for FluxMonitor, allowing users t
 - [FluxMonitor](https://github.com/chentao1006/FluxMonitor)
 
 MIT License
+
+App Store:
+[![Download on the App Store](https://flux.ct106.com/public/app-store-badge-en.svg)](https://apps.apple.com/app/flux-remote/id6761290185)
+
+![Flux Remote iOS](screenshots/phone/1.jpg)
+![Flux Remote iPadOS](screenshots/pad/1.jpg)
+
 ## Plan
 
 ### iOS
@@ -31,8 +38,8 @@ MIT License
 - [x] Login & authentication module
 - [x] All module features implementation
 - [x] Multi-language interface (EN/CH)
-- [ ] AI Assistant
-- [ ] UI/UX improvements
+- [x] AI Assistant
+- [x] UI/UX improvements
 - [ ] Push notification support
 
 ### Android

@@ -269,7 +269,7 @@ struct FluxLoginView: View {
                     "password": password
                 ],
                 serverId: serverId,
-                rememberPassword: autoLogin, // Always remember if auto login is on
+                rememberPassword: autoLogin,
                 autoLogin: autoLogin
             )
             

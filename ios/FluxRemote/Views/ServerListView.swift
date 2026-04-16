@@ -278,7 +278,7 @@ struct ServerEditView: View {
                         var updated = server
                         updated.name = name
                         updated.url = url
-                        updated.rememberPassword = autoLogin // Implicitly same
+                        updated.rememberPassword = autoLogin
                         updated.autoLogin = autoLogin
                         if !autoLogin {
                             updated.savedPassword = nil

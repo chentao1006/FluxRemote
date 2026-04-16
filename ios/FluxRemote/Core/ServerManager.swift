@@ -72,12 +72,7 @@ class ServerManager {
             UserDefaults.standard.set(selectedServerId?.uuidString, forKey: "selected_server_id_v2")
         }
     }
-    var authenticatedServerIds: Set<UUID> = [] {
-        didSet {
-            let strings = Array(authenticatedServerIds).map { $0.uuidString }
-            UserDefaults.standard.set(strings, forKey: "authenticated_server_ids_v2")
-        }
-    }
+    var authenticatedServerIds: Set<UUID> = []
     
     var isCloudSyncEnabled: Bool = true {
         didSet {
@@ -115,9 +110,6 @@ class ServerManager {
         
         if let idString = UserDefaults.standard.string(forKey: "selected_server_id_v2") {
             self.selectedServerId = UUID(uuidString: idString)
-        }
-        if let authStrings = UserDefaults.standard.stringArray(forKey: "authenticated_server_ids_v2") {
-            self.authenticatedServerIds = Set(authStrings.compactMap { UUID(uuidString: $0) })
         }
         
         // Load local servers first (fast)

@@ -26,6 +26,7 @@ class RemoteAPIClient {
     var features: FeatureToggles = FeatureToggles()
     var aiConfig: AIConfig?
     var languageManager: AppLanguageManager?
+    private var isPerformingAutoLogin = false
     
     // Shared state for persistent content
     var dashboardStats: RemoteSystemStats? = nil
@@ -80,6 +81,7 @@ class RemoteAPIClient {
         } else if server.autoLogin, let username = server.username, let password = server.savedPassword {
             // Attempt auto login
             Task {
+                print("RemoteAPIClient: Attempting auto-login for server \(server.name)")
                 await login(urlString: server.url, credentials: [
                     "username": username,
                     "password": password
@@ -199,25 +201,48 @@ class RemoteAPIClient {
             throw NSError(domain: "APIClient", code: 400, userInfo: [NSLocalizedDescriptionKey: "No Base URL"])
         }
         
-        var request = URLRequest(url: url)
-        request.httpMethod = method
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("FluxRemote/1.0", forHTTPHeaderField: "User-Agent")
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = method
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Accept")
+        urlRequest.setValue("FluxRemote/1.0", forHTTPHeaderField: "User-Agent")
         
         if let body = body {
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+            urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            urlRequest.httpBody = try JSONSerialization.data(withJSONObject: body)
         }
         
         // Set dynamic Accept-Language
         if let lang = languageManager?.selectedLanguage, lang != .system {
-            request.setValue(lang.rawValue, forHTTPHeaderField: "Accept-Language")
+            urlRequest.setValue(lang.rawValue, forHTTPHeaderField: "Accept-Language")
         }
         
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await session.data(for: urlRequest)
         
         if let httpResponse = response as? HTTPURLResponse, !(200...299).contains(httpResponse.statusCode) {
             if httpResponse.statusCode == 401 {
+                // Try auto-login if enabled
+                if let server = ServerManager.shared.selectedServer, 
+                   server.autoLogin, 
+                   let username = server.username, 
+                   let password = server.savedPassword,
+                   !isPerformingAutoLogin {
+                    
+                    isPerformingAutoLogin = true
+                    print("RemoteAPIClient: Session expired (401). Attempting silent re-login...")
+                    
+                    await login(urlString: server.url, credentials: [
+                        "username": username,
+                        "password": password
+                    ], serverId: server.id, rememberPassword: server.rememberPassword, autoLogin: server.autoLogin)
+                    
+                    isPerformingAutoLogin = false
+                    
+                    if isAuthenticated {
+                        print("RemoteAPIClient: Silent re-login successful. Retrying request...")
+                        return try await request(path, method: method, body: body)
+                    }
+                }
+                
                 logout()
             }
             
@@ -243,33 +268,56 @@ class RemoteAPIClient {
             throw NSError(domain: "APIClient", code: 400, userInfo: [NSLocalizedDescriptionKey: "No Base URL"])
         }
         
-        var request = URLRequest(url: url)
-        request.httpMethod = method
-        request.timeoutInterval = 15.0
-        request.cachePolicy = .reloadIgnoringLocalCacheData
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = method
+        urlRequest.timeoutInterval = 15.0
+        urlRequest.cachePolicy = .reloadIgnoringLocalCacheData
         
-        request.setValue("*/*", forHTTPHeaderField: "Accept")
+        urlRequest.setValue("*/*", forHTTPHeaderField: "Accept")
         
         // Set dynamic Accept-Language
         if let lang = languageManager?.selectedLanguage, lang != .system {
-            request.setValue(lang.rawValue, forHTTPHeaderField: "Accept-Language")
+            urlRequest.setValue(lang.rawValue, forHTTPHeaderField: "Accept-Language")
         } else {
-            request.setValue("zh-Hans,en;q=0.9", forHTTPHeaderField: "Accept-Language")
+            urlRequest.setValue("zh-Hans,en;q=0.9", forHTTPHeaderField: "Accept-Language")
         }
         
-        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
-        request.setValue("no-cache", forHTTPHeaderField: "Pragma")
-        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.3.1 Safari/605.1.15", forHTTPHeaderField: "User-Agent")
+        urlRequest.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+        urlRequest.setValue("no-cache", forHTTPHeaderField: "Pragma")
+        urlRequest.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.3.1 Safari/605.1.15", forHTTPHeaderField: "User-Agent")
         
         if let body = encodableBody {
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONEncoder().encode(body)
+            urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            urlRequest.httpBody = try JSONEncoder().encode(body)
         }
         
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await session.data(for: urlRequest)
         
         if let httpResponse = response as? HTTPURLResponse, !(200...299).contains(httpResponse.statusCode) {
             if httpResponse.statusCode == 401 {
+                // Try auto-login if enabled
+                if let server = ServerManager.shared.selectedServer, 
+                   server.autoLogin, 
+                   let username = server.username, 
+                   let password = server.savedPassword,
+                   !isPerformingAutoLogin {
+                    
+                    isPerformingAutoLogin = true
+                    print("RemoteAPIClient: Session expired (401). Attempting silent re-login...")
+                    
+                    await login(urlString: server.url, credentials: [
+                        "username": username,
+                        "password": password
+                    ], serverId: server.id, rememberPassword: server.rememberPassword, autoLogin: server.autoLogin)
+                    
+                    isPerformingAutoLogin = false
+                    
+                    if isAuthenticated {
+                        print("RemoteAPIClient: Silent re-login successful. Retrying request...")
+                        return try await request(path, method: method, encodableBody: encodableBody)
+                    }
+                }
+                
                 logout()
             }
             
