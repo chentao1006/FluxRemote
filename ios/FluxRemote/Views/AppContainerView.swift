@@ -19,8 +19,25 @@ struct AppContainerView: View {
     var body: some View {
         Group {
             if !apiClient.isAuthenticated {
-                NavigationStack {
-                    ServerListView(selection: $selection)
+                Group {
+                    if apiClient.isAutoLoggingIn || (apiClient.isLoading && ServerManager.shared.selectedServer?.autoLogin == true) {
+                        ZStack {
+                            Color(.systemBackground).ignoresSafeArea()
+                            VStack(spacing: 20) {
+                                Image("LaunchLogo")
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 128, height: 128)
+                                
+                                ProgressView()
+                                    .tint(Color("AccentColor"))
+                            }
+                        }
+                    } else {
+                        NavigationStack {
+                            ServerListView(selection: $selection)
+                        }
+                    }
                 }
                 .tint(.primary)
             } else {

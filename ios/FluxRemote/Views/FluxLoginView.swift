@@ -219,7 +219,7 @@ struct FluxLoginView: View {
                         rememberPassword = existing.rememberPassword
                         autoLogin = existing.autoLogin
                         if rememberPassword {
-                            password = existing.savedPassword ?? ""
+                            password = ServerManager.shared.getPassword(for: existing.id) ?? ""
                         }
                     }
                 } else if let savedURL = UserDefaults.standard.string(forKey: "flux_remote_url") {

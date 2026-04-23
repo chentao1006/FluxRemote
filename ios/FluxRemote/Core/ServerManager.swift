@@ -12,13 +12,12 @@ struct ServerConfig: Codable, Identifiable, Hashable {
     // New fields for remember password and auto login
     var rememberPassword: Bool = false
     var autoLogin: Bool = false
-    var savedPassword: String? = nil
     
     enum CodingKeys: String, CodingKey {
-        case id, name, url, username, isLauncher, lastUpdatedAt, rememberPassword, autoLogin, savedPassword
+        case id, name, url, username, isLauncher, lastUpdatedAt, rememberPassword, autoLogin
     }
     
-    init(id: UUID = UUID(), name: String, url: String, username: String? = nil, isLauncher: Bool = false, lastUpdatedAt: Date = Date(), rememberPassword: Bool = false, autoLogin: Bool = false, savedPassword: String? = nil) {
+    init(id: UUID = UUID(), name: String, url: String, username: String? = nil, isLauncher: Bool = false, lastUpdatedAt: Date = Date(), rememberPassword: Bool = false, autoLogin: Bool = false) {
         self.id = id
         self.name = name
         self.url = url
@@ -27,7 +26,6 @@ struct ServerConfig: Codable, Identifiable, Hashable {
         self.lastUpdatedAt = lastUpdatedAt
         self.rememberPassword = rememberPassword
         self.autoLogin = autoLogin
-        self.savedPassword = savedPassword
     }
 
     init(from decoder: Decoder) throws {
@@ -41,7 +39,6 @@ struct ServerConfig: Codable, Identifiable, Hashable {
         
         rememberPassword = try container.decodeIfPresent(Bool.self, forKey: .rememberPassword) ?? false
         autoLogin = try container.decodeIfPresent(Bool.self, forKey: .autoLogin) ?? false
-        savedPassword = try container.decodeIfPresent(String.self, forKey: .savedPassword)
     }
     
     var baseURL: URL? {
@@ -56,8 +53,7 @@ struct ServerConfig: Codable, Identifiable, Hashable {
                username == other.username && 
                isLauncher == other.isLauncher &&
                rememberPassword == other.rememberPassword &&
-               autoLogin == other.autoLogin &&
-               savedPassword == other.savedPassword
+               autoLogin == other.autoLogin
     }
 }
 
@@ -73,6 +69,7 @@ class ServerManager {
         }
     }
     var authenticatedServerIds: Set<UUID> = []
+    private var localPasswords: [UUID: String] = [:]
     
     var isCloudSyncEnabled: Bool = true {
         didSet {
@@ -84,6 +81,7 @@ class ServerManager {
     }
     
     private let serversKey = "flux_remote_servers_v2"
+    private let passwordsKey = "flux_remote_passwords_v1"
     private let aiConfigKey = "flux_remote_shared_ai_config"
     private var isCloudUpdating = false
     private var isInitialCloudSyncDone = false
@@ -110,6 +108,12 @@ class ServerManager {
         
         if let idString = UserDefaults.standard.string(forKey: "selected_server_id_v2") {
             self.selectedServerId = UUID(uuidString: idString)
+        }
+        
+        // Load local passwords
+        if let data = UserDefaults.standard.data(forKey: passwordsKey),
+           let decoded = try? JSONDecoder().decode([UUID: String].self, from: data) {
+            self.localPasswords = decoded
         }
         
         // Load local servers first (fast)
@@ -264,6 +268,19 @@ class ServerManager {
         authenticatedServerIds.contains(serverId)
     }
     
+    func getPassword(for serverId: UUID) -> String? {
+        localPasswords[serverId]
+    }
+    
+    func setPassword(_ password: String?, for serverId: UUID) {
+        if let password = password {
+            localPasswords[serverId] = password
+        } else {
+            localPasswords.removeValue(forKey: serverId)
+        }
+        savePasswords()
+    }
+    
     func addServer(_ server: ServerConfig) {
         if servers.isEmpty {
             selectedServerId = server.id
@@ -295,6 +312,8 @@ class ServerManager {
         let wasSelected = (selectedServerId == server.id)
         servers.removeAll { $0.id == server.id }
         authenticatedServerIds.remove(server.id)
+        localPasswords.removeValue(forKey: server.id)
+        savePasswords()
         
         // Propagate deletion to cloud
         if isCloudSyncEnabled {
@@ -376,6 +395,12 @@ class ServerManager {
     private func saveLocalOnly() {
         if let encoded = try? JSONEncoder().encode(servers) {
             UserDefaults.standard.set(encoded, forKey: serversKey)
+        }
+    }
+    
+    private func savePasswords() {
+        if let encoded = try? JSONEncoder().encode(localPasswords) {
+            UserDefaults.standard.set(encoded, forKey: passwordsKey)
         }
     }
     

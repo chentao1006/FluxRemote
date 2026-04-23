@@ -1,6 +1,5 @@
 import Foundation
 import Observation
-import SwiftUI
 
 // MARK: - Models
 
@@ -26,6 +25,7 @@ class RemoteAPIClient {
     var features: FeatureToggles = FeatureToggles()
     var aiConfig: AIConfig?
     var languageManager: AppLanguageManager?
+    var isAutoLoggingIn: Bool = false
     private var isPerformingAutoLogin = false
     
     // Shared state for persistent content
@@ -78,14 +78,16 @@ class RemoteAPIClient {
         
         if isAuthenticated {
             Task { await fetchSettings() }
-        } else if server.autoLogin, let username = server.username, let password = server.savedPassword {
+        } else if server.autoLogin, let username = server.username, let password = ServerManager.shared.getPassword(for: server.id) {
             // Attempt auto login
+            isAutoLoggingIn = true
             Task {
                 print("RemoteAPIClient: Attempting auto-login for server \(server.name)")
                 await login(urlString: server.url, credentials: [
                     "username": username,
                     "password": password
                 ], serverId: server.id, rememberPassword: server.rememberPassword, autoLogin: server.autoLogin)
+                isAutoLoggingIn = false
             }
         }
     }
@@ -151,8 +153,8 @@ class RemoteAPIClient {
                 updated.username = currentUser
                 updated.rememberPassword = rememberPassword
                 updated.autoLogin = autoLogin
-                updated.savedPassword = rememberPassword ? password : nil
                 
+                ServerManager.shared.setPassword(rememberPassword ? password : nil, for: updated.id)
                 ServerManager.shared.setAuthenticated(true, for: updated.id)
                 ServerManager.shared.updateServer(updated)
                 ServerManager.shared.selectServer(updated) // Ensure it's selected
@@ -163,10 +165,10 @@ class RemoteAPIClient {
                     url: cleanURL, 
                     username: currentUser,
                     rememberPassword: rememberPassword,
-                    autoLogin: autoLogin,
-                    savedPassword: rememberPassword ? password : nil
+                    autoLogin: autoLogin
                 )
                 ServerManager.shared.addServer(newServer)
+                ServerManager.shared.setPassword(rememberPassword ? password : nil, for: newServer.id)
                 ServerManager.shared.setAuthenticated(true, for: newServer.id)
             }
             
@@ -190,8 +192,8 @@ class RemoteAPIClient {
                 var updated = server
                 updated.rememberPassword = false
                 updated.autoLogin = false
-                updated.savedPassword = nil
                 ServerManager.shared.updateServer(updated)
+                ServerManager.shared.setPassword(nil, for: server.id)
             }
         }
     }
@@ -224,7 +226,7 @@ class RemoteAPIClient {
                 if let server = ServerManager.shared.selectedServer, 
                    server.autoLogin, 
                    let username = server.username, 
-                   let password = server.savedPassword,
+                   let password = ServerManager.shared.getPassword(for: server.id),
                    !isPerformingAutoLogin {
                     
                     isPerformingAutoLogin = true
@@ -299,7 +301,7 @@ class RemoteAPIClient {
                 if let server = ServerManager.shared.selectedServer, 
                    server.autoLogin, 
                    let username = server.username, 
-                   let password = server.savedPassword,
+                   let password = ServerManager.shared.getPassword(for: server.id),
                    !isPerformingAutoLogin {
                     
                     isPerformingAutoLogin = true

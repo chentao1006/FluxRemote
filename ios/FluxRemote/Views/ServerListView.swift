@@ -85,9 +85,9 @@ struct ServerListView: View {
                         ServerRow(server: server, isActive: server.id == ServerManager.shared.selectedServerId) {
                             apiClient.switchServer(to: server)
                             selection = .monitor
-                            if !ServerManager.shared.isServerAuthenticated(server.id) {
+                            if !ServerManager.shared.isServerAuthenticated(server.id) && (!server.autoLogin || ServerManager.shared.getPassword(for: server.id) == nil) {
                                 showingLoginForServer = server
-                            } else {
+                            } else if ServerManager.shared.isServerAuthenticated(server.id) {
                                 // Close the modal if we're authenticated
                                 dismiss()
                             }
@@ -108,12 +108,10 @@ struct ServerListView: View {
         }
         .navigationTitle(languageManager.t("settings.serverList"))
         .onAppear {
-            let status = ServerManager.shared.reachabilityStatuses[ServerManager.shared.selectedServerId ?? UUID()]
-            if let server = ServerManager.shared.selectedServer, 
-               !ServerManager.shared.isServerAuthenticated(server.id),
-               status == false {
-                showingLoginForServer = server
-            }
+            checkAndShowLogin()
+        }
+        .onChange(of: ServerManager.shared.selectedServerId) { _, _ in
+            checkAndShowLogin()
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -152,6 +150,20 @@ struct ServerListView: View {
                 }
             }
             Button(languageManager.t("common.cancel"), role: .cancel) { }
+        }
+    }
+    
+    private func checkAndShowLogin() {
+        let status = ServerManager.shared.reachabilityStatuses[ServerManager.shared.selectedServerId ?? UUID()]
+        if let server = ServerManager.shared.selectedServer, 
+           !ServerManager.shared.isServerAuthenticated(server.id),
+           status == false {
+            // Delay slightly to ensure any background auto-login tasks have a chance or UI is ready
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                if !ServerManager.shared.isServerAuthenticated(server.id) {
+                    showingLoginForServer = server
+                }
+            }
         }
     }
 }
@@ -256,7 +268,7 @@ struct ServerEditView: View {
                     Toggle(languageManager.t("login.autoLogin"), isOn: $autoLogin)
                         .tint(Color("AccentColor"))
                 } footer: {
-                    if !autoLogin && server.savedPassword != nil {
+                    if !autoLogin && ServerManager.shared.getPassword(for: server.id) != nil {
                         Text(languageManager.t("settings.passwordWillBeCleared"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -281,7 +293,7 @@ struct ServerEditView: View {
                         updated.rememberPassword = autoLogin
                         updated.autoLogin = autoLogin
                         if !autoLogin {
-                            updated.savedPassword = nil
+                            ServerManager.shared.setPassword(nil, for: server.id)
                         }
                         
                         if urlChanged {
