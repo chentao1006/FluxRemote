@@ -1,9 +1,10 @@
 package com.ct106.fluxremote.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -13,7 +14,9 @@ import com.ct106.fluxremote.R
 import com.ct106.fluxremote.core.RemoteAPIClient
 import com.ct106.fluxremote.core.ServerManager
 import com.ct106.fluxremote.model.ServerSettings
+import com.ct106.fluxremote.model.FeatureToggles
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -27,20 +30,56 @@ fun SettingsScreen(
     var settings by remember { mutableStateOf<ServerSettings?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     var showingLogoutAlert by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) {
-        isLoading = true
-        try {
-            val api = apiClient.getApi() ?: return@LaunchedEffect
-            val response = api.getSettings()
-            if (response.isSuccessful) {
-                settings = response.body()?.data
+    fun loadSettings() {
+        scope.launch {
+            isLoading = true
+            errorMessage = null
+            try {
+                val api = apiClient.getApi()
+                if (api == null) {
+                    errorMessage = "API Client not initialized"
+                    isLoading = false
+                    return@launch
+                }
+                val response = api.getSettings()
+                if (response.isSuccessful) {
+                    settings = response.body()?.data
+                } else {
+                    errorMessage = "Server error: ${response.code()}"
+                }
+            } catch (e: Exception) {
+                errorMessage = e.message ?: "Unknown error"
+                e.printStackTrace()
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
+            isLoading = false
         }
-        isLoading = false
+    }
+
+    LaunchedEffect(Unit) {
+        loadSettings()
+    }
+
+    var saveJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    
+    fun updateFeature(newFeatures: FeatureToggles) {
+        settings = settings?.copy(features = newFeatures)
+        
+        saveJob?.cancel()
+        saveJob = scope.launch {
+            kotlinx.coroutines.delay(1000)
+            try {
+                val api = apiClient.getApi()
+                val response = api?.updateSettings(settings!!)
+                if (response?.isSuccessful == true) {
+                    apiClient.features = settings!!.features!!
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     if (showingLogoutAlert) {
@@ -83,6 +122,13 @@ fun SettingsScreen(
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = androidx.compose.ui.Alignment.Center) {
                 CircularProgressIndicator()
             }
+        } else if (errorMessage != null && settings == null) {
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                    Text(errorMessage!!, color = MaterialTheme.colorScheme.error)
+                    Button(onClick = { loadSettings() }) { Text(stringResource(R.string.refresh)) }
+                }
+            }
         } else {
             LazyColumn(Modifier.padding(padding).fillMaxSize()) {
                 item {
@@ -92,9 +138,63 @@ fun SettingsScreen(
                     SettingsRow(stringResource(R.string.server), server?.name ?: "")
                 }
                 item {
-                    SettingsRow(stringResource(R.string.version), settings?.version ?: "")
+                    SettingsRow(stringResource(R.string.version), settings?.version ?: stringResource(R.string.none))
                 }
                 
+                item {
+                    SettingsHeader(stringResource(R.string.language))
+                }
+                item {
+                    val currentLang = serverManager.language.collectAsState().value
+                    val langText = when(currentLang) {
+                        "zh" -> stringResource(R.string.language_zh)
+                        "en" -> stringResource(R.string.language_en)
+                        else -> stringResource(R.string.language_auto)
+                    }
+                    var showLangDialog by remember { mutableStateOf(false) }
+                    
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.language)) },
+                        trailingContent = { Text(langText, color = MaterialTheme.colorScheme.primary) },
+                        modifier = Modifier.clickable { showLangDialog = true }
+                    )
+                    
+                    if (showLangDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showLangDialog = false },
+                            title = { Text(stringResource(R.string.language)) },
+                            text = {
+                                Column {
+                                    listOf("auto", "zh", "en").forEach { lang ->
+                                        Row(
+                                            Modifier.fillMaxWidth().clickable {
+                                                scope.launch {
+                                                    serverManager.setLanguage(lang)
+                                                    showLangDialog = false
+                                                }
+                                            }.padding(16.dp),
+                                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                                        ) {
+                                            RadioButton(selected = currentLang == lang, onClick = null)
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(when(lang) {
+                                                "zh" -> stringResource(R.string.language_zh)
+                                                "en" -> stringResource(R.string.language_en)
+                                                else -> stringResource(R.string.language_auto)
+                                            })
+                                        }
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                TextButton(onClick = { showLangDialog = false }) {
+                                    Text(stringResource(R.string.common_ok))
+                                }
+                            }
+                        )
+                    }
+                }
+
                 item {
                     SettingsHeader(stringResource(R.string.account))
                 }
@@ -104,18 +204,30 @@ fun SettingsScreen(
                 item {
                     ListItem(
                         headlineContent = { Text(stringResource(R.string.logout), color = MaterialTheme.colorScheme.error) },
-                        modifier = androidx.compose.foundation.clickable { showingLogoutAlert = true }
+                        modifier = Modifier.clickable { showingLogoutAlert = true }
                     )
                 }
 
                 item {
                     SettingsHeader(stringResource(R.string.feature_control))
                 }
-                settings?.features?.let { features ->
-                    item { FeatureToggle(stringResource(R.string.docker_mgmt), features.docker ?: true) }
-                    item { FeatureToggle(stringResource(R.string.nginx_mgmt), features.nginx ?: true) }
-                    item { FeatureToggle(stringResource(R.string.process_mgmt), features.processes ?: true) }
-                    item { FeatureToggle(stringResource(R.string.logs_mgmt), features.logs ?: true) }
+                
+                val features = settings?.features
+                if (features != null) {
+                    item { FeatureToggle(stringResource(R.string.process_mgmt), features.processes ?: true) { newValue -> updateFeature(features.copy(processes = newValue)) } }
+                    item { FeatureToggle(stringResource(R.string.logs_mgmt), features.logs ?: true) { newValue -> updateFeature(features.copy(logs = newValue)) } }
+                    item { FeatureToggle(stringResource(R.string.configs_mgmt), features.configs ?: true) { newValue -> updateFeature(features.copy(configs = newValue)) } }
+                    item { FeatureToggle(stringResource(R.string.launchagents_mgmt), features.launchagent ?: true) { newValue -> updateFeature(features.copy(launchagent = newValue)) } }
+                    item { FeatureToggle(stringResource(R.string.docker_mgmt), features.docker ?: true) { newValue -> updateFeature(features.copy(docker = newValue)) } }
+                    item { FeatureToggle(stringResource(R.string.nginx_mgmt), features.nginx ?: true) { newValue -> updateFeature(features.copy(nginx = newValue)) } }
+                } else {
+                    item {
+                        Text(
+                            text = stringResource(R.string.none),
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
                 }
             }
         }
@@ -141,12 +253,11 @@ fun SettingsRow(label: String, value: String) {
 }
 
 @Composable
-fun FeatureToggle(label: String, enabled: Boolean) {
-    var isChecked by remember { mutableStateOf(enabled) }
+fun FeatureToggle(label: String, enabled: Boolean, onCheckedChange: (Boolean) -> Unit) {
     ListItem(
         headlineContent = { Text(label) },
         trailingContent = {
-            Switch(checked = isChecked, onCheckedChange = { isChecked = it })
+            Switch(checked = enabled, onCheckedChange = onCheckedChange)
         }
     )
 }

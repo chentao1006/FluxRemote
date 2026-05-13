@@ -2,6 +2,8 @@ package com.ct106.fluxremote.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
 
 @Serializable
 data class RemoteStatsResponse(
@@ -138,8 +140,7 @@ data class LogItem(
 @Serializable
 data class LogResponse(
     val success: Boolean,
-    val data: List<LogItem>? = null,
-    val content: String? = null,
+    val data: JsonElement? = null,
     val error: String? = null
 )
 
@@ -174,6 +175,12 @@ data class LaunchAgentItem(
 data class LaunchAgentResponse(
     val success: Boolean,
     val data: List<LaunchAgentItem>
+)
+
+@Serializable
+data class ServerSettingsResponse(
+    val success: Boolean,
+    val data: ServerSettings
 )
 
 @Serializable

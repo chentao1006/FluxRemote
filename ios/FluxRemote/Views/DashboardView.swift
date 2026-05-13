@@ -428,9 +428,9 @@ struct DashboardView: View {
         var netOut: Double = 0
         
         if let currentNet = stats.netBytes, let prevNet = prevNetBytes {
-            // Updated to 5s interval for speed calculation
-            netIn = Double(currentNet.in - prevNet.in) / 1024 / 5.0
-            netOut = Double(currentNet.out - prevNet.out) / 1024 / 5.0
+            // Updated to 2s interval for speed calculation
+            netIn = Double(currentNet.in - prevNet.in) / 1024 / 2.0
+            netOut = Double(currentNet.out - prevNet.out) / 1024 / 2.0
         }
         
         self.prevNetBytes = stats.netBytes
@@ -468,7 +468,7 @@ struct DashboardView: View {
             }
             
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(5))
+                try? await Task.sleep(for: .seconds(2))
                 guard !Task.isCancelled else { break }
                 
                 await fetchData()
@@ -760,7 +760,7 @@ struct ChartTile: View {
     
     @ViewBuilder
     private func chartContent(now: Date) -> some View {
-        let visibleRange = now.addingTimeInterval(-300)...now
+        let visibleRange = now.addingTimeInterval(-120)...now
         let visibleData = data.filter { visibleRange.contains($0.date) }
         let currentDomain = calculateDomain(for: visibleData)
         

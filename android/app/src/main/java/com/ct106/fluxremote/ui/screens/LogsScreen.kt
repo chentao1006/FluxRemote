@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,6 +21,9 @@ import com.ct106.fluxremote.R
 import com.ct106.fluxremote.core.RemoteAPIClient
 import com.ct106.fluxremote.model.LogItem
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.JsonPrimitive
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,7 +43,15 @@ fun LogsScreen(
                 val api = apiClient.getApi() ?: return@launch
                 val response = api.getLogs()
                 if (response.isSuccessful) {
-                    logs = response.body()?.data ?: emptyList()
+                    val data = response.body()?.data
+                    if (data != null) {
+                        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+                        try {
+                            logs = Json { ignoreUnknownKeys = true }.decodeFromJsonElement(kotlinx.serialization.builtins.ListSerializer(LogItem.serializer()), data)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -58,7 +70,7 @@ fun LogsScreen(
                 title = { Text(stringResource(R.string.logs_mgmt)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back))
+                        Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.modules))
                     }
                 },
                 actions = {
@@ -105,7 +117,14 @@ fun LogContentScreen(
             val api = apiClient.getApi() ?: return@LaunchedEffect
             val response = api.getLogContent(logItem.path)
             if (response.isSuccessful) {
-                content = response.body()?.content ?: ""
+                val data = response.body()?.data
+                if (data != null) {
+                    content = if (data is kotlinx.serialization.json.JsonPrimitive) {
+                        data.content
+                    } else {
+                        data.toString()
+                    }
+                }
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -119,7 +138,7 @@ fun LogContentScreen(
                 title = { Text(logItem.name) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.back))
+                        Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.modules))
                     }
                 }
             )

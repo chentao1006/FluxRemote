@@ -2,3 +2,23 @@
 xcuserdata
 *.log
 ios/FluxRemote/Config.xcconfig
+
+# Android
+android/build/
+android/.gradle/
+android/app/build/
+android/app/.cxx/
+android/.idea/
+android/local.properties
+android/gradle.properties
+android/gradle/
+!android/gradle/wrapper/gradle-wrapper.jar
+!android/gradle/wrapper/gradle-wrapper.properties
+*.apk
+*.aar
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+*.swp

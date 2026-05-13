@@ -5,10 +5,8 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.ct106.fluxremote.model.AIConfig
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -20,60 +18,84 @@ data class ServerConfig(
     var name: String,
     var url: String,
     var username: String? = null,
+    var password: String? = null,
     var isLauncher: Boolean = false,
     var lastUpdatedAt: Long = System.currentTimeMillis(),
     var rememberPassword: Boolean = true,
     var autoLogin: Boolean = true
 ) {
     val baseURL: String
-        get() = if (url.endsWith("/")) url else "$url/"
+        get() = if (url.startsWith("http")) (if (url.endsWith("/")) url else "$url/") else "http://" + (if (url.endsWith("/")) url else "$url/")
 }
 
 private val Context.dataStore by preferencesDataStore(name = "flux_remote_settings")
 
 class ServerManager(private val context: Context) {
     private val json = Json { ignoreUnknownKeys = true }
-    
+    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO + kotlinx.coroutines.SupervisorJob())
+
     private val _servers = MutableStateFlow<List<ServerConfig>>(emptyList())
     val servers: StateFlow<List<ServerConfig>> = _servers
-    
+
     private val _selectedServerId = MutableStateFlow<String?>(null)
     val selectedServerId: StateFlow<String?> = _selectedServerId
+
+    companion object {
+        private val _authenticatedServerIds = MutableStateFlow<Set<String>>(emptySet())
+        private val _reachabilityStatuses = MutableStateFlow<Map<String, Boolean?>>(emptyMap())
+    }
     
-    private val _reachabilityStatuses = MutableStateFlow<Map<String, Boolean?>>(emptyMap())
-    val reachabilityStatuses: StateFlow<Map<String, Boolean?>> = _reachabilityStatuses
-    
-    private val _authenticatedServerIds = MutableStateFlow<Set<String>>(emptySet())
     val authenticatedServerIds: StateFlow<Set<String>> = _authenticatedServerIds
-    
-    private val _passwords = MutableStateFlow<Map<String, String>>(emptyMap())
+    val reachabilityStatuses: StateFlow<Map<String, Boolean?>> = _reachabilityStatuses
 
     private val _isInitializing = MutableStateFlow(true)
     val isInitializing: StateFlow<Boolean> = _isInitializing
 
     private val SERVERS_KEY = stringPreferencesKey("flux_remote_servers_v2")
     private val SELECTED_SERVER_ID_KEY = stringPreferencesKey("selected_server_id_v2")
+    private val LANGUAGE_KEY = stringPreferencesKey("app_language_v1")
     private val PASSWORDS_KEY = stringPreferencesKey("flux_remote_passwords_v1")
-    private val AI_CONFIG_KEY = stringPreferencesKey("flux_remote_shared_ai_config")
+
+    private val _language = MutableStateFlow<String>("auto")
+    val language: StateFlow<String> = _language
+    private val _passwords = MutableStateFlow<Map<String, String>>(emptyMap())
+
+    init {
+        scope.launch {
+            context.dataStore.data.collect { preferences ->
+                val serversJson = preferences[SERVERS_KEY] ?: "[]"
+                try {
+                    val servers = json.decodeFromString<List<ServerConfig>>(serversJson)
+                    _servers.value = servers.sortedBy { it.name }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+
+                _selectedServerId.value = preferences[SELECTED_SERVER_ID_KEY]
+                _language.value = preferences[LANGUAGE_KEY] ?: "auto"
+                val passwordsJson = preferences[PASSWORDS_KEY] ?: "{}"
+                try {
+                    _passwords.value = json.decodeFromString<Map<String, String>>(passwordsJson)
+                } catch (e: Exception) {
+                    _passwords.value = emptyMap()
+                }
+                _isInitializing.value = false
+            }
+        }
+    }
 
     suspend fun loadInitialData() {
-        context.dataStore.data.map { preferences ->
-            val serversJson = preferences[SERVERS_KEY] ?: "[]"
-            val servers = json.decodeFromString<List<ServerConfig>>(serversJson)
-            _servers.value = servers.sortedBy { it.name }
-            
-            _selectedServerId.value = preferences[SELECTED_SERVER_ID_KEY]
-            
-            val passwordsJson = preferences[PASSWORDS_KEY] ?: "{}"
-            _passwords.value = json.decodeFromString<Map<String, String>>(passwordsJson)
-            _isInitializing.value = false
-        }.collect {}
+        // Now handled in init, but keeping the method to avoid breaking MainActivity
+        // We just wait until _isInitializing is false
+        _isInitializing.first { !it }
     }
 
     suspend fun addServer(server: ServerConfig) {
         val current = _servers.value.toMutableList()
-        current.add(server)
-        updateServers(current)
+        if (current.none { it.id == server.id }) {
+            current.add(server)
+            saveServers(current)
+        }
         if (_selectedServerId.value == null) {
             selectServer(server)
         }
@@ -83,29 +105,35 @@ class ServerManager(private val context: Context) {
         val current = _servers.value.map {
             if (it.id == server.id) server.copy(lastUpdatedAt = System.currentTimeMillis()) else it
         }
-        updateServers(current)
+        saveServers(current)
     }
 
     suspend fun removeServer(server: ServerConfig) {
         val current = _servers.value.filter { it.id != server.id }
-        updateServers(current)
+        saveServers(current)
         if (_selectedServerId.value == server.id) {
-            _selectedServerId.value = current.firstOrNull()?.id
-            saveSelectedServerId(_selectedServerId.value)
+            saveSelectedServerId(current.firstOrNull()?.id)
         }
         removePassword(server.id)
         setAuthenticated(server.id, false)
     }
 
-    private suspend fun updateServers(newList: List<ServerConfig>) {
-        _servers.value = newList.sortedBy { it.name }
+    suspend fun removePassword(serverId: String) {
+        val current = _passwords.value.toMutableMap()
+        current.remove(serverId)
+        _passwords.value = current
         context.dataStore.edit { preferences ->
-            preferences[SERVERS_KEY] = json.encodeToString(_servers.value)
+            preferences[PASSWORDS_KEY] = json.encodeToString(current)
+        }
+    }
+
+    private suspend fun saveServers(newList: List<ServerConfig>) {
+        context.dataStore.edit { preferences ->
+            preferences[SERVERS_KEY] = json.encodeToString(newList)
         }
     }
 
     suspend fun selectServer(server: ServerConfig) {
-        _selectedServerId.value = server.id
         saveSelectedServerId(server.id)
     }
 
@@ -117,6 +145,12 @@ class ServerManager(private val context: Context) {
                 preferences.remove(SELECTED_SERVER_ID_KEY)
             }
         }
+    }
+
+    suspend fun logout() {
+        val server = getSelectedServer() ?: return
+        setAuthenticated(server.id, false)
+        removePassword(server.id)
     }
 
     fun setAuthenticated(serverId: String, authenticated: Boolean) {
@@ -136,18 +170,17 @@ class ServerManager(private val context: Context) {
         } else {
             current.remove(serverId)
         }
-        _passwords.value = current
         context.dataStore.edit { preferences ->
             preferences[PASSWORDS_KEY] = json.encodeToString(current)
         }
     }
 
     fun getPassword(serverId: String): String? {
-        return _passwords.value[serverId]
+        return _passwords.value[serverId] ?: _servers.value.find { it.id == serverId }?.password
     }
 
-    private suspend fun removePassword(serverId: String) {
-        setPassword(serverId, null)
+    fun hasSavedPassword(serverId: String): Boolean {
+        return getPassword(serverId) != null
     }
 
     fun updateReachability(serverId: String, isOffline: Boolean) {
@@ -159,5 +192,9 @@ class ServerManager(private val context: Context) {
     fun getSelectedServer(): ServerConfig? {
         val id = _selectedServerId.value ?: return _servers.value.firstOrNull()
         return _servers.value.find { it.id == id }
+    }
+
+    suspend fun setLanguage(language: String) {
+        context.dataStore.edit { it[LANGUAGE_KEY] = language }
     }
 }

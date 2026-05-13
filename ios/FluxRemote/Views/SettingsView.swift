@@ -38,7 +38,6 @@ struct SettingsView: View {
                 }
                 
                 Section(header: Text(languageManager.t("settings.featureControl"))) {
-                    Toggle(languageManager.t("sidebar.monitor"), isOn: featureBinding(\.monitor))
                     Toggle(languageManager.t("sidebar.processes"), isOn: featureBinding(\.processes))
                     Toggle(languageManager.t("sidebar.logs"), isOn: featureBinding(\.logs))
                     Toggle(languageManager.t("sidebar.configs"), isOn: featureBinding(\.configs))
