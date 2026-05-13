@@ -10,8 +10,8 @@ struct ServerConfig: Codable, Identifiable, Hashable {
     var lastUpdatedAt: Date = Date()
     
     // New fields for remember password and auto login
-    var rememberPassword: Bool = false
-    var autoLogin: Bool = false
+    var rememberPassword: Bool = true
+    var autoLogin: Bool = true
     
     enum CodingKeys: String, CodingKey {
         case id, name, url, username, isLauncher, lastUpdatedAt, rememberPassword, autoLogin
@@ -97,6 +97,10 @@ class ServerManager {
     
     private var reachabilityTimer: Timer?
     var reachabilityStatuses: [UUID: Bool?] = [:] // nil = unknown, false = online, true = offline
+    var refreshingReachabilityServerIds: Set<UUID> = []
+    var isCheckingReachability = false
+    var isSyncingServers = false
+    var isInitializing = true
     
     init() {
         if let data = UserDefaults.standard.data(forKey: aiConfigKey),
@@ -122,13 +126,27 @@ class ServerManager {
         // Setup cloud sync observers but defer initial sync
         setupCloudSync()
         
-        // Asynchronously check cloud for updates after a short delay to allow app to finish launching
+        // Unified initialization task
         Task {
-            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s delay
-            await manualSync()
+            await performInitialSetup()
         }
         
-        startReachabilityTimer()
+        startReachabilityTimer(skipInitialCheck: true)
+    }
+    
+    private func performInitialSetup() async {
+        isInitializing = true
+        defer { isInitializing = false }
+        
+        print("ServerManager: Starting initial setup...")
+        
+        // 1. Sync with iCloud first to get latest server list
+        await manualSync()
+        
+        // 2. Then check reachability for all servers
+        await checkAllServersReachability()
+        
+        print("ServerManager: Initial setup complete.")
     }
     
     private func loadLocalServers() {
@@ -192,7 +210,15 @@ class ServerManager {
                     
                     if cloudDate > localDate || fsDate.timeIntervalSince(localDate) > 60 {
                         print("iCloud: Updating '\(cloudServer.name)' because Cloud is newer.")
-                        merged[index] = cloudServer
+                        var updatedServer = cloudServer
+                        // Protect local auto-login settings from being overwritten by older cloud data
+                        if localServer.autoLogin {
+                            updatedServer.autoLogin = true
+                            updatedServer.rememberPassword = true
+                        } else if localServer.rememberPassword {
+                            updatedServer.rememberPassword = true
+                        }
+                        merged[index] = updatedServer
                         hasChangesFromCloud = true
                     } else if timeDiff > 120 { // ONLY upload back if local is SIGNIFICANTLY newer (real intentional edit)
                         print("iCloud: Local version of '\(localServer.name)' is MUCH newer (>2m). Considering it a local edit. Uploading back.")
@@ -200,7 +226,14 @@ class ServerManager {
                     } else {
                         // Conflict with close timestamps: Prefer the cloud as it's the more likely source of truth across devices
                         print("iCloud: Conflict for '\(cloudServer.name)' with close timestamps (\(Int(timeDiff))s). Preferring Cloud.")
-                        merged[index] = cloudServer
+                        var updatedServer = cloudServer
+                        if localServer.autoLogin {
+                            updatedServer.autoLogin = true
+                            updatedServer.rememberPassword = true
+                        } else if localServer.rememberPassword {
+                            updatedServer.rememberPassword = true
+                        }
+                        merged[index] = updatedServer
                         hasChangesFromCloud = true
                     }
                 }
@@ -269,7 +302,24 @@ class ServerManager {
     }
     
     func getPassword(for serverId: UUID) -> String? {
-        localPasswords[serverId]
+        if let password = localPasswords[serverId] {
+            return password
+        }
+        
+        // Fallback: try to find by URL if ID lookup fails (handles UUID changes during migration/sync)
+        if let server = servers.first(where: { $0.id == serverId }) {
+            let targetURL = server.url.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            for (id, password) in localPasswords {
+                if let otherServer = servers.first(where: { $0.id == id }) {
+                    let otherURL = otherServer.url.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                    if otherURL == targetURL {
+                        return password
+                    }
+                }
+            }
+        }
+        
+        return nil
     }
     
     func setPassword(_ password: String?, for serverId: UUID) {
@@ -330,6 +380,8 @@ class ServerManager {
     
     func manualSync() async {
         print("iCloud: FORCED Manual sync requested.")
+        isSyncingServers = true
+        defer { isSyncingServers = false }
         
         // 1. Try to re-initialize ubiquity container if not ready
         if CloudSyncManager.shared.ubiquityURL == nil {
@@ -410,7 +462,7 @@ class ServerManager {
     
     // MARK: - Reachability
     
-    private func startReachabilityTimer() {
+    private func startReachabilityTimer(skipInitialCheck: Bool = false) {
         reachabilityTimer?.invalidate()
         reachabilityTimer = Timer.scheduledTimer(withTimeInterval: 15.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
@@ -418,13 +470,22 @@ class ServerManager {
             }
         }
         
-        // Initial check
-        Task {
-            await checkAllServersReachability()
+        if !skipInitialCheck {
+            Task {
+                await checkAllServersReachability()
+            }
         }
     }
     
     func checkAllServersReachability() async {
+        let serverIds = Set(servers.map(\.id))
+        refreshingReachabilityServerIds = serverIds
+        isCheckingReachability = !serverIds.isEmpty
+        defer {
+            refreshingReachabilityServerIds = []
+            isCheckingReachability = false
+        }
+        
         for server in servers {
             let baseURL = server.baseURL
             let isOffline = baseURL != nil ? await checkServerStatus(baseURL!) : true
@@ -432,6 +493,8 @@ class ServerManager {
             if reachabilityStatuses[server.id] != isOffline {
                 reachabilityStatuses[server.id] = isOffline
             }
+            
+            refreshingReachabilityServerIds.remove(server.id)
         }
     }
     
@@ -440,24 +503,29 @@ class ServerManager {
         // This avoids false greens from tunnel relays (like InstaTunnel) that return 404 for 'tunnel not found'.
         var request = URLRequest(url: url.appendingPathComponent("api/auth/login"))
         request.httpMethod = "GET"
-        request.timeoutInterval = 3.0
+        request.timeoutInterval = 5.0
         
-        do {
-            let (_, response) = try await URLSession.shared.data(for: request)
-            if let httpResponse = response as? HTTPURLResponse {
-                let statusCode = httpResponse.statusCode
-                // 200 (OK), 401 (Unauthorized - common if session is expired), 
-                // and 405 (Method Not Allowed) all prove the Flux app is reachable.
-                if statusCode == 200 || statusCode == 401 || statusCode == 405 {
-                    return false // online
+        // Add a small retry mechanism for transient network issues during app launch
+        for attempt in 1...2 {
+            do {
+                let (_, response) = try await URLSession.shared.data(for: request)
+                if let httpResponse = response as? HTTPURLResponse {
+                    let statusCode = httpResponse.statusCode
+                    // 200 (OK), 401 (Unauthorized - common if session is expired), 
+                    // and 405 (Method Not Allowed) all prove the Flux app is reachable.
+                    if statusCode == 200 || statusCode == 401 || statusCode == 405 {
+                        return false // online
+                    }
+                    // Any other status (404, 503, etc.) indicates the app is not truly reachable.
+                    return true
                 }
-                // Any other status (404, 503, etc.) indicates the app is not truly reachable.
-                return true
+            } catch {
+                if attempt == 2 { return true }
+                // Wait 1s before retry
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
             }
-            return true
-        } catch {
-            return true
         }
+        return true
     }
 }
 

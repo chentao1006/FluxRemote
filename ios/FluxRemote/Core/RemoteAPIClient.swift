@@ -25,8 +25,8 @@ class RemoteAPIClient {
     var features: FeatureToggles = FeatureToggles()
     var aiConfig: AIConfig?
     var languageManager: AppLanguageManager?
-    var isAutoLoggingIn: Bool = false
-    private var isPerformingAutoLogin = false
+    var isAutoLoggingIn: Bool { currentLoginTask != nil }
+    private var currentLoginTask: Task<Bool, Never>?
     
     // Shared state for persistent content
     var dashboardStats: RemoteSystemStats? = nil
@@ -80,16 +80,32 @@ class RemoteAPIClient {
             Task { await fetchSettings() }
         } else if server.autoLogin, let username = server.username, let password = ServerManager.shared.getPassword(for: server.id) {
             // Attempt auto login
-            isAutoLoggingIn = true
+            print("RemoteAPIClient: Attempting auto-login for server \(server.name)")
             Task {
-                print("RemoteAPIClient: Attempting auto-login for server \(server.name)")
-                await login(urlString: server.url, credentials: [
+                await performSharedLogin(urlString: server.url, credentials: [
                     "username": username,
                     "password": password
                 ], serverId: server.id, rememberPassword: server.rememberPassword, autoLogin: server.autoLogin)
-                isAutoLoggingIn = false
             }
         }
+    }
+    
+    @discardableResult
+    private func performSharedLogin(urlString: String, credentials: [String: String], serverId: UUID? = nil, rememberPassword: Bool = false, autoLogin: Bool = false) async -> Bool {
+        // If a login is already in progress, wait for it
+        if let existingTask = currentLoginTask {
+            return await existingTask.value
+        }
+        
+        let loginTask = Task<Bool, Never> {
+            await login(urlString: urlString, credentials: credentials, serverId: serverId, rememberPassword: rememberPassword, autoLogin: autoLogin)
+            return self.isAuthenticated
+        }
+        
+        currentLoginTask = loginTask
+        let result = await loginTask.value
+        currentLoginTask = nil
+        return result
     }
     
     func login(urlString: String, credentials: [String: String], serverId: UUID? = nil, rememberPassword: Bool = false, autoLogin: Bool = false) async {
@@ -226,26 +242,25 @@ class RemoteAPIClient {
                 if let server = ServerManager.shared.selectedServer, 
                    server.autoLogin, 
                    let username = server.username, 
-                   let password = ServerManager.shared.getPassword(for: server.id),
-                   !isPerformingAutoLogin {
+                   let password = ServerManager.shared.getPassword(for: server.id) {
                     
-                    isPerformingAutoLogin = true
                     print("RemoteAPIClient: Session expired (401). Attempting silent re-login...")
-                    
-                    await login(urlString: server.url, credentials: [
+                    let success = await performSharedLogin(urlString: server.url, credentials: [
                         "username": username,
                         "password": password
                     ], serverId: server.id, rememberPassword: server.rememberPassword, autoLogin: server.autoLogin)
                     
-                    isPerformingAutoLogin = false
-                    
-                    if isAuthenticated {
+                    if success {
                         print("RemoteAPIClient: Silent re-login successful. Retrying request...")
                         return try await request(path, method: method, body: body)
                     }
                 }
                 
-                logout()
+                // If we reach here, either auto-login failed or was not enabled
+                // But only logout if there isn't another login task that might succeed later
+                if currentLoginTask == nil {
+                    logout()
+                }
             }
             
             var errorMsg = "HTTP Error \(httpResponse.statusCode)"
@@ -301,26 +316,23 @@ class RemoteAPIClient {
                 if let server = ServerManager.shared.selectedServer, 
                    server.autoLogin, 
                    let username = server.username, 
-                   let password = ServerManager.shared.getPassword(for: server.id),
-                   !isPerformingAutoLogin {
+                   let password = ServerManager.shared.getPassword(for: server.id) {
                     
-                    isPerformingAutoLogin = true
                     print("RemoteAPIClient: Session expired (401). Attempting silent re-login...")
-                    
-                    await login(urlString: server.url, credentials: [
+                    let success = await performSharedLogin(urlString: server.url, credentials: [
                         "username": username,
                         "password": password
                     ], serverId: server.id, rememberPassword: server.rememberPassword, autoLogin: server.autoLogin)
                     
-                    isPerformingAutoLogin = false
-                    
-                    if isAuthenticated {
+                    if success {
                         print("RemoteAPIClient: Silent re-login successful. Retrying request...")
                         return try await request(path, method: method, encodableBody: encodableBody)
                     }
                 }
                 
-                logout()
+                if currentLoginTask == nil {
+                    logout()
+                }
             }
             
             var errorMsg = "HTTP Error \(httpResponse.statusCode)"

@@ -8,8 +8,7 @@ struct FluxLoginView: View {
     @State private var username: String = ""
     @State private var password: String = ""
     @State private var serverName: String = ""
-    @State private var rememberPassword: Bool = true
-    @State private var autoLogin: Bool = false
+    @State private var autoLogin: Bool = true
     @FocusState private var focusedField: Field?
     var isAddingServer: Bool = false
     var initialURL: String? = nil
@@ -198,8 +197,7 @@ struct FluxLoginView: View {
                     serverName = ""
                     username = ""
                     password = ""
-                    rememberPassword = true
-                    autoLogin = false
+                    autoLogin = true
                 } else if let initialURL {
                     panelURL = initialURL
                     if let initialServerName {
@@ -216,9 +214,12 @@ struct FluxLoginView: View {
                         return serverURL == targetURL
                     }) {
                         username = existing.username ?? ""
-                        rememberPassword = existing.rememberPassword
-                        autoLogin = existing.autoLogin
-                        if rememberPassword {
+                        // Default to true for existing servers too if we are showing the login view, 
+                        // unless the user explicitly previously set it (but here we prefer true as default)
+                        autoLogin = true 
+                        
+                        // Load password if autoLogin OR rememberPassword was previously set
+                        if existing.autoLogin || existing.rememberPassword {
                             password = ServerManager.shared.getPassword(for: existing.id) ?? ""
                         }
                     }

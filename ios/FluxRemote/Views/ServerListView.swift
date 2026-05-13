@@ -12,11 +12,26 @@ struct ServerListView: View {
     @Binding var selection: NavigationItem?
     @Environment(\.dismiss) private var dismiss
     
+    private var isBackgroundLoading: Bool {
+        ServerManager.shared.isSyncingServers || 
+        ServerManager.shared.isCheckingReachability ||
+        ServerManager.shared.isInitializing
+    }
+    
     var body: some View {
         List {
             Section {
                 Toggle(languageManager.t("settings.cloudSync"), isOn: Bindable(ServerManager.shared).isCloudSyncEnabled)
                     .tint(Color("AccentColor"))
+            } header: {
+                HStack {
+                    Text(languageManager.t("settings.cloudSync"))
+                    Spacer()
+                    if ServerManager.shared.isSyncingServers {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                }
             }
             
             Section {
@@ -99,6 +114,15 @@ struct ServerListView: View {
                         }
                     }
                 }
+            } header: {
+                HStack {
+                    Text(languageManager.t("settings.serverList"))
+                    Spacer()
+                    if isBackgroundLoading {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                }
             }
         }
         .tint(Color("AccentColor"))
@@ -179,11 +203,20 @@ struct ServerRow: View {
     var body: some View {
         Button(action: onSelect) {
             HStack(spacing: 12) {
-                // Reachability dot
                 let status = ServerManager.shared.reachabilityStatuses[server.id]
-                Circle()
-                    .fill(status == nil ? Color.gray : (status == true ? Color.red : Color.green))
-                    .frame(width: 8, height: 8)
+                let isRefreshingStatus = ServerManager.shared.refreshingReachabilityServerIds.contains(server.id)
+                
+                Group {
+                    if isRefreshingStatus || status == nil || ServerManager.shared.isInitializing {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Circle()
+                            .fill(status == true ? Color.red : Color.green)
+                            .frame(width: 8, height: 8)
+                    }
+                }
+                .frame(width: 12, height: 12)
                 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
@@ -239,7 +272,6 @@ struct ServerEditView: View {
     @Environment(AppLanguageManager.self) private var languageManager
     @State private var name: String
     @State private var url: String
-    @State private var rememberPassword: Bool
     @State private var autoLogin: Bool
     var server: ServerConfig
     var onSave: (ServerConfig) -> Void
@@ -249,7 +281,6 @@ struct ServerEditView: View {
         self.onSave = onSave
         _name = State(initialValue: server.name)
         _url = State(initialValue: server.url)
-        _rememberPassword = State(initialValue: server.rememberPassword)
         _autoLogin = State(initialValue: server.autoLogin)
     }
     
@@ -292,9 +323,8 @@ struct ServerEditView: View {
                         updated.url = url
                         updated.rememberPassword = autoLogin
                         updated.autoLogin = autoLogin
-                        if !autoLogin {
-                            ServerManager.shared.setPassword(nil, for: server.id)
-                        }
+                        // We no longer clear password automatically here to respect user preference
+                        // unless they manually logout from settings.
                         
                         if urlChanged {
                             ServerManager.shared.setAuthenticated(false, for: server.id)
