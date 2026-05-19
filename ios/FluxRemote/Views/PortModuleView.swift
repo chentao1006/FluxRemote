@@ -53,6 +53,16 @@ struct PortModuleView: View {
         }
     }
 
+    // 当前筛选状态的本地化显示
+    var stateFilterLabel: String {
+        stateFilter == "all" ? languageManager.t("ports.allStates") : localizedState(stateFilter)
+    }
+
+    // 当前筛选后端口总数
+    var filteredPortCount: Int {
+        filteredGroups.reduce(0) { $0 + $1.ports.count }
+    }
+
     var body: some View {
         ZStack {
             List {
@@ -93,9 +103,15 @@ struct PortModuleView: View {
                         }
                     }
                 } label: {
-                    Image(systemName: "line.3.horizontal.decrease.circle")
+                    HStack(spacing: 4) {
+                        Image(systemName: "line.3.horizontal.decrease")
+                        Text(stateFilterLabel)
+                            .font(.caption2)
+                        Text("(\(filteredPortCount))")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
-
             }
         }
         .refreshable {

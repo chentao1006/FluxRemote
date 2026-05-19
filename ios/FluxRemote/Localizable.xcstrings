@@ -7,6 +7,9 @@
     " | " : {
 
     },
+    "(%@)" : {
+
+    },
     "%@" : {
 
     },
@@ -3679,23 +3682,6 @@
         }
       }
     },
-    "ports.state.closing" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "CLOSING"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "关闭中"
-          }
-        }
-      }
-    },
     "ports.state.closed" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3709,6 +3695,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已关闭"
+          }
+        }
+      }
+    },
+    "ports.state.closing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CLOSING"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭中"
           }
         }
       }

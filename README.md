@@ -12,7 +12,7 @@ Flux Remote is the official mobile application for FluxMonitor, allowing users t
 ## Features
 - Real-time service status monitoring
 - Manage and configure services
-- Multi-module support (Docker, Nginx, Logs, etc.)
+- Multi-module support (Docker, Nginx, Logs, Configs, Launch Agents, Processes, Ports, etc.)
 - Multi-language interface (Chinese/English)
 
 ## Installation & Usage
@@ -43,10 +43,14 @@ App Store:
 - [ ] Push notification support
 
 ### Android
-- [ ] Project initialization
-- [ ] Login & authentication module
-- [ ] All module features implementation
-- [ ] Multi-language interface (EN/CH)
-- [ ] AI Assistant
-- [ ] UI/UX improvements
+- [x] Compose project initialization
+- [x] Server list, login, authentication, and saved-server switching
+- [x] Dashboard and system monitoring
+- [x] Process management
+- [x] Port management
+- [x] Logs and configuration file management
+- [x] Docker, Nginx, and Launch Agent modules
+- [x] Multi-language interface (EN/CH)
+- [x] AI settings and AI analysis for supported modules
+- [ ] Release packaging and distribution
 - [ ] Push notification support

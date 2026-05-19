@@ -294,14 +294,6 @@ struct AppContainerView: View {
         let serviceItems = [NavigationItem.launchagent, .docker, .nginx].filter { isFeatureEnabled(for: $0) && !visibleItems.contains($0) }
 
         return List {
-            Section {
-                Button {
-                    showingPrimaryTabsCustomization = true
-                } label: {
-                    Label(languageManager.t("navigation.customizeTabs"), systemImage: "square.grid.2x2")
-                }
-            }
-
             if !systemItems.isEmpty {
                 Section(languageManager.t("sidebar.systemTools")) {
                     ForEach(systemItems) { item in
@@ -321,6 +313,11 @@ struct AppContainerView: View {
             Section(languageManager.t("sidebar.settings")) {
                 tabRow(for: .settings)
                 tabRow(for: .servers)
+                Button {
+                    showingPrimaryTabsCustomization = true
+                } label: {
+                    Label(languageManager.t("navigation.customizeTabs"), systemImage: "square.grid.2x2")
+                }
             }
         }
         .listStyle(.insetGrouped)
