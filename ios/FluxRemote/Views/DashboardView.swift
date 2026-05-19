@@ -22,6 +22,7 @@ struct DashboardView: View {
     @State private var dockerSummary: (running: Int, total: Int) = (0, 0)
     @State private var nginxSummary: (active: Int, total: Int) = (0, 0)
     @State private var procSummary: (total: Int, topName: String, topCpu: String) = (0, "", "")
+    @State private var portSummary: PortSummary = .empty
     @State private var agentSummary: (loaded: Int, total: Int) = (0, 0)
     @State private var logSummary: (total: Int, lastFile: String) = (0, "")
     @State private var configSummary: (total: Int, sysCount: Int, userCount: Int) = (0, 0, 0)
@@ -156,6 +157,7 @@ struct DashboardView: View {
                 dockerSummary = (0, 0)
                 nginxSummary = (0, 0)
                 procSummary = (0, "", "")
+                portSummary = .empty
                 agentSummary = (0, 0)
                 logSummary = (0, "")
                 configSummary = (0, 0, 0)
@@ -235,6 +237,16 @@ struct DashboardView: View {
                                     )
                                 }
                                 
+                                if features.ports != false {
+                                    SummaryCard(
+                                        icon: "network",
+                                        title: languageManager.t("sidebar.ports"),
+                                        value: Text("\(portSummary.ports)").font(.system(size: 18, weight: .bold)),
+                                        subtitle: "\(portSummary.listening) \(languageManager.t("ports.listeningPorts"))",
+                                        action: { selection = .ports }
+                                    )
+                                }
+
                                 if features.logs != false {
                                     SummaryCard(
                                         icon: "doc.text.fill",
@@ -392,6 +404,13 @@ struct DashboardView: View {
             let top = procResponse.data.first
             self.procSummary = (procResponse.data.count, top?.command ?? "", top != nil ? "\(top!.cpu)%" : "")
         }
+
+        // Ports
+        if let portsResponse: PortsResponse = try? await apiClient.request("/api/system/ports") {
+            self.portSummary = portsResponse.summary
+            self.apiClient.portGroups = portsResponse.data
+            self.apiClient.portSummary = portsResponse.summary
+        }
         
         // LaunchAgents
         if let agentResponse: LaunchAgentResponse = try? await apiClient.request("/api/launchagent/list") {
@@ -512,6 +531,7 @@ Memory: \(stats.memory.usedMB)/\(stats.memory.totalMB)MB
 Disk: \(stats.disk.percent)
 Load: \(stats.loadAvg)
 Processes: \(procSummary.total) Total, Top: \(procSummary.topName) (\(procSummary.topCpu))
+Ports: \(portSummary.ports) Used, \(portSummary.listening) Listening
 Docker: \(dockerSummary.running)/\(dockerSummary.total) Running
 Nginx: \(nginxSummary.active)/\(nginxSummary.total) Active
 LaunchAgents: \(agentSummary.loaded)/\(agentSummary.total) Loaded
@@ -960,4 +980,3 @@ struct StatRow: View {
             .environment(RemoteAPIClient())
     }
 }
-

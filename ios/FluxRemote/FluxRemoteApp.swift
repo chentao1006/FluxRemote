@@ -35,11 +35,6 @@ struct FluxRemoteApp: App {
                             await MainActor.run {
                                 self.languageManager = lm
                                 self.apiClient = api
-                                
-                                // Reset switchServer to trigger auto-login if needed
-                                if let server = ServerManager.shared.selectedServer {
-                                    api.switchServer(to: server)
-                                }
                             }
                         }
                     }

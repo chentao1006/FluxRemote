@@ -43,26 +43,39 @@ interface FluxRemoteApi {
     @POST("api/nginx/action")
     suspend fun nginxAction(@Body body: Map<String, String>): Response<ActionResponse>
 
+    @POST("api/nginx/site/action")
+    suspend fun nginxSiteAction(@Body body: Map<String, String>): Response<ActionResponse>
+
     // Processes
     @GET("api/system/processes")
     suspend fun getProcesses(@Query("sort") sort: String = "cpu"): Response<ProcessResponse>
 
-    @POST("api/process/action")
+    @GET("api/system/processes")
+    suspend fun getProcessDetail(@Query("pid") pid: String): Response<DetailedProcessResponse>
+
+    @POST("api/system/processes")
     suspend fun processAction(@Body body: Map<String, String>): Response<ActionResponse>
+
+    // Ports
+    @GET("api/system/ports")
+    suspend fun getPorts(): Response<PortsResponse>
+
+    @POST("api/system/ports")
+    suspend fun portAction(@Body body: Map<String, String>): Response<ActionResponse>
 
     // Logs
     @GET("api/logs")
     suspend fun getLogs(): Response<LogResponse>
 
-    @GET("api/logs/content")
-    suspend fun getLogContent(@Query("path") path: String): Response<LogResponse>
+    @GET("api/logs")
+    suspend fun getLogContent(@Query("file") path: String): Response<LogResponse>
 
     // Configs
     @GET("api/configs")
     suspend fun getConfigs(): Response<ConfigResponse>
 
-    @GET("api/configs/content")
-    suspend fun getConfigContent(@Query("path") path: String): Response<ConfigResponse>
+    @POST("api/configs")
+    suspend fun configAction(@Body body: Map<String, String>): Response<ConfigResponse>
 
     // Launch Agent
     @GET("api/launchagent/list")
@@ -73,14 +86,37 @@ interface FluxRemoteApi {
 
     @POST("api/settings")
     suspend fun updateSettings(@Body settings: ServerSettings): Response<ActionResponse>
+
+    @GET("api/system/screenshot")
+    suspend fun getScreenshot(): Response<ScreenshotResponse>
 }
 
-class RemoteAPIClient(private val serverManager: ServerManager) {
+class RemoteAPIClient(val serverManager: ServerManager) {
     private var currentRetrofit: Retrofit? = null
     private var currentApi: FluxRemoteApi? = null
     
-    // Feature toggles state
-    var features by androidx.compose.runtime.mutableStateOf(FeatureToggles())
+    // Feature toggles and config state
+    var features by mutableStateOf(FeatureToggles())
+    var aiConfig by mutableStateOf<AIConfig?>(null)
+    var dashboardStats by mutableStateOf<RemoteSystemStats?>(null)
+    var dashboardHistory = mutableListOf<MetricPoint>()
+    
+    // Caches
+    var processItems by mutableStateOf<List<RemoteProcess>>(emptyList())
+    var portGroups by mutableStateOf<List<PortProcessGroup>>(emptyList())
+    var portSummary by mutableStateOf(PortSummary())
+    var logItems by mutableStateOf<List<LogItem>>(emptyList())
+    var configItems by mutableStateOf<List<ConfigItem>>(emptyList())
+    var agentItems by mutableStateOf<List<LaunchAgentItem>>(emptyList())
+    var dockerContainers by mutableStateOf<List<DockerContainer>>(emptyList())
+    var dockerImages by mutableStateOf<List<DockerImage>>(emptyList())
+    var nginxSites by mutableStateOf<List<NginxSite>>(emptyList())
+    var isNginxRunning by mutableStateOf<Boolean?>(null)
+    var nginxPids by mutableStateOf<List<String>>(emptyList())
+    var nginxBinPath by mutableStateOf("")
+
+    val baseURL: String?
+        get() = serverManager.getSelectedServer()?.baseURL
 
     companion object {
         private val cookieStore = mutableMapOf<String, List<okhttp3.Cookie>>()
@@ -140,11 +176,12 @@ class RemoteAPIClient(private val serverManager: ServerManager) {
                     serverManager.setPassword(server.id, credentials["password"])
                 }
                 
-                // Fetch features after login
+                // Fetch features and AI config after login
                 val settingsResponse = api.getSettings()
                 if (settingsResponse.isSuccessful) {
-                    settingsResponse.body()?.data?.features?.let {
-                        features = it
+                    settingsResponse.body()?.data?.let { settings ->
+                        features = settings.features ?: FeatureToggles()
+                        aiConfig = settings.ai
                     }
                 }
                 

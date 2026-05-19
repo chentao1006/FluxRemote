@@ -36,6 +36,8 @@ class RemoteAPIClient {
     var launchAgents: [LaunchAgentItem] = []
     var logItems: [LogItem] = []
     var processItems: [RemoteProcess] = []
+    var portGroups: [PortProcessGroup] = []
+    var portSummary: PortSummary = .empty
     var configItems: [ConfigItem] = []
     
     let session: URLSession
@@ -70,6 +72,8 @@ class RemoteAPIClient {
         self.launchAgents = []
         self.logItems = []
         self.processItems = []
+        self.portGroups = []
+        self.portSummary = .empty
         self.configItems = []
         self.features = FeatureToggles()
         // self.aiConfig remains from shared config

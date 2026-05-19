@@ -204,6 +204,110 @@ struct RemoteProcess: Codable, Identifiable {
     var id: String { pid }
 }
 
+// MARK: - Port Models
+
+struct PortEntry: Codable, Identifiable, Hashable {
+    let protocolName: String
+    let port: Int
+    let address: String
+    let endpoint: String
+    let endpoints: [String]?
+    let connectionCount: Int?
+    let state: String
+
+    var id: String { "\(protocolName)-\(port)-\(endpoint)-\(state)" }
+
+    enum CodingKeys: String, CodingKey {
+        case protocolName = "protocol"
+        case port
+        case address
+        case endpoint
+        case endpoints
+        case connectionCount
+        case state
+    }
+
+    init(protocolName: String, port: Int, address: String, endpoint: String, endpoints: [String]? = nil, connectionCount: Int? = nil, state: String = "") {
+        self.protocolName = protocolName
+        self.port = port
+        self.address = address
+        self.endpoint = endpoint
+        self.endpoints = endpoints
+        self.connectionCount = connectionCount
+        self.state = state
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.protocolName = (try? container.decode(String.self, forKey: .protocolName)) ?? ""
+        self.port = (try? container.decode(Int.self, forKey: .port)) ?? 0
+        self.address = (try? container.decode(String.self, forKey: .address)) ?? ""
+        self.endpoint = (try? container.decode(String.self, forKey: .endpoint)) ?? ""
+        self.endpoints = try? container.decode([String].self, forKey: .endpoints)
+        self.connectionCount = try? container.decode(Int.self, forKey: .connectionCount)
+        self.state = (try? container.decode(String.self, forKey: .state)) ?? ""
+    }
+}
+
+struct PortProcessGroup: Codable, Identifiable {
+    let pid: String
+    let command: String
+    let user: String
+    let cpu: String
+    let mem: String
+    let ppid: String
+    let start: String
+    let fullCommand: String
+    let ports: [PortEntry]
+
+    var id: String { pid }
+
+    enum CodingKeys: String, CodingKey {
+        case pid, command, user, cpu, mem, ppid, start, fullCommand, ports
+    }
+
+    init(pid: String, command: String, user: String, cpu: String, mem: String, ppid: String = "", start: String = "", fullCommand: String = "", ports: [PortEntry]) {
+        self.pid = pid
+        self.command = command
+        self.user = user
+        self.cpu = cpu
+        self.mem = mem
+        self.ppid = ppid
+        self.start = start
+        self.fullCommand = fullCommand
+        self.ports = ports
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.pid = try container.decode(String.self, forKey: .pid)
+        self.command = try container.decode(String.self, forKey: .command)
+        self.user = (try? container.decode(String.self, forKey: .user)) ?? ""
+        self.cpu = (try? container.decode(String.self, forKey: .cpu)) ?? "0.0"
+        self.mem = (try? container.decode(String.self, forKey: .mem)) ?? "0.0"
+        self.ppid = (try? container.decode(String.self, forKey: .ppid)) ?? ""
+        self.start = (try? container.decode(String.self, forKey: .start)) ?? ""
+        self.fullCommand = (try? container.decode(String.self, forKey: .fullCommand)) ?? command
+        self.ports = (try? container.decode([PortEntry].self, forKey: .ports)) ?? []
+    }
+}
+
+struct PortSummary: Codable {
+    let processes: Int
+    let ports: Int
+    let listening: Int
+
+    static let empty = PortSummary(processes: 0, ports: 0, listening: 0)
+}
+
+struct PortsResponse: Codable {
+    let success: Bool
+    let data: [PortProcessGroup]
+    let summary: PortSummary
+    let error: String?
+    let details: String?
+}
+
 // MARK: - Log Models
 
 struct LogItem: Codable, Identifiable, Hashable {
@@ -310,6 +414,7 @@ struct AIConfig: Codable {
 struct FeatureToggles: Codable {
     var monitor: Bool?
     var processes: Bool?
+    var ports: Bool?
     var logs: Bool?
     var configs: Bool?
     var launchagent: Bool?

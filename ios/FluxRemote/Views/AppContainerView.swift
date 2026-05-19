@@ -7,20 +7,24 @@ struct AppContainerView: View {
     @State private var morePath: [NavigationItem] = []
     @State private var modulePaths: [NavigationItem: NavigationPath] = [:]
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    
+
     @State private var showingQuickTerminal = false
+    @State private var showingPrimaryTabsCustomization = false
+    @State private var primaryNavigationItems: [NavigationItem] = [.processes, .logs, .configs]
+    @AppStorage("primaryNavigationItems") private var primaryNavigationItemsData: Data = Data()
     @AppStorage("terminalButtonIsLeft") private var storedIsLeft: Bool = false
     @AppStorage("terminalButtonYOffset") private var storedYOffset: Double = 0
     @State private var terminalButtonOffset: CGSize = .zero
     @State private var lastTerminalButtonOffset: CGSize = .zero
     @State private var isDraggingTerminalButton = false
     @State private var showingServerManagement = false
-    
+    @State private var initialServerEntryAttempted = false
+
     var body: some View {
         Group {
             if !apiClient.isAuthenticated {
                 Group {
-                    if apiClient.isAutoLoggingIn || (apiClient.isLoading && ServerManager.shared.selectedServer?.autoLogin == true) {
+                    if shouldShowStartupProgress {
                         ZStack {
                             Color(.systemBackground).ignoresSafeArea()
                             VStack(spacing: 20) {
@@ -28,7 +32,7 @@ struct AppContainerView: View {
                                     .resizable()
                                     .aspectRatio(contentMode: .fit)
                                     .frame(width: 128, height: 128)
-                                
+
                                 ProgressView()
                                     .tint(Color("AccentColor"))
                             }
@@ -47,7 +51,7 @@ struct AppContainerView: View {
                             .onAppear {
                                 Task { await apiClient.fetchSettings() }
                             }
-                    
+
                         // Floating Terminal Button
                         if horizontalSizeClass != .regular || selection != nil {
                             Button {
@@ -81,9 +85,9 @@ struct AppContainerView: View {
                                         let screenWidth = geometry.size.width
                                         let buttonWidth: CGFloat = 56
                                         let horizontalPadding: CGFloat = 16
-                                        
+
                                         let leftSnapX = -(screenWidth - buttonWidth - 2 * horizontalPadding)
-                                        
+
                                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                                             if terminalButtonOffset.width < leftSnapX / 2 {
                                                 terminalButtonOffset.width = leftSnapX
@@ -92,12 +96,12 @@ struct AppContainerView: View {
                                                 terminalButtonOffset.width = 0
                                                 storedIsLeft = false
                                             }
-                                            
+
                                             let tabBarPadding: CGFloat = horizontalSizeClass == .regular ? 0 : 50
                                             let availableHeight = geometry.size.height - tabBarPadding - 2 * horizontalPadding - buttonWidth
                                             let minY = -availableHeight
                                             let maxY: CGFloat = 0
-                                            
+
                                             terminalButtonOffset.height = min(maxY, max(minY, terminalButtonOffset.height))
                                             storedYOffset = -Double(terminalButtonOffset.height)
                                         }
@@ -116,6 +120,12 @@ struct AppContainerView: View {
         .sheet(isPresented: $showingQuickTerminal) {
             QuickTerminalView()
         }
+        .sheet(isPresented: $showingPrimaryTabsCustomization) {
+            PrimaryTabsCustomizationView(
+                selectedItems: $primaryNavigationItems,
+                enabledItems: primaryTabCandidates.filter { isFeatureEnabled(for: $0) }
+            )
+        }
         .sheet(isPresented: $showingServerManagement) {
             NavigationStack {
                 ServerListView(selection: $selection)
@@ -130,8 +140,60 @@ struct AppContainerView: View {
         }
         .onChange(of: ServerManager.shared.selectedServerId) { checkOfflineStatus() }
         .onChange(of: ServerManager.shared.servers) { checkOfflineStatus() }
+        .onChange(of: ServerManager.shared.isInitializing) { attemptInitialServerEntryIfReady() }
+        .onChange(of: ServerManager.shared.isCheckingReachability) { attemptInitialServerEntryIfReady() }
+        .onChange(of: ServerManager.shared.reachabilityStatuses) { _, _ in attemptInitialServerEntryIfReady() }
+        .onAppear {
+            attemptInitialServerEntryIfReady()
+        }
     }
-    
+
+    private var shouldShowStartupProgress: Bool {
+        apiClient.isAutoLoggingIn ||
+        (apiClient.isLoading && ServerManager.shared.selectedServer?.autoLogin == true) ||
+        shouldWaitForInitialServerStatus
+    }
+
+    private var shouldWaitForInitialServerStatus: Bool {
+        guard !initialServerEntryAttempted,
+              selectedConfiguredServer != nil,
+              !ServerManager.shared.servers.isEmpty
+        else { return false }
+
+        return ServerManager.shared.isInitializing ||
+        ServerManager.shared.isCheckingReachability ||
+        selectedServerReachability == nil
+    }
+
+    private var selectedServerReachability: Bool? {
+        guard let server = selectedConfiguredServer else { return nil }
+        return ServerManager.shared.reachabilityStatuses[server.id] ?? nil
+    }
+
+    private var selectedConfiguredServer: ServerConfig? {
+        guard let sid = ServerManager.shared.selectedServerId else { return nil }
+        return ServerManager.shared.servers.first { $0.id == sid }
+    }
+
+    private func attemptInitialServerEntryIfReady() {
+        guard !initialServerEntryAttempted,
+              !apiClient.isAuthenticated,
+              !apiClient.isAutoLoggingIn,
+              !ServerManager.shared.isInitializing,
+              !ServerManager.shared.isCheckingReachability,
+              let server = selectedConfiguredServer,
+              let isOffline = selectedServerReachability
+        else { return }
+
+        initialServerEntryAttempted = true
+
+        if isOffline {
+            showingServerManagement = true
+        } else {
+            apiClient.switchServer(to: server)
+        }
+    }
+
     private func checkOfflineStatus() {
         if let sid = ServerManager.shared.selectedServerId,
            ServerManager.shared.reachabilityStatuses[sid] == true {
@@ -144,14 +206,14 @@ struct AppContainerView: View {
         let buttonWidth: CGFloat = 56
         let horizontalPadding: CGFloat = 16
         let leftSnapX = -(screenWidth - buttonWidth - 2 * horizontalPadding)
-        
+
         terminalButtonOffset = CGSize(
             width: storedIsLeft ? leftSnapX : 0,
             height: -CGFloat(storedYOffset)
         )
         lastTerminalButtonOffset = terminalButtonOffset
     }
-    
+
     @ViewBuilder
     private var responsiveContent: some View {
         if horizontalSizeClass == .regular {
@@ -173,8 +235,8 @@ struct AppContainerView: View {
         } else {
             TabView(selection: $selection) {
                 if isFeatureEnabled(for: .monitor) {
-                    NavigationStack { 
-                        contentView(for: .monitor) 
+                    NavigationStack {
+                        contentView(for: .monitor)
                             .navigationTitle(languageManager.t(NavigationItem.monitor.title))
                             .toolbar {
                                 ToolbarItem(placement: .topBarLeading) {
@@ -186,37 +248,17 @@ struct AppContainerView: View {
                     .tabItem { Label(languageManager.t(NavigationItem.monitor.title), systemImage: NavigationItem.monitor.icon) }
                     .tag(Optional(NavigationItem.monitor))
                 }
-                
-                if isFeatureEnabled(for: .processes) {
-                    NavigationStack { 
-                        contentView(for: .processes)
-                            .navigationTitle(languageManager.t(NavigationItem.processes.title))
+
+                ForEach(visiblePrimaryTabs) { item in
+                    NavigationStack {
+                        contentView(for: item)
+                            .navigationTitle(languageManager.t(item.title))
                     }
                     .tint(.primary)
-                    .tabItem { Label(languageManager.t(NavigationItem.processes.title), systemImage: NavigationItem.processes.icon) }
-                    .tag(Optional(NavigationItem.processes))
+                    .tabItem { Label(languageManager.t(item.title), systemImage: item.icon) }
+                    .tag(Optional(item))
                 }
-                
-                if isFeatureEnabled(for: .logs) {
-                    NavigationStack { 
-                        contentView(for: .logs)
-                            .navigationTitle(languageManager.t(NavigationItem.logs.title))
-                    }
-                    .tint(.primary)
-                    .tabItem { Label(languageManager.t(NavigationItem.logs.title), systemImage: NavigationItem.logs.icon) }
-                    .tag(Optional(NavigationItem.logs))
-                }
-                
-                if isFeatureEnabled(for: .configs) {
-                    NavigationStack { 
-                        contentView(for: .configs)
-                            .navigationTitle(languageManager.t(NavigationItem.configs.title))
-                    }
-                    .tint(.primary)
-                    .tabItem { Label(languageManager.t(NavigationItem.configs.title), systemImage: NavigationItem.configs.icon) }
-                    .tag(Optional(NavigationItem.configs))
-                }
-                
+
                 NavigationStack(path: $morePath) {
                     moreView
                         .navigationDestination(for: NavigationItem.self) { item in
@@ -230,24 +272,52 @@ struct AppContainerView: View {
             .onChange(of: selection) { oldValue, newValue in
                 guard horizontalSizeClass == .compact else { return }
                 guard let newValue = newValue else { return }
-                let moreItems: [NavigationItem] = [.launchagent, .docker, .nginx, .settings, .servers]
-                if moreItems.contains(newValue) {
+                let moreItems = primaryTabCandidates + [.settings, .servers]
+                if moreItems.contains(newValue), !visiblePrimaryTabs.contains(newValue) {
                     selection = .more
                     morePath = [newValue]
                 }
             }
+            .onAppear {
+                loadPrimaryNavigationItems()
+            }
+            .onChange(of: primaryNavigationItems) { _, newValue in
+                savePrimaryNavigationItems(newValue)
+            }
             .tint(Color("AccentColor"))
         }
     }
-    
+
     private var moreView: some View {
-        List {
-            Section(languageManager.t("sidebar.serviceManagement")) {
-                if isFeatureEnabled(for: .launchagent) { tabRow(for: .launchagent) }
-                if isFeatureEnabled(for: .docker) { tabRow(for: .docker) }
-                if isFeatureEnabled(for: .nginx) { tabRow(for: .nginx) }
+        let visibleItems = visiblePrimaryTabs
+        let systemItems = [NavigationItem.processes, .ports, .logs, .configs].filter { isFeatureEnabled(for: $0) && !visibleItems.contains($0) }
+        let serviceItems = [NavigationItem.launchagent, .docker, .nginx].filter { isFeatureEnabled(for: $0) && !visibleItems.contains($0) }
+
+        return List {
+            Section {
+                Button {
+                    showingPrimaryTabsCustomization = true
+                } label: {
+                    Label(languageManager.t("navigation.customizeTabs"), systemImage: "square.grid.2x2")
+                }
             }
-            
+
+            if !systemItems.isEmpty {
+                Section(languageManager.t("sidebar.systemTools")) {
+                    ForEach(systemItems) { item in
+                        tabRow(for: item)
+                    }
+                }
+            }
+
+            if !serviceItems.isEmpty {
+                Section(languageManager.t("sidebar.serviceManagement")) {
+                    ForEach(serviceItems) { item in
+                        tabRow(for: item)
+                    }
+                }
+            }
+
             Section(languageManager.t("sidebar.settings")) {
                 tabRow(for: .settings)
                 tabRow(for: .servers)
@@ -256,7 +326,47 @@ struct AppContainerView: View {
         .listStyle(.insetGrouped)
         .navigationTitle(languageManager.t("common.more"))
     }
-    
+
+    private var primaryTabCandidates: [NavigationItem] {
+        [.processes, .ports, .logs, .configs, .launchagent, .docker, .nginx]
+    }
+
+    private var visiblePrimaryTabs: [NavigationItem] {
+        normalizedPrimaryTabs(primaryNavigationItems, using: primaryTabCandidates.filter { isFeatureEnabled(for: $0) })
+    }
+
+    private func normalizedPrimaryTabs(_ items: [NavigationItem], using enabledItems: [NavigationItem]) -> [NavigationItem] {
+        var result: [NavigationItem] = []
+
+        for item in items where enabledItems.contains(item) && !result.contains(item) {
+            result.append(item)
+        }
+
+        for item in enabledItems where result.count < 3 && !result.contains(item) {
+            result.append(item)
+        }
+
+        return Array(result.prefix(3))
+    }
+
+    private func loadPrimaryNavigationItems() {
+        guard !primaryNavigationItemsData.isEmpty,
+              let rawValues = try? JSONDecoder().decode([String].self, from: primaryNavigationItemsData)
+        else { return }
+
+        let decodedItems = rawValues.compactMap(NavigationItem.init(rawValue:)).filter { primaryTabCandidates.contains($0) }
+        if !decodedItems.isEmpty {
+            primaryNavigationItems = normalizedPrimaryTabs(decodedItems, using: primaryTabCandidates)
+        }
+    }
+
+    private func savePrimaryNavigationItems(_ items: [NavigationItem]) {
+        let normalizedItems = normalizedPrimaryTabs(items, using: primaryTabCandidates)
+        if let data = try? JSONEncoder().encode(normalizedItems.map(\.rawValue)) {
+            primaryNavigationItemsData = data
+        }
+    }
+
     private var sidebarContent: some View {
         List(selection: $selection) {
             Section {
@@ -270,10 +380,10 @@ struct AppContainerView: View {
                                 Circle()
                                     .fill(status == nil ? Color.gray : (status == true ? Color.red : Color.green))
                                     .frame(width: 8, height: 8)
-                                
+
                                 Text(server.name)
                                     .foregroundStyle(status == true ? .secondary : .primary)
-                                
+
                                 if server.id == ServerManager.shared.selectedServerId {
                                     Spacer()
                                     Image(systemName: "checkmark")
@@ -283,9 +393,9 @@ struct AppContainerView: View {
                         }
                         .disabled(ServerManager.shared.reachabilityStatuses[server.id] == true)
                     }
-                    
+
                     Divider()
-                    
+
                     Button {
                         showingServerManagement = true
                     } label: {
@@ -310,23 +420,24 @@ struct AppContainerView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.primary)
             }
-            
+
             Section(languageManager.t("sidebar.home")) {
                 if isFeatureEnabled(for: .monitor) { tabRow(for: .monitor) }
             }
-            
+
             Section(languageManager.t("sidebar.systemTools")) {
                 if isFeatureEnabled(for: .processes) { tabRow(for: .processes) }
+                if isFeatureEnabled(for: .ports) { tabRow(for: .ports) }
                 if isFeatureEnabled(for: .logs) { tabRow(for: .logs) }
                 if isFeatureEnabled(for: .configs) { tabRow(for: .configs) }
             }
-            
+
             Section(languageManager.t("sidebar.serviceManagement")) {
                 if isFeatureEnabled(for: .launchagent) { tabRow(for: .launchagent) }
                 if isFeatureEnabled(for: .docker) { tabRow(for: .docker) }
                 if isFeatureEnabled(for: .nginx) { tabRow(for: .nginx) }
             }
-            
+
             Section(languageManager.t("sidebar.system")) {
                 tabRow(for: .settings)
                 tabRow(for: .servers)
@@ -335,11 +446,12 @@ struct AppContainerView: View {
         .listStyle(.sidebar)
         .tint(Color("AccentColor"))
     }
-    
+
     private func isFeatureEnabled(for item: NavigationItem) -> Bool {
         switch item {
         case .monitor: return apiClient.features.monitor ?? true
         case .processes: return apiClient.features.processes ?? true
+        case .ports: return apiClient.features.ports ?? true
         case .logs: return apiClient.features.logs ?? true
         case .configs: return apiClient.features.configs ?? true
         case .launchagent: return apiClient.features.launchagent ?? true
@@ -350,19 +462,20 @@ struct AppContainerView: View {
         case .more: return true
         }
     }
-    
+
     private func tabRow(for item: NavigationItem) -> some View {
         NavigationLink(value: item) {
             Label(languageManager.t(item.title), systemImage: item.icon)
         }
         .tag(item)
     }
-    
+
     @ViewBuilder
     private func contentView(for item: NavigationItem) -> some View {
         switch item {
         case .monitor: DashboardView(selection: $selection)
         case .processes: ProcessListView(selection: $selection)
+        case .ports: PortModuleView(selection: $selection)
         case .logs: LogModuleView(selection: $selection)
         case .configs: ConfigsModuleView(selection: $selection)
         case .launchagent: LaunchAgentModuleView(selection: $selection)
@@ -373,12 +486,108 @@ struct AppContainerView: View {
         case .more: EmptyView()
         }
     }
-    
+
     private func pathBinding(for item: NavigationItem) -> Binding<NavigationPath> {
         Binding(
             get: { modulePaths[item] ?? NavigationPath() },
             set: { modulePaths[item] = $0 }
         )
+    }
+}
+
+struct PrimaryTabsCustomizationView: View {
+    @Binding var selectedItems: [NavigationItem]
+    let enabledItems: [NavigationItem]
+
+    @Environment(AppLanguageManager.self) private var languageManager
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    ForEach(0..<3, id: \.self) { index in
+                        Picker(slotTitle(for: index), selection: binding(for: index)) {
+                            ForEach(availableItems(for: index)) { item in
+                                Label(languageManager.t(item.title), systemImage: item.icon)
+                                    .tag(item)
+                            }
+                        }
+                    }
+                } footer: {
+                    Text(languageManager.t("navigation.customizeTabsFooter"))
+                }
+            }
+            .navigationTitle(languageManager.t("navigation.customizeTabs"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "checkmark")
+                    }
+                }
+            }
+            .onAppear {
+                selectedItems = normalizedItems(selectedItems)
+            }
+            .onChange(of: enabledItems) { _, _ in
+                selectedItems = normalizedItems(selectedItems)
+            }
+        }
+    }
+
+    private func slotTitle(for index: Int) -> String {
+        String(format: languageManager.t("navigation.tabSlot"), index + 2)
+    }
+
+    private func binding(for index: Int) -> Binding<NavigationItem> {
+        Binding(
+            get: {
+                normalizedItems(selectedItems)[safe: index] ?? enabledItems.first ?? .processes
+            },
+            set: { newValue in
+                var items = normalizedItems(selectedItems)
+                guard items.indices.contains(index) else { return }
+                if let existingIndex = items.firstIndex(of: newValue), existingIndex != index {
+                    items[existingIndex] = items[index]
+                }
+                items[index] = newValue
+                selectedItems = normalizedItems(items)
+            }
+        )
+    }
+
+    private func availableItems(for index: Int) -> [NavigationItem] {
+        let currentItem = normalizedItems(selectedItems)[safe: index]
+        return enabledItems.filter { item in
+            item == currentItem || !selectedItems.contains(item)
+        }
+    }
+
+    private func normalizedItems(_ items: [NavigationItem]) -> [NavigationItem] {
+        var result: [NavigationItem] = []
+
+        for item in items where enabledItems.contains(item) && !result.contains(item) {
+            result.append(item)
+        }
+
+        for item in enabledItems where result.count < 3 && !result.contains(item) {
+            result.append(item)
+        }
+
+        if result.isEmpty {
+            return [.processes, .logs, .configs]
+        }
+
+        return Array(result.prefix(3))
+    }
+}
+
+private extension Array {
+    subscript(safe index: Index) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
 }
 
@@ -393,7 +602,7 @@ struct QuickTerminalView: View {
     @State private var commands: [QuickCommand] = []
     @State private var showingManageCommands = false
     @State private var executionTask: Task<Void, Never>?
-    
+
     // AI states
     @State private var isTranslating = false
     @State private var isAnalyzingOutput = false
@@ -420,9 +629,9 @@ struct QuickTerminalView: View {
         QuickCommand(name: "monitor.quickCmds.who", command: "who"),
         QuickCommand(name: "monitor.quickCmds.dns", command: "cat /etc/resolv.conf")
     ]
-    
+
     @State private var showingAIDisabledAlert = false
-    
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
@@ -437,7 +646,7 @@ struct QuickTerminalView: View {
                                 .foregroundStyle(Color.accentColor)
                         }
                         .padding(.leading, 16)
-                        
+
                         ForEach(commands) { cmd in
                             Button {
                                 command = cmd.command
@@ -455,7 +664,7 @@ struct QuickTerminalView: View {
                     }
                     .padding(.vertical, 12)
                 }
-                
+
                 // Input Bar (Redesigned)
                 VStack(spacing: 0) {
                     HStack(spacing: 8) {
@@ -469,7 +678,7 @@ struct QuickTerminalView: View {
                                     executionTask = Task { await execute() }
                                 }
                             }
-                        
+
                         // Action Buttons (Right Side)
                         HStack(spacing: 12) {
                             // AI Wand Button
@@ -489,7 +698,7 @@ struct QuickTerminalView: View {
                                     .foregroundStyle(Color("AccentColor"))
                             }
                             .disabled(isTranslating)
-                            
+
                             // Execution Button
                             if isExecuting {
                                 Button {
@@ -516,7 +725,7 @@ struct QuickTerminalView: View {
                     .background(.ultraThinMaterial)
                     Divider()
                 }
-                
+
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 0) {
@@ -556,7 +765,7 @@ struct QuickTerminalView: View {
                                     }
                                 }
                                 .textSelection(.enabled)
-                                
+
                             }
                         }
                     }
@@ -594,7 +803,7 @@ struct QuickTerminalView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Button(action: { dismiss() }) { Image(systemName: "xmark") }
                 }
-                
+
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(action: { clearTerminal() }) {
                         Image(systemName: "eraser")
@@ -605,8 +814,8 @@ struct QuickTerminalView: View {
             .sheet(isPresented: $showingManageCommands) {
                 ManageCommandsView(commands: $commands)
             }
-            .onAppear { 
-                loadCommands() 
+            .onAppear {
+                loadCommands()
                 // Auto focus the input field
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     isFieldFocused = true
@@ -630,22 +839,22 @@ struct QuickTerminalView: View {
             quickCommandsData = encoded
         }
     }
-    
+
     private func execute() async {
         guard !command.isEmpty else { return }
         isFieldFocused = false // Dismiss keyboard
         isExecuting = true
         output = "\(languageManager.t("terminal.executing")): \(command)...\n\n"
-        
+
         do {
             guard let baseURL = apiClient.baseURL else { throw NSError(domain: "API", code: 400, userInfo: [NSLocalizedDescriptionKey: "No base URL"]) }
             var request = URLRequest(url: baseURL.appendingPathComponent("/api/system/command"))
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try JSONSerialization.data(withJSONObject: ["command": command])
-            
+
             let (result, response) = try await apiClient.session.bytes(for: request)
-            
+
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
                 if let httpRes = response as? HTTPURLResponse, httpRes.statusCode == 401 {
                     apiClient.logout()
@@ -654,14 +863,14 @@ struct QuickTerminalView: View {
                 let errorData = try await result.reduce(into: Data(), { @Sendable (data, byte) in data.append(byte) })
                 throw NSError(domain: "Terminal", code: 1, userInfo: [NSLocalizedDescriptionKey: String(data: errorData, encoding: .utf8) ?? "Server Error"])
             }
-            
+
             for try await line in result.lines {
                 if Task.isCancelled { throw CancellationError() }
                 await MainActor.run {
                     self.output += line + "\n"
                 }
             }
-            
+
             await MainActor.run {
                 self.output += "\n[\(languageManager.t("terminal.finished"))]"
                 self.isExecuting = false
@@ -683,23 +892,23 @@ struct QuickTerminalView: View {
         showingAIHint = false
         isTranslating = true
         let userInput = command
-        
+
         Task {
             do {
                 let strictPrompt = """
                 Task: Convert the following natural language requirement into a single-line macOS bash command.
                 Requirement: \(userInput)
-                
+
                 Mandatory Rule: Return ONLY the command text. No explanations. No markdown. No intro. No quotes.
                 Command:
                 """
-                
+
                 let stream = AIService.shared.analyzeStream(
                     prompt: strictPrompt,
                     systemPrompt: "You are a terminal command generator. Output ONLY raw bash commands.",
                     apiClient: apiClient
                 )
-                
+
                 var fullCommand = ""
                 for try await chunk in stream {
                     fullCommand += chunk
@@ -708,7 +917,7 @@ struct QuickTerminalView: View {
                         self.command = currentCommand
                     }
                 }
-                
+
                 await MainActor.run {
                     withAnimation {
                         self.isTranslating = false
@@ -732,7 +941,7 @@ struct QuickTerminalView: View {
             do {
                 let prompt = "Analyze this terminal output and provide explanations or suggestions in \(languageManager.aiResponseLanguage):\n\(output)\nPlease use Markdown formatting."
                 let stream = AIService.shared.analyzeStream(prompt: prompt, systemPrompt: "You are a terminal output analyzer.", apiClient: apiClient)
-                
+
                 for try await chunk in stream {
                     await MainActor.run {
                         if self.aiAnalysis == nil {
@@ -742,7 +951,7 @@ struct QuickTerminalView: View {
                         self.aiAnalysis! += chunk
                     }
                 }
-                
+
                 await MainActor.run {
                     self.isAnalyzingOutput = false
                 }
@@ -795,7 +1004,7 @@ struct SudoPasswordView: View {
     @Environment(\.dismiss) var dismiss
     @Environment(AppLanguageManager.self) private var languageManager
     var onConfirm: () -> Void
-    
+
     var body: some View {
         NavigationStack {
             Form {
@@ -845,7 +1054,7 @@ struct ManageCommandsView: View {
     @Environment(AppLanguageManager.self) private var languageManager
     @State private var commandToEdit: QuickCommand?
     @State private var editMode: EditMode = .inactive
-    
+
     var body: some View {
         NavigationStack {
             List {
@@ -922,7 +1131,7 @@ struct CommandEditorView: View {
     @State private var commandValue: String
     var initialCommand: QuickCommand
     var onSave: (QuickCommand) -> Void
-    
+
     init(command: QuickCommand, onSave: @escaping (QuickCommand) -> Void) {
         self.initialCommand = command
         self.onSave = onSave
@@ -930,7 +1139,7 @@ struct CommandEditorView: View {
         _name = State(initialValue: command.name)
         _commandValue = State(initialValue: command.command)
     }
-    
+
     var body: some View {
         NavigationStack {
             Form {
@@ -980,7 +1189,7 @@ struct TerminalAIPromptView: View {
     var onCancel: () -> Void
     @Environment(AppLanguageManager.self) private var languageManager
     @FocusState private var isFocused: Bool
-    
+
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -1002,7 +1211,7 @@ struct TerminalAIPromptView: View {
             }
             .padding()
             .background(Color(.secondarySystemGroupedBackground))
-            
+
             ZStack(alignment: .topLeading) {
                 if text.isEmpty {
                     Text(languageManager.t("monitor.aiPromptPlaceholder"))
@@ -1013,7 +1222,7 @@ struct TerminalAIPromptView: View {
                         .padding(.top, 12)
                         .allowsHitTesting(false)
                 }
-                
+
                 TextEditor(text: $text)
                     .font(.body)
                     .focused($isFocused)

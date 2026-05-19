@@ -39,6 +39,7 @@ struct SettingsView: View {
                 
                 Section(header: Text(languageManager.t("settings.featureControl"))) {
                     Toggle(languageManager.t("sidebar.processes"), isOn: featureBinding(\.processes))
+                    Toggle(languageManager.t("sidebar.ports"), isOn: featureBinding(\.ports))
                     Toggle(languageManager.t("sidebar.logs"), isOn: featureBinding(\.logs))
                     Toggle(languageManager.t("sidebar.configs"), isOn: featureBinding(\.configs))
                     Toggle(languageManager.t("sidebar.launchagent"), isOn: featureBinding(\.launchagent))

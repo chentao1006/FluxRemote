@@ -229,6 +229,7 @@ fun MainNavigation(serverManager: ServerManager, apiClient: RemoteAPIClient) {
                             
                             // System Tools
                             if (features.processes ?: true) DrawerMenuItem(stringResource(R.string.process_mgmt), "process", Icons.Default.Memory, "sidebar.systemTools") else null,
+                            if (features.ports ?: true) DrawerMenuItem(stringResource(R.string.ports_mgmt), "ports", Icons.Default.Lan, "sidebar.systemTools") else null,
                             if (features.logs ?: true) DrawerMenuItem(stringResource(R.string.logs_mgmt), "logs", Icons.Default.Description, "sidebar.systemTools") else null,
                             if (features.configs ?: true) DrawerMenuItem(stringResource(R.string.configs_mgmt), "configs", Icons.Default.Tune, "sidebar.systemTools") else null,
                             
@@ -348,11 +349,33 @@ fun MainNavigation(serverManager: ServerManager, apiClient: RemoteAPIClient) {
                 composable("nginx") {
                     NginxScreen(
                         apiClient = apiClient,
+                        onEditSite = { site ->
+                            if (site == null) navController.navigate("nginx_edit")
+                            else navController.navigate("nginx_edit?name=${site.name}")
+                        },
                         onBack = { scope.launch { drawerState.open() } }
+                    )
+                }
+                composable(
+                    "nginx_edit?name={name}",
+                    arguments = listOf(navArgument("name") { type = NavType.StringType; nullable = true; defaultValue = null })
+                ) { backStackEntry ->
+                    val name = backStackEntry.arguments?.getString("name")
+                    val site = apiClient.nginxSites.find { it.name == name }
+                    NginxSiteEditScreen(
+                        apiClient = apiClient,
+                        site = site,
+                        onBack = { navController.popBackStack() }
                     )
                 }
                 composable("process") {
                     ProcessScreen(
+                        apiClient = apiClient,
+                        onBack = { scope.launch { drawerState.open() } }
+                    )
+                }
+                composable("ports") {
+                    PortsScreen(
                         apiClient = apiClient,
                         onBack = { scope.launch { drawerState.open() } }
                     )
@@ -408,7 +431,23 @@ fun MainNavigation(serverManager: ServerManager, apiClient: RemoteAPIClient) {
                 composable("launchagent") {
                     LaunchAgentScreen(
                         apiClient = apiClient,
+                        onEditAgent = { agent ->
+                            if (agent == null) navController.navigate("agent_edit")
+                            else navController.navigate("agent_edit?path=${agent.path}")
+                        },
                         onBack = { scope.launch { drawerState.open() } }
+                    )
+                }
+                composable(
+                    "agent_edit?path={path}",
+                    arguments = listOf(navArgument("path") { type = NavType.StringType; nullable = true; defaultValue = null })
+                ) { backStackEntry ->
+                    val path = backStackEntry.arguments?.getString("path")
+                    val agent = apiClient.agentItems.find { it.path == path }
+                    LaunchAgentEditScreen(
+                        apiClient = apiClient,
+                        agent = agent,
+                        onBack = { navController.popBackStack() }
                     )
                 }
                 composable("settings") {

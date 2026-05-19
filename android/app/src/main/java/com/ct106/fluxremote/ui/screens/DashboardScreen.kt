@@ -1,36 +1,44 @@
 package com.ct106.fluxremote.ui.screens
 
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.clickable
+import android.graphics.BitmapFactory
+import android.util.Base64
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.CameraAlt
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.ct106.fluxremote.R
+import com.ct106.fluxremote.core.AIService
 import com.ct106.fluxremote.core.RemoteAPIClient
 import com.ct106.fluxremote.core.ServerManager
 import com.ct106.fluxremote.model.*
+import com.ct106.fluxremote.ui.components.*
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.Json
-
-data class MetricPoint(val cpu: Double, val memory: Double, val netIn: Double, val netOut: Double)
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.decodeFromJsonElement
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,6 +48,7 @@ fun DashboardScreen(
     onNavigateToServers: () -> Unit,
     onNavigate: (String) -> Unit
 ) {
+    val context = LocalContext.current
     val server = serverManager.getSelectedServer()
     var stats by remember { mutableStateOf<RemoteSystemStats?>(null) }
     var history by remember { mutableStateOf<List<MetricPoint>>(emptyList()) }
@@ -50,12 +59,22 @@ fun DashboardScreen(
     var dockerSummary by remember { mutableStateOf(Pair(0, 0)) }
     var nginxSummary by remember { mutableStateOf(Pair(0, 0)) }
     var procSummary by remember { mutableStateOf(Triple(0, "", "")) }
+    var portSummary by remember { mutableStateOf(PortSummary()) }
     var agentSummary by remember { mutableStateOf(Pair(0, 0)) }
     var logSummary by remember { mutableStateOf(Pair(0, "")) }
     var configSummary by remember { mutableStateOf(Triple(0, 0, 0)) }
 
+    // AI states
+    var aiAnalysis by remember { mutableStateOf<String?>(null) }
+    var isAnalyzing by remember { mutableStateOf(false) }
+    
+    // Screenshot states
+    var isCapturingScreenshot by remember { mutableStateOf(false) }
+    var capturedImage by remember { mutableStateOf<ImageBitmap?>(null) }
+
     val scope = rememberCoroutineScope()
     var lastSummaryFetch by remember { mutableStateOf(0L) }
+    var aiJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
 
     val authenticatedIds by serverManager.authenticatedServerIds.collectAsState()
     val isCurrentAuthenticated = server?.id?.let { authenticatedIds.contains(it) } ?: false
@@ -74,39 +93,24 @@ fun DashboardScreen(
         prevNetBytes = s.netBytes
         val newHistory = history + MetricPoint(cpu, mem, maxOf(0.0, netIn), maxOf(0.0, netOut))
         history = if (newHistory.size > 60) newHistory.drop(newHistory.size - 60) else newHistory
+        apiClient.dashboardHistory.clear()
+        apiClient.dashboardHistory.addAll(history)
     }
 
     suspend fun fetchStats() {
         try {
-            val api = apiClient.getApi()
-            if (api == null) {
-                errorMessage = "API Client not initialized"
-                return
-            }
+            val api = apiClient.getApi() ?: return
             val response = api.getStats()
             if (response.isSuccessful) {
                 val s = response.body()?.data
                 if (s != null) {
                     stats = s
+                    apiClient.dashboardStats = s
                     errorMessage = null
                     updateHistory(s)
-                } else {
-                    errorMessage = "Empty data received"
-                }
-            } else {
-                // Silence errors if we have a saved password but are not yet authenticated
-                if (!isCurrentAuthenticated && hasSavedPassword) {
-                    // Ignore error, wait for background login
-                } else {
-                    errorMessage = "Server error: ${response.code()} ${response.message()}"
                 }
             }
         } catch (e: Exception) {
-            if (!isCurrentAuthenticated && hasSavedPassword) {
-                // Ignore error
-            } else {
-                errorMessage = e.message ?: "Unknown error"
-            }
             e.printStackTrace()
         }
     }
@@ -119,7 +123,7 @@ fun DashboardScreen(
             val dr = api.getDockerContainers()
             if (dr.isSuccessful) {
                 val containers = dr.body()?.data ?: emptyList()
-                dockerSummary = Pair(containers.count { it.state.lowercase().contains("running") || it.state.lowercase().contains("up") }, containers.size)
+                dockerSummary = Pair(containers.count { it.state == "running" }, containers.size)
             }
         } catch (e: Exception) { e.printStackTrace() }
 
@@ -128,7 +132,7 @@ fun DashboardScreen(
             val nr = api.getNginxSites()
             if (nr.isSuccessful) {
                 val sites = nr.body()?.data ?: emptyList()
-                nginxSummary = Pair(sites.count { it.status.lowercase().contains("enabled") || it.status.lowercase().contains("active") || it.status.lowercase().contains("running") }, sites.size)
+                nginxSummary = Pair(sites.count { it.status == "enabled" }, sites.size)
             }
         } catch (e: Exception) { e.printStackTrace() }
 
@@ -139,6 +143,14 @@ fun DashboardScreen(
                 val procs = pr.body()?.data ?: emptyList()
                 val top = procs.firstOrNull()
                 procSummary = Triple(procs.size, top?.command ?: "", if (top != null) "${top.cpu}%" else "")
+            }
+        } catch (e: Exception) { e.printStackTrace() }
+
+        // Ports
+        try {
+            val ports = api.getPorts()
+            if (ports.isSuccessful) {
+                portSummary = ports.body()?.summary ?: PortSummary()
             }
         } catch (e: Exception) { e.printStackTrace() }
 
@@ -156,10 +168,10 @@ fun DashboardScreen(
             val lr = api.getLogs()
             if (lr.isSuccessful) {
                 val data = lr.body()?.data
-                if (data != null) {
-                    val logs = Json { ignoreUnknownKeys = true }.decodeFromJsonElement(kotlinx.serialization.builtins.ListSerializer(LogItem.serializer()), data)
-                    val sorted = logs.sortedByDescending { it.mtime }
-                    logSummary = Pair(logs.size, sorted.firstOrNull()?.name ?: "")
+                if (data is JsonArray) {
+                    val logs = Json { ignoreUnknownKeys = true }.decodeFromJsonElement<List<LogItem>>(data)
+                    val topCategory = logs.groupBy { it.category }.maxByOrNull { it.value.size }?.key ?: ""
+                    logSummary = Pair(logs.size, topCategory)
                 }
             }
         } catch (e: Exception) { e.printStackTrace() }
@@ -169,12 +181,66 @@ fun DashboardScreen(
             val cr = api.getConfigs()
             if (cr.isSuccessful) {
                 val configs = cr.body()?.data ?: emptyList()
-                val sysCount = configs.count { it.category.lowercase() in listOf("system", "sys") }
-                configSummary = Triple(configs.size, sysCount, configs.size - sysCount)
+                val sysCount = configs.count { it.category.lowercase() == "system" }
+                val usrCount = configs.count { it.category.lowercase() == "user" }
+                configSummary = Triple(configs.size, sysCount, usrCount)
             }
         } catch (e: Exception) { e.printStackTrace() }
     }
 
+    fun analyzeSystem() {
+        val currentStats = stats ?: return
+        isAnalyzing = true
+        aiAnalysis = null
+        val content = """
+            Hostname: ${currentStats.hostname}
+            OS: ${currentStats.osVersion}
+            CPU: ${((currentStats.cpu?.user ?: 0.0) + (currentStats.cpu?.sys ?: 0.0)).toInt()}%
+            Memory: ${currentStats.memory.usedMB}/${currentStats.memory.totalMB}MB
+            Disk: ${currentStats.disk.percent}
+            Load: ${currentStats.loadAvg}
+            Processes: ${procSummary.first} Total, Top: ${procSummary.second} (${procSummary.third})
+            Ports: ${portSummary.ports} Used, ${portSummary.listening} Listening
+            Docker: ${dockerSummary.first}/${dockerSummary.second} Running
+            Nginx: ${nginxSummary.first}/${nginxSummary.second} Active
+            LaunchAgents: ${agentSummary.first}/${agentSummary.second} Loaded
+        """.trimIndent()
+        val langName = context.getString(R.string.lang_name)
+        val systemPrompt = context.getString(R.string.system_expert_role, langName)
+
+        aiJob?.cancel()
+        aiJob = scope.launch {
+            AIService.getInstance(context).analyzeStream(content, systemPrompt, apiClient)
+                .catch { e ->
+                    aiAnalysis = context.getString(R.string.error_prefix, e.message ?: "")
+                    isAnalyzing = false
+                }
+                .collect { chunk ->
+                    if (aiAnalysis == null) aiAnalysis = ""
+                    aiAnalysis = aiAnalysis + chunk
+                    isAnalyzing = false
+                }
+        }
+    }
+
+    fun takeScreenshot() {
+        isCapturingScreenshot = true
+        scope.launch {
+            try {
+                val api = apiClient.getApi() ?: return@launch
+                val response = api.getScreenshot()
+                if (response.isSuccessful && response.body()?.success == true) {
+                    val base64 = response.body()?.data?.substringAfter(",") ?: ""
+                    val decodedString = Base64.decode(base64, Base64.DEFAULT)
+                    val bitmap = BitmapFactory.decodeByteArray(decodedString, 0, decodedString.size)
+                    capturedImage = bitmap.asImageBitmap()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            isCapturingScreenshot = false
+        }
+    }
 
     LaunchedEffect(server?.id, isCurrentAuthenticated) {
         if (server != null && (isCurrentAuthenticated || hasSavedPassword)) {
@@ -206,6 +272,14 @@ fun DashboardScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { analyzeSystem() }, enabled = !isAnalyzing && stats != null) {
+                        if (isAnalyzing) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                        else Icon(Icons.Default.AutoAwesome, contentDescription = stringResource(R.string.ai_analyze), tint = MaterialTheme.colorScheme.primary)
+                    }
+                    IconButton(onClick = { takeScreenshot() }, enabled = !isCapturingScreenshot) {
+                        if (isCapturingScreenshot) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                        else Icon(Icons.Default.CameraAlt, contentDescription = stringResource(R.string.monitor_screenshot))
+                    }
                     IconButton(onClick = { onNavigate("settings") }) {
                         Icon(Icons.Default.Settings, contentDescription = null)
                     }
@@ -223,28 +297,7 @@ fun DashboardScreen(
         }
     ) { padding ->
         if (stats == null && (errorMessage == null || (hasSavedPassword && !isCurrentAuthenticated))) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-            return@Scaffold
-        }
-
-        if (errorMessage != null && stats == null) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.WifiOff, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.error)
-                    Spacer(Modifier.height(16.dp))
-                    Text(errorMessage ?: "", color = MaterialTheme.colorScheme.error)
-                    Spacer(Modifier.height(16.dp))
-                    Button(onClick = { 
-                        scope.launch { 
-                            fetchStats()
-                            fetchSummaries()
-                            lastSummaryFetch = System.currentTimeMillis()
-                        } 
-                    }) { Text(stringResource(R.string.refresh)) }
-                }
-            }
+            LoadingView(Modifier.padding(padding))
             return@Scaffold
         }
 
@@ -253,436 +306,165 @@ fun DashboardScreen(
 
         LazyColumn(
             modifier = Modifier.padding(padding).fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 16.dp),
+            contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             item {
+                AIAnalysisCard(
+                    analysis = aiAnalysis,
+                    isAnalyzing = isAnalyzing,
+                    onDismiss = { 
+                        aiAnalysis = null
+                        isAnalyzing = false
+                        aiJob?.cancel()
+                        aiJob = null
+                    },
+                    modifier = Modifier.padding(16.dp)
+                )
+            }
+
+            item {
                 if (isLandscape) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(20.dp)
-                    ) {
-                        // Left Column: Metrics
+                    Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                         Column(modifier = Modifier.weight(1f)) {
-                            SectionHeader(stringResource(R.string.metrics_section))
-                            Spacer(Modifier.height(12.dp))
-                            val s = stats!!
-                            val cpuVal = (s.cpu?.user ?: 0.0) + (s.cpu?.sys ?: 0.0)
-                            val memPct = s.memory.usedMB.toDouble() / s.memory.totalMB * 100
-                            val netIn = history.lastOrNull()?.netIn ?: 0.0
-                            val netOut = history.lastOrNull()?.netOut ?: 0.0
-
-                            MetricChartCard(
-                                title = stringResource(R.string.cpu),
-                                value = "${cpuVal.toInt()}%",
-                                subValue = "User: ${s.cpu?.user?.toInt() ?: 0}% | Sys: ${s.cpu?.sys?.toInt() ?: 0}%",
-                                color = Color(0xFF4A90D9),
-                                data = history.map { it.cpu },
-                                domain = 0.0..100.0
-                            )
-                            Spacer(Modifier.height(12.dp))
-                            MetricChartCard(
-                                title = stringResource(R.string.memory),
-                                value = "${memPct.toInt()}%",
-                                subValue = "${s.memory.usedMB} MB / ${s.memory.totalMB} MB",
-                                color = Color(0xFFE8873A),
-                                data = history.map { it.memory },
-                                domain = 0.0..100.0
-                            )
-                            Spacer(Modifier.height(12.dp))
-                            NetworkChartCard(
-                                netIn = netIn,
-                                netOut = netOut,
-                                data = history
-                            )
+                            MetricsSection(stats!!, history)
                         }
-
-                        // Right Column: Service Summaries
                         Column(modifier = Modifier.weight(1f)) {
-                            SectionHeader(stringResource(R.string.sections_section))
-                            Spacer(Modifier.height(12.dp))
-                            
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                SummaryCard(
-                                    modifier = Modifier.weight(1f),
-                                    icon = Icons.Default.Memory,
-                                    title = stringResource(R.string.process_mgmt),
-                                    value = if (procSummary.second.isNotEmpty()) procSummary.second else "${procSummary.first}",
-                                    subtitle = if (procSummary.second.isNotEmpty()) "${procSummary.first} ${stringResource(R.string.processes)}" else "",
-                                    rightLabel = procSummary.third,
-                                    onClick = { onNavigate("process") }
-                                )
-                                SummaryCard(
-                                    modifier = Modifier.weight(1f),
-                                    icon = Icons.Default.Description,
-                                    title = stringResource(R.string.logs_mgmt),
-                                    value = if (logSummary.second.isNotEmpty()) logSummary.second else stringResource(R.string.none),
-                                    subtitle = "${logSummary.first} ${stringResource(R.string.logs)}",
-                                    onClick = { onNavigate("logs") }
-                                )
-                            }
-                            Spacer(Modifier.height(12.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                SummaryCard(
-                                    modifier = Modifier.weight(1f),
-                                    icon = Icons.Default.Settings,
-                                    title = stringResource(R.string.configs_mgmt),
-                                    value = "${configSummary.second} sys | ${configSummary.third} usr",
-                                    subtitle = "${configSummary.first} ${stringResource(R.string.configs)}",
-                                    onClick = { onNavigate("configs") }
-                                )
-                                SummaryCard(
-                                    modifier = Modifier.weight(1f),
-                                    icon = Icons.Default.Bolt,
-                                    title = stringResource(R.string.launchagents_mgmt),
-                                    value = "${agentSummary.first} / ${agentSummary.second}",
-                                    subtitle = stringResource(R.string.agents_loaded),
-                                    onClick = { onNavigate("launchagent") }
-                                )
-                            }
-                            Spacer(Modifier.height(12.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                SummaryCard(
-                                    modifier = Modifier.weight(1f),
-                                    icon = Icons.Default.Storage,
-                                    title = stringResource(R.string.docker_mgmt),
-                                    value = "${dockerSummary.first} / ${dockerSummary.second}",
-                                    subtitle = stringResource(R.string.docker_running),
-                                    onClick = { onNavigate("docker") }
-                                )
-                                SummaryCard(
-                                    modifier = Modifier.weight(1f),
-                                    icon = Icons.Default.Public,
-                                    title = stringResource(R.string.nginx_mgmt),
-                                    value = "${nginxSummary.first} / ${nginxSummary.second}",
-                                    subtitle = stringResource(R.string.nginx_active),
-                                    onClick = { onNavigate("nginx") }
-                                )
-                            }
-
+                            ServicesSection(dockerSummary, nginxSummary, procSummary, portSummary, agentSummary, configSummary, logSummary, onNavigate)
                             Spacer(Modifier.height(20.dp))
-                            SectionHeader(stringResource(R.string.system_info_section))
-                            Spacer(Modifier.height(12.dp))
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                val s = stats!!
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    SystemDetailTile(Modifier.weight(1f), icon = Icons.Default.Computer, title = stringResource(R.string.hostname), value = s.hostname)
-                                    SystemDetailTile(Modifier.weight(1f), icon = Icons.Default.Info, title = stringResource(R.string.os_version), value = s.osVersion)
-                                }
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    SystemDetailTile(Modifier.weight(1f), icon = Icons.Default.AccessTime, title = stringResource(R.string.uptime), value = s.uptime.split(",").firstOrNull() ?: s.uptime)
-                                    SystemDetailTile(Modifier.weight(1f), icon = Icons.Default.DeveloperBoard, title = stringResource(R.string.arch), value = s.arch)
-                                }
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    SystemDetailTile(Modifier.weight(1f), icon = Icons.Default.Storage, title = stringResource(R.string.disk_usage), value = "${s.disk.used} / ${s.disk.total}")
-                                    SystemDetailTile(Modifier.weight(1f), icon = Icons.Default.Speed, title = stringResource(R.string.load_avg), value = s.loadAvg)
-                                }
-                            }
+                            SystemInfoSection(stats!!)
                         }
                     }
                 } else {
-                    // Portrait - Single Column
                     Column {
-                        SectionHeader(stringResource(R.string.metrics_section))
-                        Spacer(Modifier.height(12.dp))
-                        val s = stats!!
-                        val cpuVal = (s.cpu?.user ?: 0.0) + (s.cpu?.sys ?: 0.0)
-                        val memPct = s.memory.usedMB.toDouble() / s.memory.totalMB * 100
-                        val netIn = history.lastOrNull()?.netIn ?: 0.0
-                        val netOut = history.lastOrNull()?.netOut ?: 0.0
-
-                        Column(
-                            modifier = Modifier.padding(horizontal = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            MetricChartCard(
-                                modifier = Modifier.fillMaxWidth(),
-                                title = stringResource(R.string.cpu),
-                                value = "${cpuVal.toInt()}%",
-                                subValue = "User: ${s.cpu?.user?.toInt() ?: 0}% | Sys: ${s.cpu?.sys?.toInt() ?: 0}%",
-                                color = Color(0xFF4A90D9),
-                                data = history.map { it.cpu },
-                                domain = 0.0..100.0
-                            )
-                            MetricChartCard(
-                                modifier = Modifier.fillMaxWidth(),
-                                title = stringResource(R.string.memory),
-                                value = "${memPct.toInt()}%",
-                                subValue = "${s.memory.usedMB} MB / ${s.memory.totalMB} MB",
-                                color = Color(0xFFE8873A),
-                                data = history.map { it.memory },
-                                domain = 0.0..100.0
-                            )
-                            NetworkChartCard(
-                                modifier = Modifier.fillMaxWidth(),
-                                netIn = netIn,
-                                netOut = netOut,
-                                data = history
-                            )
-                        }
+                        MetricsSection(stats!!, history)
+                        Spacer(Modifier.height(20.dp))
+                        ServicesSection(dockerSummary, nginxSummary, procSummary, portSummary, agentSummary, configSummary, logSummary, onNavigate)
+                        Spacer(Modifier.height(20.dp))
+                        SystemInfoSection(stats!!)
                     }
                 }
             }
+        }
+    }
 
-            if (!isLandscape) {
-                item {
-                    SectionHeader(stringResource(R.string.sections_section))
-                    Spacer(Modifier.height(12.dp))
-                    Column(
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            SummaryCard(
-                                modifier = Modifier.weight(1f),
-                                icon = Icons.Default.Memory,
-                                title = stringResource(R.string.process_mgmt),
-                                value = if (procSummary.second.isNotEmpty()) procSummary.second else "${procSummary.first}",
-                                subtitle = if (procSummary.second.isNotEmpty()) "${procSummary.first} ${stringResource(R.string.processes)}" else "",
-                                rightLabel = procSummary.third,
-                                onClick = { onNavigate("process") }
-                            )
-                            SummaryCard(
-                                modifier = Modifier.weight(1f),
-                                icon = Icons.Default.Description,
-                                title = stringResource(R.string.logs_mgmt),
-                                value = if (logSummary.second.isNotEmpty()) logSummary.second else stringResource(R.string.none),
-                                subtitle = "${logSummary.first} ${stringResource(R.string.logs)}",
-                                onClick = { onNavigate("logs") }
-                            )
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            SummaryCard(
-                                modifier = Modifier.weight(1f),
-                                icon = Icons.Default.Settings,
-                                title = stringResource(R.string.configs_mgmt),
-                                value = "${configSummary.second} sys | ${configSummary.third} usr",
-                                subtitle = "${configSummary.first} ${stringResource(R.string.configs)}",
-                                onClick = { onNavigate("configs") }
-                            )
-                            SummaryCard(
-                                modifier = Modifier.weight(1f),
-                                icon = Icons.Default.Bolt,
-                                title = stringResource(R.string.launchagents_mgmt),
-                                value = "${agentSummary.first} / ${agentSummary.second}",
-                                subtitle = stringResource(R.string.agents_loaded),
-                                onClick = { onNavigate("launchagent") }
-                            )
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            SummaryCard(
-                                modifier = Modifier.weight(1f),
-                                icon = Icons.Default.Storage,
-                                title = stringResource(R.string.docker_mgmt),
-                                value = "${dockerSummary.first} / ${dockerSummary.second}",
-                                subtitle = stringResource(R.string.docker_running),
-                                onClick = { onNavigate("docker") }
-                            )
-                            SummaryCard(
-                                modifier = Modifier.weight(1f),
-                                icon = Icons.Default.Public,
-                                title = stringResource(R.string.nginx_mgmt),
-                                value = "${nginxSummary.first} / ${nginxSummary.second}",
-                                subtitle = stringResource(R.string.nginx_active),
-                                onClick = { onNavigate("nginx") }
-                            )
-                        }
-                    }
-                }
-
-                // System Info Section (Portrait)
-                item {
-                    val s = stats!!
-                    SectionHeader(stringResource(R.string.system_info_section))
-                    Spacer(Modifier.height(12.dp))
-                    Column(
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SystemDetailTile(Modifier.weight(1f), icon = Icons.Default.Computer, title = stringResource(R.string.hostname), value = s.hostname)
-                            SystemDetailTile(Modifier.weight(1f), icon = Icons.Default.Info, title = stringResource(R.string.os_version), value = s.osVersion)
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SystemDetailTile(Modifier.weight(1f), icon = Icons.Default.AccessTime, title = stringResource(R.string.uptime), value = s.uptime.split(",").firstOrNull() ?: s.uptime)
-                            SystemDetailTile(Modifier.weight(1f), icon = Icons.Default.DeveloperBoard, title = stringResource(R.string.arch), value = s.arch)
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SystemDetailTile(Modifier.weight(1f), icon = Icons.Default.Storage, title = stringResource(R.string.disk_usage), value = "${s.disk.used} / ${s.disk.total}")
-                            SystemDetailTile(Modifier.weight(1f), icon = Icons.Default.Speed, title = stringResource(R.string.load_avg), value = s.loadAvg)
-                        }
-                        if (s.battery != null) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                SystemDetailTile(Modifier.weight(1f), icon = Icons.Default.BatteryFull, title = stringResource(R.string.battery), value = s.battery)
-                                Spacer(Modifier.weight(1f))
+    // Screenshot Preview Dialog
+    if (capturedImage != null) {
+        Dialog(
+            onDismissRequest = { capturedImage = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(modifier = Modifier.fillMaxSize(), color = Color.Black) {
+                Box {
+                    Image(
+                        bitmap = capturedImage!!,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Fit
+                    )
+                    TopAppBar(
+                        title = { Text(stringResource(R.string.monitor_screenshot), color = Color.White) },
+                        navigationIcon = {
+                            IconButton(onClick = { capturedImage = null }) {
+                                Icon(Icons.Default.Close, contentDescription = null, tint = Color.White)
                             }
-                        }
-                    }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+                    )
                 }
             }
+        }
+    }
+}
 
-            item { Spacer(Modifier.height(16.dp)) }
+@Composable
+private fun MetricsSection(stats: RemoteSystemStats, history: List<MetricPoint>) {
+    SectionHeader(stringResource(R.string.monitor_metrics))
+    Spacer(Modifier.height(12.dp))
+    val cpuVal = (stats.cpu?.user ?: 0.0) + (stats.cpu?.sys ?: 0.0)
+    val memPct = stats.memory.usedMB.toDouble() / stats.memory.totalMB * 100
+    val netIn = history.lastOrNull()?.netIn ?: 0.0
+    val netOut = history.lastOrNull()?.netOut ?: 0.0
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        MetricChartCard(
+            title = stringResource(R.string.cpu),
+            value = "${cpuVal.toInt()}%",
+            subValue = stringResource(R.string.cpu_usage_detail, stats.cpu?.user?.toInt() ?: 0, stats.cpu?.sys?.toInt() ?: 0),
+            color = Color(0xFF4A90D9),
+            data = history.map { it.cpu },
+            domain = 0.0..100.0
+        )
+        MetricChartCard(
+            title = stringResource(R.string.memory),
+            value = "${memPct.toInt()}%",
+            subValue = "${stats.memory.usedMB} MB / ${stats.memory.totalMB} MB",
+            color = Color(0xFFE8873A),
+            data = history.map { it.memory },
+            domain = 0.0..100.0
+        )
+        NetworkChartCard(
+            netIn = netIn,
+            netOut = netOut,
+            data = history
+        )
+    }
+}
+
+@Composable
+private fun ServicesSection(
+    docker: Pair<Int, Int>,
+    nginx: Pair<Int, Int>,
+    proc: Triple<Int, String, String>,
+    ports: PortSummary,
+    agent: Pair<Int, Int>,
+    config: Triple<Int, Int, Int>,
+    log: Pair<Int, String>,
+    onNavigate: (String) -> Unit
+) {
+    SectionHeader(stringResource(R.string.monitor_sections))
+    Spacer(Modifier.height(12.dp))
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            SummaryCard(Modifier.weight(1f), Icons.Default.Memory, stringResource(R.string.process_mgmt), if (proc.second.isNotEmpty()) proc.second else "${proc.first}", if (proc.second.isNotEmpty()) "${proc.first} ${stringResource(R.string.processes)}" else "", proc.third) { onNavigate("process") }
+            SummaryCard(Modifier.weight(1f), Icons.Default.Lan, stringResource(R.string.ports_mgmt), "${ports.ports}", "${ports.listening} ${stringResource(R.string.ports_listening)}") { onNavigate("ports") }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            SummaryCard(Modifier.weight(1f), Icons.Default.Description, stringResource(R.string.logs_mgmt), if (log.second.isNotEmpty()) getLocalizedCategory(log.second) else stringResource(R.string.none), "${log.first} ${stringResource(R.string.logs)}") { onNavigate("logs") }
+            SummaryCard(Modifier.weight(1f), Icons.Default.Settings, stringResource(R.string.configs_mgmt), "${config.second} ${stringResource(R.string.config_sys)} | ${config.third} ${stringResource(R.string.config_user)}", "${config.first} ${stringResource(R.string.configs)}") { onNavigate("configs") }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            SummaryCard(Modifier.weight(1f), Icons.Default.Bolt, stringResource(R.string.launchagents_mgmt), "${agent.first} / ${agent.second}", stringResource(R.string.agents_loaded)) { onNavigate("launchagent") }
+            SummaryCard(Modifier.weight(1f), Icons.Default.Storage, stringResource(R.string.docker_mgmt), "${docker.first} / ${docker.second}", stringResource(R.string.docker_running)) { onNavigate("docker") }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            SummaryCard(Modifier.weight(1f), Icons.Default.Public, stringResource(R.string.nginx_mgmt), "${nginx.first} / ${nginx.second}", stringResource(R.string.nginx_active)) { onNavigate("nginx") }
+            Spacer(Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun SystemInfoSection(stats: RemoteSystemStats) {
+    SectionHeader(stringResource(R.string.monitor_info))
+    Spacer(Modifier.height(12.dp))
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SystemDetailTile(Modifier.weight(1f), Icons.Default.Computer, stringResource(R.string.hostname), stats.hostname)
+            SystemDetailTile(Modifier.weight(1f), Icons.Default.Info, stringResource(R.string.os_version), stats.osVersion)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SystemDetailTile(Modifier.weight(1f), Icons.Default.AccessTime, stringResource(R.string.uptime), stats.uptime.split(",").firstOrNull() ?: stats.uptime)
+            SystemDetailTile(Modifier.weight(1f), Icons.Default.DeveloperBoard, stringResource(R.string.arch), stats.arch)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SystemDetailTile(Modifier.weight(1f), Icons.Default.Storage, stringResource(R.string.disk_usage), "${stats.disk.used} / ${stats.disk.total}")
+            SystemDetailTile(Modifier.weight(1f), Icons.Default.Speed, stringResource(R.string.load_avg), stats.loadAvg)
         }
     }
 }
 
 @Composable
 private fun SectionHeader(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.titleSmall,
-        fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.padding(horizontal = 16.dp)
-    )
-}
-
-@Composable
-fun MetricChartCard(
-    modifier: Modifier = Modifier,
-    title: String,
-    value: String,
-    subValue: String,
-    color: Color,
-    data: List<Double>,
-    domain: ClosedRange<Double>
-) {
-    val surfaceColor = MaterialTheme.colorScheme.surfaceVariant
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-    ) {
-        Column(Modifier.padding(12.dp)) {
-            Text(title, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(4.dp))
-            Text(value, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = color)
-            Text(subValue, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-            Spacer(Modifier.height(8.dp))
-            SparklineChart(data = data, color = color, domain = domain, modifier = Modifier.fillMaxWidth().height(55.dp))
-        }
-    }
-}
-
-@Composable
-fun NetworkChartCard(
-    modifier: Modifier = Modifier,
-    netIn: Double,
-    netOut: Double,
-    data: List<MetricPoint>
-) {
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-    ) {
-        Column(Modifier.padding(12.dp)) {
-            Text("Network", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(4.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("↓${netIn.toInt()}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4A90D9))
-                Text("↑${netOut.toInt()}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF5CB85C))
-                Text("KB/s", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Text("", style = MaterialTheme.typography.labelSmall)
-            Spacer(Modifier.height(8.dp))
-            Box(Modifier.fillMaxWidth().height(55.dp)) {
-                SparklineChart(data = data.map { it.netIn }, color = Color(0xFF4A90D9), domain = let {
-                    val max = data.maxOfOrNull { maxOf(it.netIn, it.netOut) } ?: 10.0
-                    0.0..maxOf(10.0, max * 1.2)
-                }, modifier = Modifier.matchParentSize())
-                SparklineChart(data = data.map { it.netOut }, color = Color(0xFF5CB85C), domain = let {
-                    val max = data.maxOfOrNull { maxOf(it.netIn, it.netOut) } ?: 10.0
-                    0.0..maxOf(10.0, max * 1.2)
-                }, modifier = Modifier.matchParentSize(), fillAlpha = 0.08f)
-            }
-        }
-    }
-}
-
-@Composable
-fun SparklineChart(
-    data: List<Double>,
-    color: Color,
-    domain: ClosedRange<Double>,
-    modifier: Modifier = Modifier,
-    fillAlpha: Float = 0.15f
-) {
-    Canvas(modifier = modifier) {
-        if (data.size < 2) return@Canvas
-        val w = size.width; val h = size.height
-        val domainRange = (domain.endInclusive - domain.start).coerceAtLeast(1.0)
-        // Fixed 2-minute window (60 points at 2s, so 59 segments). Align to the RIGHT.
-        val offset = 60 - data.size
-        fun xOf(i: Int) = (i + offset).toFloat() / 59f * w
-        fun yOf(v: Double) = h - ((v - domain.start) / domainRange * h).toFloat()
-
-        val fillPath = Path().apply {
-            moveTo(xOf(0), h)
-            data.forEachIndexed { i, v -> lineTo(xOf(i), yOf(v)) }
-            lineTo(xOf(data.lastIndex), h)
-            close()
-        }
-        drawPath(fillPath, color.copy(alpha = fillAlpha))
-
-        val linePath = Path().apply {
-            data.forEachIndexed { i, v ->
-                if (i == 0) moveTo(xOf(i), yOf(v)) else lineTo(xOf(i), yOf(v))
-            }
-        }
-        drawPath(linePath, color, style = Stroke(width = 2.dp.toPx()))
-    }
-}
-
-@Composable
-fun SummaryCard(
-    modifier: Modifier = Modifier,
-    icon: ImageVector,
-    title: String,
-    value: String,
-    subtitle: String,
-    rightLabel: String = "",
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = modifier.clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-    ) {
-        Column(Modifier.padding(12.dp).fillMaxWidth()) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.width(4.dp))
-                Text(title, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                if (rightLabel.isNotEmpty()) {
-                    Spacer(Modifier.weight(1f))
-                    Text(rightLabel, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-            Text(value, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-            if (subtitle.isNotEmpty()) {
-                Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-            }
-        }
-    }
-}
-
-@Composable
-fun SystemDetailTile(
-    modifier: Modifier = Modifier,
-    icon: ImageVector,
-    title: String,
-    value: String
-) {
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-    ) {
-        Column(Modifier.padding(12.dp).fillMaxWidth().defaultMinSize(minHeight = 64.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(icon, contentDescription = null, modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.width(4.dp))
-                Text(title, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Spacer(Modifier.height(6.dp))
-            Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
-        }
-    }
+    Text(text = title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
 }

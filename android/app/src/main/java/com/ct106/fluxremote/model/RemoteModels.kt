@@ -1,9 +1,14 @@
 package com.ct106.fluxremote.model
 
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.*
 
 @Serializable
 data class RemoteStatsResponse(
@@ -27,6 +32,14 @@ data class RemoteSystemStats(
     val memPressure: String? = null,
     val battery: String? = null,
     val netBytes: RemoteNetBytes? = null
+)
+
+@Serializable
+data class MetricPoint(
+    val cpu: Double,
+    val memory: Double,
+    val netIn: Double,
+    val netOut: Double
 )
 
 @Serializable
@@ -56,19 +69,68 @@ data class RemoteDisk(
     val used: String
 )
 
-@Serializable
+@Serializable(with = DockerContainerSerializer::class)
 data class DockerContainer(
-    @SerialName("ID") val id: String,
-    @SerialName("Names") val names: List<String>,
-    @SerialName("Image") val image: String,
-    @SerialName("State") val state: String,
-    @SerialName("Status") val status: String,
-    @SerialName("Ports") val ports: String,
-    @SerialName("Command") val command: String? = null,
-    @SerialName("CreatedAt") val createdAt: String? = null
+    val id: String,
+    val names: List<String>,
+    val image: String,
+    val state: String,
+    val status: String,
+    val ports: String,
+    val command: String? = null,
+    val createdAt: String? = null
 ) {
     val name: String
         get() = names.firstOrNull()?.replace("/", "") ?: "unknown"
+}
+
+object DockerContainerSerializer : KSerializer<DockerContainer> {
+    override val descriptor: SerialDescriptor = buildClassSerialDescriptor("DockerContainer")
+
+    override fun deserialize(decoder: Decoder): DockerContainer {
+        val jsonInput = decoder as? JsonDecoder ?: throw SerializationException("Expected JsonDecoder")
+        val json = jsonInput.decodeJsonElement().jsonObject
+        fun getString(vararg keys: String): String {
+            for (key in keys) {
+                val element = json[key]
+                if (element is JsonPrimitive && element.isString) return element.content
+            }
+            return ""
+        }
+
+        val id = getString("ID", "id")
+        val namesElement = json["Names"] ?: json["names"]
+        val names = when (namesElement) {
+            is JsonArray -> namesElement.map { it.jsonPrimitive.content }
+            is JsonPrimitive -> if (namesElement.isString) listOf(namesElement.content) else emptyList()
+            else -> emptyList()
+        }
+
+        return DockerContainer(
+            id = id,
+            names = names,
+            image = getString("Image", "image"),
+            state = getString("State", "state"),
+            status = getString("Status", "status"),
+            ports = getString("Ports", "ports"),
+            command = getString("Command", "command").takeIf { it.isNotEmpty() },
+            createdAt = getString("CreatedAt", "createdAt").takeIf { it.isNotEmpty() }
+        )
+    }
+
+    override fun serialize(encoder: Encoder, value: DockerContainer) {
+        val json = buildJsonObject {
+            put("ID", value.id)
+            put("Names", JsonArray(value.names.map { JsonPrimitive(it) }))
+            put("Image", value.image)
+            put("State", value.state)
+            put("Status", value.status)
+            put("Ports", value.ports)
+            value.command?.let { put("Command", it) }
+            value.createdAt?.let { put("CreatedAt", it) }
+        }
+        encoder.encodeSerializableValue(JsonObject.serializer(), json)
+    }
 }
 
 @Serializable
@@ -77,15 +139,52 @@ data class DockerResponse(
     val data: List<DockerContainer>
 )
 
-@Serializable
+@Serializable(with = DockerImageSerializer::class)
 data class DockerImage(
-    @SerialName("ID") val id: String,
-    @SerialName("Repository") val repository: String,
-    @SerialName("Tag") val tag: String,
-    @SerialName("Size") val size: String,
-    @SerialName("CreatedAt") val createdAt: String,
-    @SerialName("InUse") val inUse: Boolean? = null
+    val id: String,
+    val repository: String,
+    val tag: String,
+    val size: String,
+    val createdAt: String,
+    val inUse: Boolean? = null
 )
+
+object DockerImageSerializer : KSerializer<DockerImage> {
+    override val descriptor: SerialDescriptor = buildClassSerialDescriptor("DockerImage")
+
+    override fun deserialize(decoder: Decoder): DockerImage {
+        val jsonInput = decoder as? JsonDecoder ?: throw SerializationException("Expected JsonDecoder")
+        val json = jsonInput.decodeJsonElement().jsonObject
+        fun getString(vararg keys: String): String {
+            for (key in keys) {
+                val element = json[key]
+                if (element is JsonPrimitive && element.isString) return element.content
+            }
+            return ""
+        }
+
+        return DockerImage(
+            id = getString("ID", "id"),
+            repository = getString("Repository", "repository"),
+            tag = getString("Tag", "tag"),
+            size = getString("Size", "size"),
+            createdAt = getString("CreatedAt", "createdAt"),
+            inUse = json["InUse"]?.jsonPrimitive?.booleanOrNull ?: json["inUse"]?.jsonPrimitive?.booleanOrNull
+        )
+    }
+
+    override fun serialize(encoder: Encoder, value: DockerImage) {
+        val json = buildJsonObject {
+            put("ID", value.id)
+            put("Repository", value.repository)
+            put("Tag", value.tag)
+            put("Size", value.size)
+            put("CreatedAt", value.createdAt)
+            value.inUse?.let { put("InUse", it) }
+        }
+        encoder.encodeSerializableValue(JsonObject.serializer(), json)
+    }
+}
 
 @Serializable
 data class DockerImageResponse(
@@ -124,6 +223,68 @@ data class RemoteProcess(
 data class ProcessResponse(
     val success: Boolean,
     val data: List<RemoteProcess>
+)
+
+@Serializable
+data class PortEntry(
+    val protocol: String,
+    val port: Int,
+    val address: String,
+    val endpoint: String,
+    val endpoints: List<String>? = null,
+    val connectionCount: Int? = null,
+    val state: String = ""
+)
+
+@Serializable
+data class PortProcessGroup(
+    val pid: String,
+    val command: String,
+    val user: String,
+    val cpu: String,
+    val mem: String,
+    val ppid: String = "",
+    val start: String = "",
+    val fullCommand: String = "",
+    val ports: List<PortEntry>
+)
+
+@Serializable
+data class PortSummary(
+    val processes: Int = 0,
+    val ports: Int = 0,
+    val listening: Int = 0
+)
+
+@Serializable
+data class PortsResponse(
+    val success: Boolean,
+    val data: List<PortProcessGroup> = emptyList(),
+    val summary: PortSummary = PortSummary(),
+    val error: String? = null,
+    val details: String? = null
+)
+
+@Serializable
+data class DetailedProcess(
+    val pid: String,
+    val ppid: String,
+    val ppidName: String,
+    val cpu: String,
+    val mem: String,
+    val state: String,
+    val start: String,
+    val time: String,
+    val user: String,
+    val command: String,
+    val fullCommand: String,
+    val openFiles: List<String>
+)
+
+@Serializable
+data class DetailedProcessResponse(
+    val success: Boolean,
+    val data: DetailedProcess
 )
 
 @Serializable
@@ -204,6 +365,7 @@ data class AIConfig(
 data class FeatureToggles(
     var monitor: Boolean? = null,
     var processes: Boolean? = null,
+    var ports: Boolean? = null,
     var logs: Boolean? = null,
     var configs: Boolean? = null,
     var launchagent: Boolean? = null,
@@ -221,7 +383,21 @@ data class ActionResponse(
 )
 
 @Serializable
+@SerialName("AIResponse")
+data class AIResponse(
+    val success: Boolean,
+    val data: String
+)
+
+@Serializable
 data class GenericLogResponse(
     val success: Boolean,
     val logs: String
+)
+
+@Serializable
+data class ScreenshotResponse(
+    val success: Boolean,
+    val data: String? = null,
+    val error: String? = null
 )
