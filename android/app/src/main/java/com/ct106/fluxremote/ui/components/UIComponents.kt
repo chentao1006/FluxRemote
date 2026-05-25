@@ -1,4 +1,4 @@
-package com.ct106.fluxremote.ui.components
+package com.ct106.flux_remote.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -12,9 +12,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ct106.fluxremote.R
+import com.ct106.flux_remote.R
 
 @Composable
 fun StatusBadge(
@@ -67,7 +68,8 @@ fun ActionIconButton(
     modifier: Modifier = Modifier,
     label: String? = null,
     isLoading: Boolean = false,
-    contentDescription: String? = null
+    contentDescription: String? = null,
+    enabled: Boolean = true
 ) {
     Surface(
         onClick = onClick,
@@ -75,7 +77,7 @@ fun ActionIconButton(
         shape = CircleShape,
         color = color.copy(alpha = 0.1f),
         contentColor = color,
-        enabled = !isLoading
+        enabled = enabled && !isLoading
     ) {
         Row(
             modifier = Modifier.padding(horizontal = if (label != null) 12.dp else 8.dp),
@@ -265,7 +267,7 @@ fun MetricChartCard(
 fun NetworkChartCard(
     netIn: Double,
     netOut: Double,
-    data: List<com.ct106.fluxremote.model.MetricPoint>
+    data: List<com.ct106.flux_remote.model.MetricPoint>
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -369,9 +371,18 @@ fun SummaryCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(Modifier.padding(12.dp)) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                Text(
+                    title,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.Gray,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
             Spacer(Modifier.height(8.dp))
-            Text(title, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
             Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text(subValue, style = MaterialTheme.typography.labelSmall, color = Color.Gray)
             if (extra.isNotEmpty()) {

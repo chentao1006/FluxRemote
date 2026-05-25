@@ -1,4 +1,4 @@
-package com.ct106.fluxremote.ui.screens
+package com.ct106.flux_remote.ui.screens
 
 import android.graphics.BitmapFactory
 import android.util.Base64
@@ -27,12 +27,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.ct106.fluxremote.R
-import com.ct106.fluxremote.core.AIService
-import com.ct106.fluxremote.core.RemoteAPIClient
-import com.ct106.fluxremote.core.ServerManager
-import com.ct106.fluxremote.model.*
-import com.ct106.fluxremote.ui.components.*
+import com.ct106.flux_remote.R
+import com.ct106.flux_remote.core.AIService
+import com.ct106.flux_remote.core.RemoteAPIClient
+import com.ct106.flux_remote.core.ServerManager
+import com.ct106.flux_remote.model.*
+import com.ct106.flux_remote.ui.components.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
@@ -79,6 +79,17 @@ fun DashboardScreen(
     val authenticatedIds by serverManager.authenticatedServerIds.collectAsState()
     val isCurrentAuthenticated = server?.id?.let { authenticatedIds.contains(it) } ?: false
     val hasSavedPassword = server?.id?.let { serverManager.hasSavedPassword(it) } ?: false
+
+    if (server == null) {
+        ServerListScreen(
+            serverManager = serverManager,
+            apiClient = apiClient,
+            onAddServer = { onNavigate("login") },
+            onEditServer = { selected -> onNavigate("login?serverId=${selected.id}") },
+            onSelectServer = {}
+        )
+        return
+    }
 
     fun updateHistory(s: RemoteSystemStats) {
         val cpu = (s.cpu?.user ?: 0.0) + (s.cpu?.sys ?: 0.0)
@@ -242,15 +253,15 @@ fun DashboardScreen(
         }
     }
 
-    LaunchedEffect(server?.id, isCurrentAuthenticated) {
-        if (server != null && (isCurrentAuthenticated || hasSavedPassword)) {
+    LaunchedEffect(server.id, isCurrentAuthenticated) {
+        if (isCurrentAuthenticated || hasSavedPassword) {
             fetchStats()
             fetchSummaries()
             lastSummaryFetch = System.currentTimeMillis()
         }
         
         while (true) {
-            if (server != null && (serverManager.isServerAuthenticated(server.id) || serverManager.hasSavedPassword(server.id))) {
+            if (serverManager.isServerAuthenticated(server.id) || serverManager.hasSavedPassword(server.id)) {
                 fetchStats()
                 val now = System.currentTimeMillis()
                 if (now - lastSummaryFetch > 30_000) {
@@ -265,7 +276,7 @@ fun DashboardScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(server?.name ?: stringResource(R.string.dashboard)) },
+                title = { Text(server.name) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateToServers) {
                         Icon(Icons.Default.Menu, contentDescription = null)

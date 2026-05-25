@@ -1,6 +1,6 @@
-package com.ct106.fluxremote.core
+package com.ct106.flux_remote.core
 
-import com.ct106.fluxremote.model.*
+import com.ct106.flux_remote.model.*
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf

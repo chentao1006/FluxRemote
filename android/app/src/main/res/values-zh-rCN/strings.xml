@@ -136,6 +136,10 @@
     <string name="ports_all_states">全部状态</string>
     <string name="ports_no_data">暂无端口</string>
     <string name="ports_kill_confirm">确定要停止 %1$s (PID: %2$s) 吗？</string>
+    <string name="ports_terminate_confirm">确定要终止 %1$s (PID: %2$s) 吗？</string>
+    <string name="ports_force_kill_confirm">确定要强制杀死 %1$s (PID: %2$s) 吗？这可能导致数据丢失。</string>
+    <string name="ports_terminated">进程已终止</string>
+    <string name="ports_force_killed">进程已强制杀死</string>
     <string name="ports_listening">监听中</string>
     <string name="ports_state_listen">监听</string>
     <string name="ports_state_established">已连接</string>

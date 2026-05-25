@@ -1,4 +1,4 @@
-package com.ct106.fluxremote
+package com.ct106.flux_remote
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -25,10 +25,10 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.navigation.NavGraph.Companion.findStartDestination
-import com.ct106.fluxremote.R
-import com.ct106.fluxremote.core.RemoteAPIClient
-import com.ct106.fluxremote.core.ServerManager
-import com.ct106.fluxremote.ui.screens.*
+import com.ct106.flux_remote.R
+import com.ct106.flux_remote.core.RemoteAPIClient
+import com.ct106.flux_remote.core.ServerManager
+import com.ct106.flux_remote.ui.screens.*
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -88,6 +88,16 @@ fun MainNavigation(serverManager: ServerManager, apiClient: RemoteAPIClient) {
     val selectedServerId by serverManager.selectedServerId.collectAsState()
     val selectedServer = serverManager.getSelectedServer()
     var serverDropdownExpanded by remember { mutableStateOf(false) }
+    val startDestination = if (servers.isEmpty()) "server_list" else "dashboard"
+
+    LaunchedEffect(servers.isEmpty(), currentRoute) {
+        if (servers.isEmpty() && currentRoute !in listOf("server_list", "login", "login?serverId={serverId}")) {
+            navController.navigate("server_list") {
+                popUpTo(0)
+                launchSingleTop = true
+            }
+        }
+    }
 
     // Automatic background login or features fetch when server changes or app starts
     LaunchedEffect(selectedServerId) {
@@ -330,7 +340,7 @@ fun MainNavigation(serverManager: ServerManager, apiClient: RemoteAPIClient) {
     ) {
         NavHost(
             navController = navController,
-            startDestination = "dashboard"
+            startDestination = startDestination
         ) {
                 composable("dashboard") {
                     DashboardScreen(
@@ -400,7 +410,7 @@ fun MainNavigation(serverManager: ServerManager, apiClient: RemoteAPIClient) {
                     val name = backStackEntry.arguments?.getString("name") ?: ""
                     LogContentScreen(
                         apiClient = apiClient,
-                        logItem = com.ct106.fluxremote.model.LogItem(path, name, "", "", 0, 0, false),
+                        logItem = com.ct106.flux_remote.model.LogItem(path, name, "", "", 0, 0, false),
                         onBack = { navController.popBackStack() }
                     )
                 }
@@ -424,7 +434,7 @@ fun MainNavigation(serverManager: ServerManager, apiClient: RemoteAPIClient) {
                     val name = backStackEntry.arguments?.getString("name") ?: ""
                     ConfigContentScreen(
                         apiClient = apiClient,
-                        configItem = com.ct106.fluxremote.model.ConfigItem("", name, path, "", 0, 0.0),
+                        configItem = com.ct106.flux_remote.model.ConfigItem("", name, path, "", 0, 0.0),
                         onBack = { navController.popBackStack() }
                     )
                 }

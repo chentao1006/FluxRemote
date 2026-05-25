@@ -1,4 +1,4 @@
-package com.ct106.fluxremote.ui.screens
+package com.ct106.flux_remote.ui.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -14,11 +14,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ct106.fluxremote.R
-import com.ct106.fluxremote.core.RemoteAPIClient
-import com.ct106.fluxremote.core.ServerManager
-import com.ct106.fluxremote.model.*
-import com.ct106.fluxremote.ui.components.*
+import com.ct106.flux_remote.R
+import com.ct106.flux_remote.core.RemoteAPIClient
+import com.ct106.flux_remote.core.ServerManager
+import com.ct106.flux_remote.model.*
+import com.ct106.flux_remote.ui.components.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 

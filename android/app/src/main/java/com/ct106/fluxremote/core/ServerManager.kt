@@ -1,10 +1,10 @@
-package com.ct106.fluxremote.core
+package com.ct106.flux_remote.core
 
 import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import com.ct106.fluxremote.model.AIConfig
+import com.ct106.flux_remote.model.AIConfig
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.serialization.Serializable

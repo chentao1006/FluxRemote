@@ -1,4 +1,4 @@
-package com.ct106.fluxremote.ui.screens
+package com.ct106.flux_remote.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -19,17 +19,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ct106.fluxremote.R
-import com.ct106.fluxremote.core.RemoteAPIClient
-import com.ct106.fluxremote.model.PortEntry
-import com.ct106.fluxremote.model.PortProcessGroup
-import com.ct106.fluxremote.ui.components.ActionIconButton
-import com.ct106.fluxremote.ui.components.ConfirmationDialog
-import com.ct106.fluxremote.ui.components.LoadingView
+import com.ct106.flux_remote.R
+import com.ct106.flux_remote.core.RemoteAPIClient
+import com.ct106.flux_remote.model.PortEntry
+import com.ct106.flux_remote.model.PortProcessGroup
+import com.ct106.flux_remote.ui.components.ActionIconButton
+import com.ct106.flux_remote.ui.components.ConfirmationDialog
+import com.ct106.flux_remote.ui.components.LoadingView
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun PortsScreen(
     apiClient: RemoteAPIClient,
@@ -45,6 +45,8 @@ fun PortsScreen(
     var stateFilter by remember { mutableStateOf("all") }
     var groupToActOn by remember { mutableStateOf<PortProcessGroup?>(null) }
     var actionType by remember { mutableStateOf<String?>(null) }
+    var loadingActionPid by remember { mutableStateOf<String?>(null) }
+    var loadingActionType by remember { mutableStateOf<String?>(null) }
 
     fun fetchData(silent: Boolean = false) {
         scope.launch {
@@ -67,11 +69,14 @@ fun PortsScreen(
 
     fun performAction(pid: String, action: String) {
         scope.launch {
+            loadingActionPid = pid
+            loadingActionType = action
             try {
                 val api = apiClient.getApi() ?: return@launch
                 val response = api.portAction(mapOf("action" to action, "pid" to pid))
                 if (response.isSuccessful && response.body()?.success == true) {
-                    snackbarHostState.showSnackbar(context.getString(R.string.common_success))
+                    val messageId = if (action == "kill") R.string.ports_force_killed else R.string.ports_terminated
+                    snackbarHostState.showSnackbar(context.getString(messageId))
                     fetchData()
                 } else {
                     val error = response.body()?.details ?: response.body()?.error ?: context.getString(R.string.action_failed)
@@ -79,6 +84,9 @@ fun PortsScreen(
                 }
             } catch (e: Exception) {
                 snackbarHostState.showSnackbar(e.localizedMessage ?: context.getString(R.string.network_error))
+            } finally {
+                loadingActionPid = null
+                loadingActionType = null
             }
         }
     }
@@ -160,12 +168,12 @@ fun PortsScreen(
                     )
                 )
 
-                Row(
+                FlowRow(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     AssistChip(
                         onClick = {},
@@ -183,22 +191,29 @@ fun PortsScreen(
                     )
 
                     var showStateMenu by remember { mutableStateOf(false) }
-                    FilterChip(
-                        selected = stateFilter != "all",
-                        onClick = { showStateMenu = true },
-                        label = { Text(if (stateFilter == "all") stringResource(R.string.ports_all_states) else localizedPortState(stateFilter)) },
-                        leadingIcon = { Icon(Icons.Default.FilterList, null, Modifier.size(18.dp)) }
-                    )
-                    DropdownMenu(expanded = showStateMenu, onDismissRequest = { showStateMenu = false }) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.ports_all_states)) },
-                            onClick = { stateFilter = "all"; showStateMenu = false }
+                    Box {
+                        FilterChip(
+                            selected = stateFilter != "all",
+                            onClick = { showStateMenu = true },
+                            label = {
+                                Text(
+                                    if (stateFilter == "all") stringResource(R.string.ports_all_states) else localizedPortState(stateFilter),
+                                    maxLines = 1
+                                )
+                            },
+                            leadingIcon = { Icon(Icons.Default.FilterList, null, Modifier.size(18.dp)) }
                         )
-                        stateOptions.forEach { state ->
+                        DropdownMenu(expanded = showStateMenu, onDismissRequest = { showStateMenu = false }) {
                             DropdownMenuItem(
-                                text = { Text(localizedPortState(state)) },
-                                onClick = { stateFilter = state; showStateMenu = false }
+                                text = { Text(stringResource(R.string.ports_all_states)) },
+                                onClick = { stateFilter = "all"; showStateMenu = false }
                             )
+                            stateOptions.forEach { state ->
+                                DropdownMenuItem(
+                                    text = { Text(localizedPortState(state)) },
+                                    onClick = { stateFilter = state; showStateMenu = false }
+                                )
+                            }
                         }
                     }
                 }
@@ -237,7 +252,8 @@ fun PortsScreen(
                             onKill = {
                                 groupToActOn = group
                                 actionType = "kill"
-                            }
+                            },
+                            loadingAction = if (loadingActionPid == group.pid) loadingActionType else null
                         )
                     }
                 }
@@ -249,7 +265,11 @@ fun PortsScreen(
         val isKill = actionType == "kill"
         ConfirmationDialog(
             title = if (isKill) stringResource(R.string.process_force_kill) else stringResource(R.string.process_terminate),
-            message = stringResource(R.string.ports_kill_confirm, group.command, group.pid),
+            message = stringResource(
+                if (isKill) R.string.ports_force_kill_confirm else R.string.ports_terminate_confirm,
+                group.command,
+                group.pid
+            ),
             onConfirm = {
                 performAction(group.pid, actionType ?: "term")
                 groupToActOn = null
@@ -268,7 +288,8 @@ fun PortsScreen(
 private fun PortGroupCard(
     group: PortProcessGroup,
     onTerm: () -> Unit,
-    onKill: () -> Unit
+    onKill: () -> Unit,
+    loadingAction: String?
 ) {
     Card(
         modifier = Modifier
@@ -302,8 +323,22 @@ private fun PortGroupCard(
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    ActionIconButton(Icons.Default.Stop, Color(0xFFFF9800), onClick = onTerm)
-                    ActionIconButton(Icons.Default.Delete, Color.Red, onClick = onKill)
+                    ActionIconButton(
+                        Icons.Default.Stop,
+                        Color(0xFFFF9800),
+                        onClick = onTerm,
+                        isLoading = loadingAction == "term",
+                        contentDescription = stringResource(R.string.process_terminate),
+                        enabled = loadingAction == null
+                    )
+                    ActionIconButton(
+                        Icons.Default.Delete,
+                        Color.Red,
+                        onClick = onKill,
+                        isLoading = loadingAction == "kill",
+                        contentDescription = stringResource(R.string.process_force_kill),
+                        enabled = loadingAction == null
+                    )
                 }
             }
 

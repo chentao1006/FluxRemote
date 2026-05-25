@@ -1,4 +1,4 @@
-package com.ct106.fluxremote.ui.screens
+package com.ct106.flux_remote.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -20,10 +20,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ct106.fluxremote.R
-import com.ct106.fluxremote.core.RemoteAPIClient
-import com.ct106.fluxremote.core.ServerConfig
-import com.ct106.fluxremote.core.ServerManager
+import com.ct106.flux_remote.R
+import com.ct106.flux_remote.core.RemoteAPIClient
+import com.ct106.flux_remote.core.ServerConfig
+import com.ct106.flux_remote.core.ServerManager
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)

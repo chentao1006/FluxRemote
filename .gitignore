@@ -7,6 +7,7 @@ ios/FluxRemote/Config.xcconfig
 android/build/
 android/.gradle/
 android/app/build/
+android/app/release/
 android/app/.cxx/
 android/.idea/
 android/local.properties
@@ -23,3 +24,4 @@ android/gradle/
 *.iml
 *.swp
 *.txt
+*.jks

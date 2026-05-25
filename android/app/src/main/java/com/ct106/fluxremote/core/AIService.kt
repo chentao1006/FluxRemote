@@ -1,7 +1,7 @@
-package com.ct106.fluxremote.core
+package com.ct106.flux_remote.core
 
 import android.content.Context
-import com.ct106.fluxremote.model.AIConfig
+import com.ct106.flux_remote.model.AIConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow

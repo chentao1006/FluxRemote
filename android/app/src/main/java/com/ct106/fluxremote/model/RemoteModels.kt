@@ -1,4 +1,4 @@
-package com.ct106.fluxremote.model
+package com.ct106.flux_remote.model
 
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName

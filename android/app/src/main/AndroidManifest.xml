@@ -11,7 +11,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.FluxRemote">
         <activity
-            android:name=".MainActivity"
+            android:name="com.ct106.flux_remote.MainActivity"
             android:exported="true"
             android:theme="@style/Theme.FluxRemote">
             <intent-filter>

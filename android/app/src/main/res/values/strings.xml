@@ -137,6 +137,10 @@
     <string name="ports_all_states">All States</string>
     <string name="ports_no_data">No ports found</string>
     <string name="ports_kill_confirm">Are you sure you want to stop %1$s (PID: %2$s)?</string>
+    <string name="ports_terminate_confirm">Are you sure you want to terminate %1$s (PID: %2$s)?</string>
+    <string name="ports_force_kill_confirm">Are you sure you want to force kill %1$s (PID: %2$s)? This may cause data loss.</string>
+    <string name="ports_terminated">Process terminated</string>
+    <string name="ports_force_killed">Process force killed</string>
     <string name="ports_listening">listening</string>
     <string name="ports_state_listen">LISTEN</string>
     <string name="ports_state_established">ESTABLISHED</string>

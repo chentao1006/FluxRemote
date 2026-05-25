@@ -5,14 +5,14 @@ plugins {
 }
 
 android {
-    namespace = "com.ct106.fluxremote"
-    compileSdk = 34
+    namespace = "com.ct106.flux_remote"
+    compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.ct106.fluxremote"
+        applicationId = "com.ct106.flux_remote"
         minSdk = 26
-        targetSdk = 34
-        versionCode = 1
+        targetSdk = 36
+        versionCode = 2
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

@@ -1,4 +1,4 @@
-package com.ct106.fluxremote.ui.components
+package com.ct106.flux_remote.ui.components
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
@@ -21,7 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ct106.fluxremote.R
+import com.ct106.flux_remote.R
 import dev.jeziellago.compose.markdowntext.MarkdownText
 
 @Composable
