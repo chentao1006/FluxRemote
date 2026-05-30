@@ -31,6 +31,7 @@
 		110000000000000000000A02 /* Core/LLMClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000A12 /* Core/LLMClient.swift */; };
 		110000000000000000000A03 /* Views/AISettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000A13 /* Views/AISettingsView.swift */; };
 		7CE3652A6A9ABB4A0CC38DD0 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = F9B3ACFF36B10B32D4D3456F /* LaunchScreen.storyboard */; };
+		C60E6BFF2FCADA19008E0F02 /* Aptabase in Frameworks */ = {isa = PBXBuildFile; productRef = C60E6BFE2FCADA19008E0F02 /* Aptabase */; };
 		C6C798322F6FC0F50036158B /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = C6C798312F6FC0F50036158B /* InfoPlist.strings */; };
 		C6C798412F6FC1170036158B /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = C6C798402F6FC1170036158B /* Localizable.xcstrings */; };
 		C6C798512F6FC1170036158B /* Components/Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6C798502F6FC1170036158B /* Components/Components.swift */; };
@@ -75,6 +76,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C60E6BFF2FCADA19008E0F02 /* Aptabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -180,6 +182,9 @@
 				"zh-Hans",
 			);
 			mainGroup = 110000000000000000000041;
+			packageReferences = (
+				C60E6BFD2FCADA19008E0F02 /* XCRemoteSwiftPackageReference "aptabase-swift" */,
+			);
 			productRefGroup = 110000000000000000000061 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -436,6 +441,25 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		C60E6BFD2FCADA19008E0F02 /* XCRemoteSwiftPackageReference "aptabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/aptabase/aptabase-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.3.11;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		C60E6BFE2FCADA19008E0F02 /* Aptabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C60E6BFD2FCADA19008E0F02 /* XCRemoteSwiftPackageReference "aptabase-swift" */;
+			productName = Aptabase;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 1100000000000000000000B1 /* Project object */;
 }

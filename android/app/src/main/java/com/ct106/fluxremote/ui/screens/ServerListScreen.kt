@@ -60,6 +60,7 @@ fun ServerListScreen(
                         onSelect = {
                             scope.launch {
                                 serverManager.selectServer(server)
+                                com.aptabase.Aptabase.instance.trackEvent("server_switched")
                                 if (serverManager.isServerAuthenticated(server.id)) {
                                     onSelectServer(server)
                                 } else {

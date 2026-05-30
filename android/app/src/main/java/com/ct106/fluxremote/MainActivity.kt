@@ -189,6 +189,7 @@ fun MainNavigation(serverManager: ServerManager, apiClient: RemoteAPIClient) {
                                             serverDropdownExpanded = false
                                             scope.launch {
                                                 serverManager.selectServer(s)
+                                                com.aptabase.Aptabase.instance.trackEvent("server_switched")
                                                 drawerState.close()
                                                 
                                                 if (serverManager.isServerAuthenticated(s.id) || serverManager.hasSavedPassword(s.id)) {

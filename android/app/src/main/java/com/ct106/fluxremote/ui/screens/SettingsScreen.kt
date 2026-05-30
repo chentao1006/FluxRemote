@@ -76,6 +76,7 @@ fun SettingsScreen(
                 if (response.isSuccessful) {
                     newSettings.features?.let { apiClient.features = it }
                     newSettings.ai?.let { apiClient.aiConfig = it }
+                    com.aptabase.Aptabase.instance.trackEvent("settings_modified")
                 }
             } catch (e: Exception) {
                 e.printStackTrace()

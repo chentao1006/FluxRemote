@@ -1,9 +1,17 @@
 import SwiftUI
+import Aptabase
 
 @main
 struct FluxRemoteApp: App {
     @State private var languageManager: AppLanguageManager?
     @State private var apiClient: RemoteAPIClient?
+    
+    init() {
+        if let appKey = Bundle.main.object(forInfoDictionaryKey: "AptabaseAppKey") as? String, !appKey.isEmpty {
+            Aptabase.shared.initialize(appKey: appKey)
+            Aptabase.shared.trackEvent("app_started")
+        }
+    }
     
     var body: some Scene {
         WindowGroup {

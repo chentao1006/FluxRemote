@@ -46,5 +46,7 @@
 	<string>$(SERVICE_SECRET)</string>
 	<key>PublicServiceURL</key>
 	<string>$(PUBLIC_SERVICE_URL)</string>
+	<key>AptabaseAppKey</key>
+	<string>$(APTABASE_APP_KEY)</string>
 </dict>
 </plist>

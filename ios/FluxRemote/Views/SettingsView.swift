@@ -1,4 +1,5 @@
 import SwiftUI
+import Aptabase
 
 struct SettingsView: View {
     @Environment(RemoteAPIClient.self) private var apiClient
@@ -170,6 +171,7 @@ struct SettingsView: View {
                 if let feats = settings.features {
                     apiClient.features = feats
                 }
+                Aptabase.shared.trackEvent("settings_modified")
                 // self.isSaving = false ... handled below
             }
             await MainActor.run {

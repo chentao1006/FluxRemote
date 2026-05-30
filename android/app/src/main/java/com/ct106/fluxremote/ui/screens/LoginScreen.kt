@@ -247,6 +247,9 @@ fun LoginScreen(
                         )
                         
                         if (success) {
+                            if (initialServerId == null) {
+                                com.aptabase.Aptabase.instance.trackEvent("server_added")
+                            }
                             onLoginSuccess()
                         } else {
                             errorMessage = loginFailedMsg

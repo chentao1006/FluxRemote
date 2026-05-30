@@ -1,4 +1,5 @@
 import SwiftUI
+import Aptabase
 
 struct ServerListView: View {
     @Environment(RemoteAPIClient.self) private var apiClient
@@ -99,6 +100,7 @@ struct ServerListView: View {
                     ForEach(ServerManager.shared.servers) { server in
                         ServerRow(server: server, isActive: server.id == ServerManager.shared.selectedServerId) {
                             apiClient.switchServer(to: server)
+                            Aptabase.shared.trackEvent("server_switched")
                             selection = .monitor
                             if !ServerManager.shared.isServerAuthenticated(server.id) && (!server.autoLogin || ServerManager.shared.getPassword(for: server.id) == nil) {
                                 showingLoginForServer = server

@@ -1,4 +1,5 @@
 import SwiftUI
+import Aptabase
 
 struct ServerPickerMenu: View {
     @Environment(RemoteAPIClient.self) private var apiClient
@@ -11,6 +12,7 @@ struct ServerPickerMenu: View {
             ForEach(ServerManager.shared.servers) { server in
                 Button {
                     apiClient.switchServer(to: server)
+                    Aptabase.shared.trackEvent("server_switched")
                     selection = .monitor
                 } label: {
                     HStack {

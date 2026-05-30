@@ -1,4 +1,5 @@
 import SwiftUI
+import Aptabase
 
 struct FluxLoginView: View {
     @Environment(RemoteAPIClient.self) private var apiClient
@@ -276,6 +277,7 @@ struct FluxLoginView: View {
             
             if apiClient.isAuthenticated {
                 if isAddingServer {
+                    Aptabase.shared.trackEvent("server_added")
                     dismiss()
                 }
             }

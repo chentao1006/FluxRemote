@@ -4,6 +4,16 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+import java.util.Properties
+import java.io.FileInputStream
+
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(FileInputStream(localPropertiesFile))
+}
+val aptabaseKey = localProperties.getProperty("APTABASE_APP_KEY", "")
+
 android {
     namespace = "com.ct106.flux_remote"
     compileSdk = 36
@@ -19,6 +29,7 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+        buildConfigField("String", "APTABASE_APP_KEY", "\"$aptabaseKey\"")
     }
 
     buildTypes {
@@ -39,6 +50,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = libs.versions.composeCompiler.get()
@@ -69,6 +81,9 @@ dependencies {
     implementation(libs.material)
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.compose.markdown)
+    
+    // Aptabase Analytics
+    implementation("com.github.aptabase:aptabase-kotlin:0.0.8")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
