@@ -77,10 +77,10 @@ struct SettingsView: View {
                     }
                 }
 
-                Section(header: Text(languageManager.t("settings.language"))) {
-                    Picker(languageManager.t("settings.language"), selection: Bindable(languageManager).selectedLanguage) {
+                Section(header: Text(languageManager.systemT("settings.language"))) {
+                    Picker(languageManager.systemT("settings.language"), selection: Bindable(languageManager).selectedLanguage) {
                         ForEach(AppLanguage.allCases) { lang in
-                            Text(lang.displayNameKey == "common.systemDefault" ? languageManager.t(lang.displayNameKey) : lang.displayNameKey).tag(lang)
+                            Text(lang == .system ? languageManager.systemT(lang.displayNameKey) : lang.displayNameKey).tag(lang)
                         }
                     }
                 }

@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -153,7 +154,7 @@ fun ProcessScreen(
                             }
                             Text(sortLabel)
                         },
-                        leadingIcon = { Icon(Icons.Default.Sort, null, Modifier.size(18.dp)) }
+                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.Sort, null, Modifier.size(18.dp)) }
                     )
                     DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
                         DropdownMenuItem(text = { Text(stringResource(R.string.process_sort_cpu)) }, onClick = { sortOrder = "cpu"; showSortMenu = false })

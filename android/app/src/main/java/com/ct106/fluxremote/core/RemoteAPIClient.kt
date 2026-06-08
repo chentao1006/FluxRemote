@@ -10,6 +10,7 @@ import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.http.*
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.ResponseBody
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.util.concurrent.TimeUnit
 
@@ -22,6 +23,10 @@ interface FluxRemoteApi {
 
     @GET("api/system/stats")
     suspend fun getStats(): Response<RemoteStatsResponse>
+
+    @Streaming
+    @POST("api/system/command")
+    suspend fun executeCommand(@Body body: Map<String, String>): Response<ResponseBody>
 
     // Docker
     @GET("api/docker/containers")

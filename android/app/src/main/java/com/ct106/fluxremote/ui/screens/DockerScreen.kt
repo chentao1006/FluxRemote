@@ -71,7 +71,7 @@ fun DockerScreen(
         }
     }
 
-    fun performAction(action: String, id: String, name: String = "") {
+    fun performAction(action: String, id: String) {
         scope.launch {
             loadingAction = loadingAction + (id to action)
             try {
@@ -189,7 +189,6 @@ fun DockerScreen(
         ) {
             DockerContainerDetailContent(
                 container = selectedContainerForDetail!!,
-                loadingAction = loadingAction[selectedContainerForDetail!!.id],
                 onAction = { action ->
                     if (action == "start") {
                         performAction(action, selectedContainerForDetail!!.id)
@@ -230,7 +229,7 @@ fun DockerScreen(
         ConfirmationDialog(
             title = title,
             message = message,
-            onConfirm = { performAction(action, container.id, container.name) },
+            onConfirm = { performAction(action, container.id) },
             onDismiss = { containerToAction = null },
             isDestructive = action == "rm" || action == "stop"
         )
@@ -383,7 +382,6 @@ fun DockerImageCard(
 @Composable
 fun DockerContainerDetailContent(
     container: DockerContainer,
-    loadingAction: String?,
     onAction: (String) -> Unit,
     onLogs: () -> Unit
 ) {
@@ -455,7 +453,6 @@ fun DockerLogDialog(
 ) {
     var logs by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(true) }
-    val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         while (true) {

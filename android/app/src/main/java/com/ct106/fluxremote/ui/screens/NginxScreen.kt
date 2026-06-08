@@ -185,7 +185,7 @@ fun NginxScreen(
     }
 
     // Site Action Confirmation
-    siteToAction?.let { (site, action) ->
+    siteToAction?.let { (site, _) ->
         ConfirmationDialog(
             title = stringResource(R.string.delete),
             message = stringResource(R.string.nginx_confirm_delete_site, site.name),

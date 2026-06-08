@@ -82,6 +82,13 @@
     <string name="language_auto">跟随系统</string>
     <string name="language_zh">简体中文</string>
     <string name="language_en">English</string>
+    <string name="language_zh_hant">繁體中文</string>
+    <string name="language_ja">日本語</string>
+    <string name="language_ko">한국어</string>
+    <string name="language_es">Español</string>
+    <string name="language_de">Deutsch</string>
+    <string name="language_fr">Français</string>
+    <string name="language_it">Italiano</string>
     <string name="common_ok">确定</string>
     <string name="common_cancel">取消</string>
     <string name="common_confirm">确认</string>
@@ -92,12 +99,12 @@
     <string name="common_failed">失败</string>
     <string name="common_id">ID</string>
     <string name="common_name">名称</string>
-
     <string name="docker_prune">清理镜像</string>
     <string name="docker_prune_title">清理未使用的镜像</string>
     <string name="docker_prune_message">确定要删除所有未使用的镜像吗？此操作不可撤销。</string>
     <string name="docker_view_logs">查看日志</string>
     <string name="docker_view_logs_title">容器日志: %s</string>
+    <string name="docker_container_logs">日志: %s</string>
     <string name="docker_container_details">详情: %s</string>
     <string name="docker_basic_info">基本信息</string>
     <string name="docker_status">状态</string>
@@ -111,14 +118,12 @@
     <string name="docker_confirm_restart">确定要重启容器 %s 吗？</string>
     <string name="docker_delete_image_title">删除镜像</string>
     <string name="docker_delete_image_message">确定要删除镜像 %s 吗？</string>
-
     <string name="ai_analyze">AI 分析</string>
     <string name="ai_analyzing">分析中...</string>
     <string name="ai_analysis">AI 分析报告</string>
     <string name="ai_wand">AI 魔棒</string>
     <string name="ai_config_missing">缺少 AI 配置</string>
     <string name="ai_config_missing_detail">请先在设置界面配置 AI 参数。</string>
-
     <string name="monitor_screenshot">系统截图</string>
     <string name="monitor_metrics">性能指标</string>
     <string name="monitor_sections">功能模块</string>
@@ -156,7 +161,6 @@
     <string name="log_analyze_prompt">分析这些日志中的错误、警告或性能问题。如果可能，提供修复建议。日志内容：\n%s</string>
     <string name="config_search">搜索配置...</string>
     <string name="config_analyze_prompt">解释此配置文件并检查潜在的安全或性能问题。内容：\n%s</string>
-
     <string name="manage_servers">管理服务器</string>
     <string name="home">首页</string>
     <string name="system_tools">系统工具</string>
@@ -216,9 +220,42 @@
     <string name="agent_confirm_delete">确定要删除自启服务 %s 吗？</string>
     <string name="common_pids">PIDs</string>
     <string name="common_save">保存</string>
+    <string name="terminal_title">命令执行</string>
+    <string name="terminal_placeholder">命令或自然语言...</string>
+    <string name="terminal_run">执行命令</string>
+    <string name="terminal_stop">停止</string>
+    <string name="terminal_clear">清空输出</string>
+    <string name="terminal_waiting">等待命令...</string>
+    <string name="terminal_executing">正在执行: %s...</string>
+    <string name="terminal_finished">执行完毕</string>
+    <string name="terminal_stopped">已停止</string>
+    <string name="terminal_common_commands">常用命令</string>
+    <string name="terminal_add_command">添加命令</string>
+    <string name="terminal_command_name">命令名称</string>
+    <string name="terminal_command_prompt">命令</string>
+    <string name="terminal_ai_hint">请先输入自然语言需求。</string>
+    <string name="terminal_ai_translating">正在转换为命令...</string>
+    <string name="terminal_generate_prompt">任务：将下面的自然语言需求转换为一行 macOS bash 命令。\n需求：%s\n\n强制规则：只返回命令文本。不要解释。不要 Markdown。不要引号。\n命令：</string>
+    <string name="terminal_generator_role">你是终端命令生成器。只输出原始 bash 命令。</string>
+    <string name="terminal_analyze_prompt">分析这段终端输出，并用 %1$s 提供解释或建议：\n%2$s\n使用 Markdown 格式。</string>
+    <string name="terminal_output_analyzer_role">你是终端输出分析器。请用 %s 回答。</string>
+    <string name="monitor_quick_ls">列出文件</string>
+    <string name="monitor_quick_df">磁盘使用</string>
+    <string name="monitor_quick_mem_sort">内存排行</string>
+    <string name="monitor_quick_cpu_sort">CPU 排行</string>
+    <string name="monitor_quick_ip">IP 地址</string>
+    <string name="monitor_quick_ports">监听端口</string>
+    <string name="monitor_quick_uptime">运行时间</string>
+    <string name="monitor_quick_brew">Brew 包</string>
+    <string name="monitor_quick_vers">macOS 版本</string>
+    <string name="monitor_quick_proc_count">进程数量</string>
+    <string name="monitor_quick_space">主目录占用</string>
+    <string name="monitor_quick_downloads">最近下载</string>
+    <string name="monitor_quick_arch">系统架构</string>
+    <string name="monitor_quick_who">登录用户</string>
+    <string name="monitor_quick_dns">DNS 配置</string>
     <string name="config_sys">系统</string>
     <string name="config_user">用户</string>
-    
     <string name="cat_system">系统</string>
     <string name="cat_web">Web</string>
     <string name="cat_app">应用</string>

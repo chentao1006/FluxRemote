@@ -7,7 +7,14 @@ import SwiftUI
 enum AppLanguage: String, CaseIterable, Identifiable {
     case system = "system"
     case chinese = "zh-Hans"
+    case traditionalChinese = "zh-Hant"
     case english = "en"
+    case japanese = "ja"
+    case korean = "ko"
+    case spanish = "es"
+    case german = "de"
+    case french = "fr"
+    case italian = "it"
     
     var id: String { self.rawValue }
     
@@ -15,7 +22,14 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         switch self {
         case .system: return nil
         case .chinese: return Locale(identifier: "zh-Hans")
+        case .traditionalChinese: return Locale(identifier: "zh-Hant")
         case .english: return Locale(identifier: "en")
+        case .japanese: return Locale(identifier: "ja")
+        case .korean: return Locale(identifier: "ko")
+        case .spanish: return Locale(identifier: "es")
+        case .german: return Locale(identifier: "de")
+        case .french: return Locale(identifier: "fr")
+        case .italian: return Locale(identifier: "it")
         }
     }
     
@@ -23,7 +37,14 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         switch self {
         case .system: return "common.systemDefault"
         case .chinese: return "简体中文"
+        case .traditionalChinese: return "繁體中文"
         case .english: return "English"
+        case .japanese: return "日本語"
+        case .korean: return "한국어"
+        case .spanish: return "Español"
+        case .german: return "Deutsch"
+        case .french: return "Français"
+        case .italian: return "Italiano"
         }
     }
 }
@@ -60,10 +81,32 @@ class AppLanguageManager {
         return NSLocalizedString(key, value: key, comment: "")
     }
 
+    func systemT(_ key: String) -> String {
+        NSLocalizedString(key, value: key, comment: "")
+    }
+
     var aiResponseLanguage: String {
         let langCode = selectedLanguage == .system ? Locale.current.language.languageCode?.identifier : selectedLanguage.rawValue
         if langCode?.hasPrefix("zh") == true {
             return "Chinese"
+        }
+        if langCode?.hasPrefix("ja") == true {
+            return "Japanese"
+        }
+        if langCode?.hasPrefix("ko") == true {
+            return "Korean"
+        }
+        if langCode?.hasPrefix("es") == true {
+            return "Spanish"
+        }
+        if langCode?.hasPrefix("de") == true {
+            return "German"
+        }
+        if langCode?.hasPrefix("fr") == true {
+            return "French"
+        }
+        if langCode?.hasPrefix("it") == true {
+            return "Italian"
         }
         return "English"
     }

@@ -55,7 +55,7 @@ class LLMClient(private val context: Context) {
             id = UUID.randomUUID().toString()
             prefs.edit().putString("deviceId", id).apply()
         }
-        return id!!
+        return id
     }
 
     private fun generateToken(deviceId: String): String {
@@ -119,8 +119,8 @@ class LLMClient(private val context: Context) {
             val reader = response.body?.source()?.inputStream()?.bufferedReader() ?: throw IOException("No body")
             var line: String? = reader.readLine()
             while (line != null) {
-                if (line!!.startsWith("data:")) {
-                    val dataStr = line!!.substring(5).trim()
+                if (line.startsWith("data:")) {
+                    val dataStr = line.substring(5).trim()
                     if (dataStr == "[DONE]") break
                     try {
                         val chunk = json.decodeFromString<ChatStreamResponse>(dataStr)

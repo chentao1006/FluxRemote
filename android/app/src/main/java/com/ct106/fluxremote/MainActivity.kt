@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -31,7 +32,10 @@ import com.ct106.flux_remote.core.ServerManager
 import com.ct106.flux_remote.ui.screens.*
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
     private lateinit var serverManager: ServerManager
@@ -53,7 +57,14 @@ class MainActivity : ComponentActivity() {
             val localizedContext = remember(context, selectedLanguage) {
                 val locale = when (selectedLanguage) {
                     "zh" -> java.util.Locale.SIMPLIFIED_CHINESE
+                    "zh-Hant" -> java.util.Locale.TRADITIONAL_CHINESE
                     "en" -> java.util.Locale.ENGLISH
+                    "ja" -> java.util.Locale.JAPANESE
+                    "ko" -> java.util.Locale.KOREAN
+                    "es" -> java.util.Locale.forLanguageTag("es")
+                    "de" -> java.util.Locale.GERMAN
+                    "fr" -> java.util.Locale.FRENCH
+                    "it" -> java.util.Locale.ITALIAN
                     else -> java.util.Locale.getDefault()
                 }
                 val config = android.content.res.Configuration(context.resources.configuration)
@@ -88,6 +99,8 @@ fun MainNavigation(serverManager: ServerManager, apiClient: RemoteAPIClient) {
     val selectedServerId by serverManager.selectedServerId.collectAsState()
     val selectedServer = serverManager.getSelectedServer()
     var serverDropdownExpanded by remember { mutableStateOf(false) }
+    var commandButtonOffset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    var showingCommandExecution by remember { mutableStateOf(false) }
     val startDestination = if (servers.isEmpty()) "server_list" else "dashboard"
 
     LaunchedEffect(servers.isEmpty(), currentRoute) {
@@ -131,11 +144,15 @@ fun MainNavigation(serverManager: ServerManager, apiClient: RemoteAPIClient) {
         scope.launch { drawerState.close() }
     }
 
+    BackHandler(enabled = showingCommandExecution) {
+        showingCommandExecution = false
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
-        gesturesEnabled = showDrawer,
+        gesturesEnabled = showDrawer && !showingCommandExecution,
         drawerContent = {
-            if (showDrawer) {
+            if (showDrawer && !showingCommandExecution) {
                 ModalDrawerSheet {
                     Column(
                         modifier = Modifier
@@ -239,6 +256,7 @@ fun MainNavigation(serverManager: ServerManager, apiClient: RemoteAPIClient) {
                             DrawerMenuItem(stringResource(R.string.dashboard), "dashboard", Icons.Default.Dashboard, "sidebar.home"),
                             
                             // System Tools
+                            DrawerMenuItem(stringResource(R.string.terminal_title), "terminal", Icons.Default.PlayCircle, "sidebar.systemTools"),
                             if (features.processes ?: true) DrawerMenuItem(stringResource(R.string.process_mgmt), "process", Icons.Default.Memory, "sidebar.systemTools") else null,
                             if (features.ports ?: true) DrawerMenuItem(stringResource(R.string.ports_mgmt), "ports", Icons.Default.Lan, "sidebar.systemTools") else null,
                             if (features.logs ?: true) DrawerMenuItem(stringResource(R.string.logs_mgmt), "logs", Icons.Default.Description, "sidebar.systemTools") else null,
@@ -271,10 +289,12 @@ fun MainNavigation(serverManager: ServerManager, apiClient: RemoteAPIClient) {
                             }
                             NavigationDrawerItem(
                                 label = { Text(item.label) },
-                                selected = currentRoute == item.route,
+                                selected = currentRoute == item.route || (item.route == "terminal" && showingCommandExecution),
                                 onClick = {
                                     scope.launch { drawerState.close() }
-                                    if (currentRoute != item.route) {
+                                    if (item.route == "terminal") {
+                                        showingCommandExecution = true
+                                    } else if (currentRoute != item.route) {
                                         navController.navigate(item.route) {
                                             popUpTo(navController.graph.findStartDestination().id) {
                                                 this.saveState = true
@@ -339,10 +359,11 @@ fun MainNavigation(serverManager: ServerManager, apiClient: RemoteAPIClient) {
             }
         }
     ) {
-        NavHost(
-            navController = navController,
-            startDestination = startDestination
-        ) {
+        Box(Modifier.fillMaxSize()) {
+            NavHost(
+                navController = navController,
+                startDestination = startDestination
+            ) {
                 composable("dashboard") {
                     DashboardScreen(
                         serverManager = serverManager,
@@ -522,8 +543,47 @@ fun MainNavigation(serverManager: ServerManager, apiClient: RemoteAPIClient) {
                     )
                 }
             }
+
+            if (showDrawer && !showingCommandExecution) {
+                FloatingActionButton(
+                    onClick = { showingCommandExecution = true },
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .navigationBarsPadding()
+                        .padding(16.dp)
+                        .offset {
+                            IntOffset(
+                                commandButtonOffset.x.roundToInt(),
+                                commandButtonOffset.y.roundToInt()
+                            )
+                        }
+                        .pointerInput(Unit) {
+                            detectDragGestures { change, dragAmount ->
+                                change.consume()
+                                commandButtonOffset += dragAmount
+                            }
+                        },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ) {
+                    Icon(Icons.Default.PlayCircle, contentDescription = stringResource(R.string.terminal_title))
+                }
+            }
+
+            if (showingCommandExecution) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    TerminalScreen(
+                        apiClient = apiClient,
+                        onBack = { showingCommandExecution = false }
+                    )
+                }
+            }
         }
     }
+}
 
 @Composable
 fun FluxRemoteTheme(
