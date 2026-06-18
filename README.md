@@ -25,8 +25,10 @@ Flux Remote is the official mobile application for FluxMonitor, allowing users t
 
 MIT License
 
-App Store:
+Download:
+
 [![Download on the App Store](https://flux.ct106.com/public/app-store-badge-en.svg)](https://apps.apple.com/app/flux-remote/id6761290185)
+[![Get it on Google Play](assets/en-play-badge.png)](https://play.google.com/store/apps/details?id=com.ct106.flux_remote)
 
 ![Flux Remote iOS](screenshots/phone/1.jpg)
 ![Flux Remote iPadOS](screenshots/pad/1.jpg)
