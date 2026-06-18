@@ -15,11 +15,6 @@ Flux Remote is the official mobile application for FluxMonitor, allowing users t
 - Multi-module support (Docker, Nginx, Logs, Configs, Launch Agents, Processes, Ports, etc.)
 - Multi-language interface (Chinese/English)
 
-## Installation & Usage
-1. Clone this repository
-2. Open `ios/Flux Remote.xcodeproj` with Xcode
-3. Run on your iOS device or simulator
-
 ## Related Project
 - [FluxMonitor](https://github.com/chentao1006/FluxMonitor)
 
@@ -54,5 +49,5 @@ Download:
 - [x] Docker, Nginx, and Launch Agent modules
 - [x] Multi-language interface (EN/CH)
 - [x] AI settings and AI analysis for supported modules
-- [ ] Release packaging and distribution
+- [x] Release packaging and distribution
 - [ ] Push notification support

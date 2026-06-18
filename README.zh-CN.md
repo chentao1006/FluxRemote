@@ -13,11 +13,6 @@ Flux Remote 是为 FluxMonitor 提供的官方移动端应用，方便用户在�
 - 多模块支持（Docker、Nginx、日志、配置、Launch Agent、进程、端口等）
 - 多语言界面（中/英）
 
-## 安装与使用
-1. 克隆本仓库
-2. 使用 Xcode 打开 `ios/Flux Remote.xcodeproj`
-3. 运行到你的 iOS 设备或模拟器
-
 ## 相关项目
 - [FluxMonitor](https://github.com/chentao1006/FluxMonitor)
 
@@ -53,7 +48,5 @@ MIT License
 - [x] Docker、Nginx、Launch Agent 模块
 - [x] 多语言界面（中/英）
 - [x] AI 配置与已支持模块的 AI 分析
-- [ ] 发布打包与分发
+- [x] 发布打包与分发
 - [ ] 推送通知支持
-
-本项目是 [FluxMonitor](https://github.com/chentao1006/FluxMonitor) 的移动设备客户端。
