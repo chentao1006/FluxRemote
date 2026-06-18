@@ -19,14 +19,18 @@ struct QRScannerView: UIViewControllerRepresentable {
     
     class Coordinator: NSObject, AVCaptureMetadataOutputObjectsDelegate {
         let completion: (Result<String, Error>) -> Void
+        var hasScanned = false
+        
         init(completion: @escaping (Result<String, Error>) -> Void) {
             self.completion = completion
         }
         
         func metadataOutput(_ output: AVCaptureMetadataOutput, didOutput metadataObjects: [AVMetadataObject], from connection: AVCaptureConnection) {
+            guard !hasScanned else { return }
             if let metadataObject = metadataObjects.first {
                 guard let readableObject = metadataObject as? AVMetadataMachineReadableCodeObject else { return }
                 guard let stringValue = readableObject.stringValue else { return }
+                hasScanned = true
                 AudioServicesPlaySystemSound(SystemSoundID(kSystemSoundID_Vibrate))
                 completion(.success(stringValue))
             }

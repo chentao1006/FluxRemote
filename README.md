@@ -14,6 +14,7 @@ Flux Remote is the official mobile application for FluxMonitor, allowing users t
 - Manage and configure services
 - Multi-module support (Docker, Nginx, Logs, Configs, Launch Agents, Processes, Ports, etc.)
 - Multi-language interface (Chinese/English)
+- Scan QR code to add server (quickly fill in server details by scanning a QR code)
 
 ## Related Project
 - [FluxMonitor](https://github.com/chentao1006/FluxMonitor)

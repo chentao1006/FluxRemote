@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -18,24 +19,28 @@
             text-align: center;
             padding: 20px;
         }
+
         .container {
             background: white;
             padding: 40px;
             border-radius: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
             max-width: 400px;
             width: 100%;
         }
+
         h1 {
             font-size: 24px;
             margin-bottom: 10px;
         }
+
         p {
             font-size: 16px;
             color: #86868b;
             margin-bottom: 30px;
             line-height: 1.5;
         }
+
         .icon {
             width: 80px;
             height: 80px;
@@ -49,6 +54,7 @@
             font-size: 40px;
             font-weight: bold;
         }
+
         .btn {
             display: inline-block;
             background-color: #007aff;
@@ -63,16 +69,20 @@
             margin-bottom: 15px;
             transition: background-color 0.2s;
         }
+
         .btn:hover {
             background-color: #0056b3;
         }
+
         .btn-secondary {
             background-color: #e5e5ea;
             color: #1d1d1f;
         }
+
         .btn-secondary:hover {
             background-color: #d1d1d6;
         }
+
         .loading {
             margin-top: 20px;
             font-size: 14px;
@@ -80,39 +90,47 @@
         }
     </style>
 </head>
+
 <body>
 
-<div class="container">
-    <div class="icon">F</div>
-    <h1>Flux Remote</h1>
-    <p id="message">Attempting to open Flux Remote...</p>
+    <div class="container">
+        <div class="icon">F</div>
+        <h1>Flux Remote</h1>
+        <p id="message">Attempting to open Flux Remote...</p>
 
-    <div id="loader" class="loading">Connecting...</div>
-</div>
+        <div id="loader" class="loading">Connecting...</div>
+    </div>
 
-<script>
-    // Extract current URL query parameters to forward to the custom scheme (flux://)
-    const urlParams = window.location.search;
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    const isAndroid = /android/i.test(navigator.userAgent);
-    
-    // Try to open the app using the custom scheme fallback if App Links didn't work.
-    // (If App Links worked, this page wouldn't even load in Android 6.0+, it would open the app directly).
-    const appSchemeUrl = "flux://connect" + urlParams;
+    <script>
+        // Extract current URL query parameters to forward to the custom scheme (flux://)
+        const urlParams = window.location.search;
 
-    function tryOpenApp() {
-        window.location.href = appSchemeUrl;
-        
-        // Redirect to Google Play Store after a short delay if the app didn't open
-        setTimeout(() => {
-            document.getElementById('message').innerText = "Redirecting to App Store...";
-            window.location.href = "https://play.google.com/store/apps/details?id=com.ct106.flux_remote";
-        }, 2000);
-    }
+        // Check user agent
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        const isAndroid = /android/i.test(navigator.userAgent);
 
-    // Automatically try to open on load
-    window.onload = tryOpenApp;
-</script>
+        // Custom scheme URL for app connection
+        const appSchemeUrl = "flux://connect" + urlParams;
+
+        function tryOpenApp() {
+            window.location.href = appSchemeUrl;
+
+            // Redirect to appropriate app store after a short delay if the app didn't open
+            setTimeout(() => {
+                if (isIOS) {
+                    document.getElementById('message').innerText = "Redirecting to App Store...";
+                    window.location.href = "https://apps.apple.com/app/flux-remote/id6761290185";
+                } else {
+                    document.getElementById('message').innerText = "Redirecting to Google Play Store...";
+                    window.location.href = "https://play.google.com/store/apps/details?id=com.ct106.flux_remote";
+                }
+            }, 200);
+        }
+
+        // Automatically try to open on load
+        window.onload = tryOpenApp;
+    </script>
 
 </body>
+
 </html>

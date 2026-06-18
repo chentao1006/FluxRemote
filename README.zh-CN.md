@@ -12,6 +12,7 @@ Flux Remote 是为 FluxMonitor 提供的官方移动端应用，方便用户在�
 - 管理和配置服务
 - 多模块支持（Docker、Nginx、日志、配置、Launch Agent、进程、端口等）
 - 多语言界面（中/英）
+- 扫码添加服务器（支持在 App 中扫码快速填入服务器配置）
 
 ## 相关项目
 - [FluxMonitor](https://github.com/chentao1006/FluxMonitor)

@@ -33,8 +33,32 @@ struct AppContainerView: View {
                                     .aspectRatio(contentMode: .fit)
                                     .frame(width: 128, height: 128)
 
+                                if let serverName = ServerManager.shared.selectedServer?.name, !serverName.isEmpty {
+                                    Text("\(languageManager.t("startup.connecting")) \(serverName)")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
+                                        .transition(.opacity)
+                                }
+
                                 ProgressView()
                                     .tint(Color("AccentColor"))
+                                    .padding(.bottom, 20)
+
+                                Button {
+                                    // Cancel any active login/auto-login tasks and show server manager
+                                    apiClient.logout()
+                                    initialServerEntryAttempted = true
+                                    showingServerManagement = true
+                                } label: {
+                                    Text(languageManager.t("startup.switchServer"))
+                                        .font(.footnote)
+                                        .fontWeight(.medium)
+                                        .foregroundStyle(Color("AccentColor"))
+                                        .padding(.vertical, 8)
+                                        .padding(.horizontal, 16)
+                                        .background(Color(.secondarySystemBackground))
+                                        .clipShape(Capsule())
+                                }
                             }
                         }
                     } else {

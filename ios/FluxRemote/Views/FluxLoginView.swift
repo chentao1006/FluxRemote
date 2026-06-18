@@ -16,6 +16,7 @@ struct FluxLoginView: View {
     var initialServerName: String? = nil
     var serverId: UUID? = nil
     @State private var isShowingScanner = false
+    @State private var isShowingAndroidQRAlert = false
     @Environment(\.dismiss) private var dismiss
     
     enum Field {
@@ -158,7 +159,7 @@ struct FluxLoginView: View {
                             
                             Button(action: login) {
                                 Group {
-                                    if apiClient.isLoading || apiClient.isAuthenticated {
+                                    if apiClient.isLoading {
                                         ProgressView()
                                             .tint(.white)
                                     } else {
@@ -203,20 +204,19 @@ struct FluxLoginView: View {
                     isShowingScanner = false
                     switch result {
                     case .success(let code):
-                        if let data = code.data(using: .utf8),
-                           let json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
-                            if let url = json["url"] as? String, !url.isEmpty {
-                                panelURL = url
-                            }
-                            if let hostname = json["hostname"] as? String, !hostname.isEmpty {
-                                serverName = hostname
-                            }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                            parseQRCode(code)
                         }
                     case .failure(let error):
                         print(error.localizedDescription)
                     }
                 }
                 .ignoresSafeArea()
+            }
+            .alert(languageManager.t("login.androidQRTitle"), isPresented: $isShowingAndroidQRAlert) {
+                Button(languageManager.t("common.ok"), role: .cancel) { }
+            } message: {
+                Text(languageManager.t("login.androidQRMessage"))
             }
             .onAppear {
                 if isAddingServer {
@@ -265,6 +265,52 @@ struct FluxLoginView: View {
             }
         }
     }
+    func parseQRCode(_ code: String) {
+        // flux://connect?topic=...&key=... is the custom-scheme variant of the Android MQTT pairing QR
+        if code.hasPrefix("flux://connect") {
+            isShowingAndroidQRAlert = true
+            return
+        }
+
+        var scannedURL = ""
+        var scannedHostname = ""
+        var scannedUser = ""
+
+        // 1. Try Universal Link format: https://chentao1006.github.io/FluxRemote/connect.html?...
+        if code.hasPrefix("http"), let parsed = URLComponents(string: code) {
+            let host = parsed.host ?? ""
+            let path = parsed.path
+            if host.caseInsensitiveCompare("chentao1006.github.io") == .orderedSame &&
+               path.lowercased().contains("/fluxremote/connect.html") {
+
+                // MQTT pairing QR uses topic+key params instead of url — show Android alert
+                let hasTopic = parsed.queryItems?.contains(where: { $0.name == "topic" }) == true
+                let hasKey   = parsed.queryItems?.contains(where: { $0.name == "key" })   == true
+                if hasTopic && hasKey {
+                    isShowingAndroidQRAlert = true
+                    return
+                }
+
+                scannedURL      = parsed.queryItems?.first(where: { $0.name == "url" })?.value      ?? ""
+                scannedHostname = parsed.queryItems?.first(where: { $0.name == "hostname" })?.value ?? ""
+                scannedUser     = parsed.queryItems?.first(where: { $0.name == "u" })?.value        ?? ""
+            }
+        }
+
+        // 2. Fallback: try legacy JSON format {"url": ..., "hostname": ..., "u": ...}
+        if scannedURL.isEmpty, let data = code.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
+            scannedURL      = json["url"]      as? String ?? ""
+            scannedHostname = json["hostname"] as? String ?? ""
+            scannedUser     = json["u"]        as? String ?? ""
+        }
+
+        if !scannedURL.isEmpty      { panelURL    = scannedURL }
+        if !scannedHostname.isEmpty { serverName  = scannedHostname }
+        if !scannedUser.isEmpty     { username    = scannedUser }
+        focusedField = .password
+    }
+
     func login() {
         // Auto-fix URL if missing protocol
         var finalURL = panelURL
