@@ -15,6 +15,7 @@ struct FluxLoginView: View {
     var initialURL: String? = nil
     var initialServerName: String? = nil
     var serverId: UUID? = nil
+    @State private var isShowingScanner = false
     @Environment(\.dismiss) private var dismiss
     
     enum Field {
@@ -60,6 +61,11 @@ struct FluxLoginView: View {
                                                 .textInputAutocapitalization(.never)
                                                 .focused($focusedField, equals: .url)
                                                 .submitLabel(.next)
+                                            
+                                            Button(action: { isShowingScanner = true }) {
+                                                Image(systemName: "qrcode.viewfinder")
+                                                    .foregroundStyle(Color("AccentColor"))
+                                            }
                                         }
                                         .padding()
                                         
@@ -191,6 +197,26 @@ struct FluxLoginView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+            }
+            .sheet(isPresented: $isShowingScanner) {
+                QRScannerView { result in
+                    isShowingScanner = false
+                    switch result {
+                    case .success(let code):
+                        if let data = code.data(using: .utf8),
+                           let json = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
+                            if let url = json["url"] as? String, !url.isEmpty {
+                                panelURL = url
+                            }
+                            if let hostname = json["hostname"] as? String, !hostname.isEmpty {
+                                serverName = hostname
+                            }
+                        }
+                    case .failure(let error):
+                        print(error.localizedDescription)
+                    }
+                }
+                .ignoresSafeArea()
             }
             .onAppear {
                 if isAddingServer {

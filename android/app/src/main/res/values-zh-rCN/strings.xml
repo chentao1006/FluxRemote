@@ -263,4 +263,7 @@
     <string name="cat_other">其他</string>
     <string name="add">添加</string>
     <string name="lang_name">简体中文</string>
+    <string name="mqtt_paired_success">已成功与远控端配对</string>
+    <string name="mqtt_pair_failed">远控端配对失败</string>
+    <string name="scan_qr_prompt">请扫描二维码</string>
 </resources>

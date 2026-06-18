@@ -263,4 +263,7 @@
     <string name="cat_other">Other</string>
     <string name="add">Add</string>
     <string name="lang_name">English</string>
+    <string name="mqtt_paired_success">Successfully paired with remote server</string>
+    <string name="mqtt_pair_failed">Failed to pair with remote server</string>
+    <string name="scan_qr_prompt">Scan QR Code</string>
 </resources>

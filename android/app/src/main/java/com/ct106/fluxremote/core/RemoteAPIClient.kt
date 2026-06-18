@@ -128,8 +128,8 @@ class RemoteAPIClient(val serverManager: ServerManager) {
     }
     
     private val okHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(5, TimeUnit.SECONDS)
+        .readTimeout(10, TimeUnit.SECONDS)
         .cookieJar(object : okhttp3.CookieJar {
             override fun saveFromResponse(url: okhttp3.HttpUrl, cookies: List<okhttp3.Cookie>) {
                 cookieStore[url.host] = cookies

@@ -22,8 +22,8 @@ android {
         applicationId = "com.ct106.flux_remote"
         minSdk = 26
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.0.1"
+        versionCode = 4
+        versionName = "1.0.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -81,6 +81,8 @@ dependencies {
     implementation(libs.material)
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.compose.markdown)
+    // ZXing for QR Code Scanning
+    implementation(libs.zxing.android.embedded)
     
     // Aptabase Analytics
     implementation("com.github.aptabase:aptabase-kotlin:0.0.8")

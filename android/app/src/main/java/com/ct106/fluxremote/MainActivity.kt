@@ -29,8 +29,11 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import com.ct106.flux_remote.R
 import com.ct106.flux_remote.core.RemoteAPIClient
 import com.ct106.flux_remote.core.ServerManager
+import com.ct106.flux_remote.core.MQTTRemoteSync
 import com.ct106.flux_remote.ui.screens.*
 import kotlinx.coroutines.launch
+import android.content.Intent
+import android.widget.Toast
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -46,6 +49,9 @@ class MainActivity : ComponentActivity() {
         
         serverManager = ServerManager(this)
         apiClient = RemoteAPIClient(serverManager)
+
+        // Handle flux://connect deep link
+        handleDeepLink(intent)
 
         enableEdgeToEdge()
 
@@ -72,7 +78,10 @@ class MainActivity : ComponentActivity() {
                 context.createConfigurationContext(config)
             }
             
-            CompositionLocalProvider(LocalContext provides localizedContext) {
+            CompositionLocalProvider(
+                LocalContext provides localizedContext,
+                androidx.activity.compose.LocalActivityResultRegistryOwner provides this
+            ) {
                 FluxRemoteTheme {
                     if (isInitializing) {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -83,6 +92,23 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleDeepLink(intent)
+    }
+
+    private fun handleDeepLink(intent: Intent?) {
+        val uri = intent?.data?.toString() ?: return
+        val pairing = MQTTRemoteSync.parsePairingURI(uri) ?: return
+        val mqttSync = MQTTRemoteSync.getInstance(this)
+        lifecycleScope.launch {
+            val success = mqttSync.savePairing(pairing.topic, pairing.key)
+            val msg = if (success) getString(R.string.mqtt_paired_success)
+                      else getString(R.string.mqtt_pair_failed)
+            Toast.makeText(this@MainActivity, msg, Toast.LENGTH_LONG).show()
         }
     }
 }

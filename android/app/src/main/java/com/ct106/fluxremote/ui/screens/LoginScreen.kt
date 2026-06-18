@@ -26,7 +26,14 @@ import com.ct106.flux_remote.R
 import com.ct106.flux_remote.core.RemoteAPIClient
 import com.ct106.flux_remote.core.ServerConfig
 import com.ct106.flux_remote.core.ServerManager
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.launch
+import org.json.JSONObject
+import androidx.activity.compose.rememberLauncherForActivityResult
+import com.ct106.flux_remote.core.MQTTRemoteSync
+import androidx.compose.ui.platform.LocalContext
+import android.net.Uri
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,6 +53,7 @@ fun LoginScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     
     LaunchedEffect(initialServerId) {
         if (initialServerId != null) {
@@ -63,14 +71,161 @@ fun LoginScreen(
     }
     val focusManager = LocalFocusManager.current
     val loginFailedMsg = stringResource(R.string.login_failed)
+    val mqttPairedMsg = stringResource(R.string.mqtt_paired_success)
+    val mqttPairFailedMsg = stringResource(R.string.mqtt_pair_failed)
+    val mqttSync = remember { MQTTRemoteSync.getInstance(context) }
+    var showSnackbar by remember { mutableStateOf<String?>(null) }
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(showSnackbar) {
+        showSnackbar?.let {
+            snackbarHostState.showSnackbar(it)
+            showSnackbar = null
+        }
+    }
+
+    val performLogin: () -> Unit = {
+        scope.launch {
+            isLoading = true
+            errorMessage = null
+            
+            var finalURL = url
+            if (!finalURL.lowercase().startsWith("http://") && !finalURL.lowercase().startsWith("https://")) {
+                finalURL = "https://$finalURL"
+            }
+            
+            val displayName = if (serverName.isBlank()) {
+                finalURL.replace("https://", "").replace("http://", "").removeSuffix("/")
+            } else serverName
+
+            val currentServer = if (initialServerId != null) {
+                serverManager.servers.value.find { it.id == initialServerId }
+            } else null
+
+            val tempServer = currentServer?.copy(
+                name = displayName,
+                url = finalURL,
+                username = username,
+                password = password,
+                autoLogin = autoLogin,
+                rememberPassword = true
+            ) ?: ServerConfig(
+                name = displayName,
+                url = finalURL,
+                username = username,
+                password = password,
+                autoLogin = autoLogin,
+                rememberPassword = true
+            )
+
+            if (initialServerId != null) {
+                serverManager.updateServer(tempServer)
+            } else {
+                serverManager.addServer(tempServer)
+            }
+            serverManager.selectServer(tempServer)
+            
+            val loginSuccess = apiClient.login(
+                mapOf("username" to username, "password" to password),
+                tempServer
+            )
+            
+            isLoading = false
+            if (loginSuccess) {
+                if (initialServerId == null) {
+                    com.aptabase.Aptabase.instance.trackEvent("server_added")
+                }
+                onLoginSuccess()
+            } else {
+                errorMessage = loginFailedMsg
+            }
+        }
+    }
+
+    val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
+        if (result.contents != null) {
+            val scannedContent = result.contents
+            // Try flux://connect pairing URI first
+            val pairing = MQTTRemoteSync.parsePairingURI(scannedContent)
+            if (pairing != null) {
+                scope.launch {
+                    val success = mqttSync.savePairing(pairing.topic, pairing.key)
+                    if (success) {
+                        showSnackbar = mqttPairedMsg
+                        
+                        url = "Fetching..."
+                        isLoading = true
+                        mqttSync.fetchLatestData(timeoutMs = 15000) { data ->
+                            if (data?.url != null) {
+                                url = data.url
+                                if (!data.user.isNullOrEmpty()) username = data.user
+                                if (!data.pass.isNullOrEmpty()) password = data.pass
+                                if (serverName.isEmpty()) serverName = data.hostname?.takeIf { it.isNotEmpty() } ?: "Remote Mac"
+                                
+                                performLogin()
+                            } else {
+                                isLoading = false
+                                url = ""
+                                showSnackbar = "Failed to fetch URL from MQTT"
+                            }
+                        }
+                    } else {
+                        showSnackbar = mqttPairFailedMsg
+                    }
+                }
+            } else {
+                // Fallback: try legacy JSON QR code format or LAN Universal Link
+                try {
+                    var scannedUrl = ""
+                    var scannedHostname = ""
+                    var scannedUser = ""
+
+                    if (scannedContent.startsWith("http")) {
+                        val parsed = Uri.parse(scannedContent)
+                        if (parsed.host?.equals("chentao1006.github.io", ignoreCase = true) == true && parsed.path?.contains("/FluxRemote/connect.html", ignoreCase = true) == true) {
+                            scannedUrl = parsed.getQueryParameter("url") ?: ""
+                            scannedHostname = parsed.getQueryParameter("hostname") ?: ""
+                            scannedUser = parsed.getQueryParameter("u") ?: ""
+                        }
+                    } 
+                    
+                    if (scannedUrl.isEmpty() && scannedContent.trim().startsWith("{")) {
+                        val json = JSONObject(scannedContent)
+                        scannedUrl = json.optString("url")
+                        scannedHostname = json.optString("hostname")
+                        scannedUser = json.optString("u")
+                    }
+
+                    if (scannedUrl.isNotEmpty()) url = scannedUrl
+                    if (scannedHostname.isNotEmpty()) serverName = scannedHostname
+                    if (scannedUser.isNotEmpty()) username = scannedUser
+                } catch (e: Exception) {
+                    // Ignore invalid content
+                }
+            }
+        }
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.login_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+                    }
+                },
+                actions = {
+                    val scanPromptMsg = stringResource(R.string.scan_qr_prompt)
+                    IconButton(onClick = {
+                        scanLauncher.launch(ScanOptions().apply {
+                            setPrompt(scanPromptMsg)
+                            setOrientationLocked(true)
+                            setCaptureActivity(CustomScannerActivity::class.java)
+                        })
+                    }) {
+                        Icon(Icons.Default.QrCodeScanner, contentDescription = "Scan QR Code")
                     }
                 }
             )
@@ -202,63 +357,7 @@ fun LoginScreen(
             }
 
             Button(
-                onClick = {
-                    scope.launch {
-                        isLoading = true
-                        errorMessage = null
-                        
-                        var finalURL = url
-                        if (!finalURL.lowercase().startsWith("http://") && !finalURL.lowercase().startsWith("https://")) {
-                            finalURL = "https://$finalURL"
-                        }
-                        
-                        val displayName = if (serverName.isBlank()) {
-                            finalURL.replace("https://", "").replace("http://", "").removeSuffix("/")
-                        } else serverName
-
-                        val currentServer = if (initialServerId != null) {
-                            serverManager.servers.value.find { it.id == initialServerId }
-                        } else null
-
-                        val tempServer = currentServer?.copy(
-                            name = displayName,
-                            url = finalURL,
-                            username = username,
-                            password = password,
-                            autoLogin = autoLogin,
-                            rememberPassword = true
-                        ) ?: ServerConfig(
-                            name = displayName,
-                            url = finalURL,
-                            username = username,
-                            password = password,
-                            autoLogin = autoLogin,
-                            rememberPassword = true
-                        )
-
-                        if (initialServerId != null) {
-                            serverManager.updateServer(tempServer)
-                        } else {
-                            serverManager.addServer(tempServer)
-                        }
-                        serverManager.selectServer(tempServer)
-                        
-                        val success = apiClient.login(
-                            mapOf("username" to username, "password" to password),
-                            tempServer
-                        )
-                        
-                        if (success) {
-                            if (initialServerId == null) {
-                                com.aptabase.Aptabase.instance.trackEvent("server_added")
-                            }
-                            onLoginSuccess()
-                        } else {
-                            errorMessage = loginFailedMsg
-                        }
-                        isLoading = false
-                    }
-                },
+                onClick = performLogin,
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 enabled = !isLoading && url.isNotBlank() && username.isNotBlank() && password.isNotBlank(),
                 shape = MaterialTheme.shapes.medium

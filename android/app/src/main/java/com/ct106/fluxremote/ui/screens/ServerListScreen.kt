@@ -35,6 +35,7 @@ fun ServerListScreen(
     val selectedServerId by serverManager.selectedServerId.collectAsState()
     val reachabilityStatuses by serverManager.reachabilityStatuses.collectAsState()
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     Scaffold(
         topBar = {
@@ -48,7 +49,13 @@ fun ServerListScreen(
             )
         }
     ) { padding ->
-        if (servers.isEmpty()) {
+        var isLoading by remember { mutableStateOf(false) }
+
+        if (isLoading) {
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+        } else if (servers.isEmpty()) {
             EmptyServerState(onAddServer, modifier = Modifier.padding(padding))
         } else {
             LazyColumn(modifier = Modifier.padding(padding)) {
@@ -58,26 +65,70 @@ fun ServerListScreen(
                         isSelected = server.id == selectedServerId,
                         isOffline = reachabilityStatuses[server.id],
                         onSelect = {
-                            scope.launch {
-                                serverManager.selectServer(server)
-                                com.aptabase.Aptabase.instance.trackEvent("server_switched")
-                                if (serverManager.isServerAuthenticated(server.id)) {
-                                    onSelectServer(server)
-                                } else {
-                                    val password = serverManager.getPassword(server.id)
-                                    if (server.autoLogin && password != null) {
-                                        // Try auto login
-                                        val success = apiClient.login(
-                                            mapOf("username" to (server.username ?: ""), "password" to password),
-                                            server
-                                        )
-                                        if (success) {
+                            if (server.url.isEmpty()) {
+                                onEditServer(server)
+                            } else {
+                                scope.launch {
+                                    isLoading = true
+                                    try {
+                                        if (serverManager.isServerAuthenticated(server.id)) {
+                                            isLoading = false
                                             onSelectServer(server)
                                         } else {
-                                            onEditServer(server)
+                                            val password = serverManager.getPassword(server.id)
+                                            if (server.autoLogin && password != null) {
+                                                // Try auto login
+                                                var success = apiClient.login(
+                                                    mapOf("username" to (server.username ?: ""), "password" to password),
+                                                    server
+                                                )
+                                                if (success) {
+                                                    isLoading = false
+                                                    onSelectServer(server)
+                                                } else {
+                                                    val mqttSync = com.ct106.flux_remote.core.MQTTRemoteSync.getInstance(context)
+                                                    if (mqttSync.isPaired.value) {
+                                                        // Fetch latest URL via MQTT
+                                                        mqttSync.fetchLatestData(timeoutMs = 15000) { data ->
+                                                            scope.launch {
+                                                                val newUrl = data?.url
+                                                                if (newUrl != null && newUrl != server.url) {
+                                                                    server.url = newUrl
+                                                                    if (!data.user.isNullOrEmpty()) server.username = data.user
+                                                                    if (!data.hostname.isNullOrEmpty() && server.name == "Remote Mac") server.name = data.hostname
+                                                                    if (!data.pass.isNullOrEmpty()) {
+                                                                        serverManager.setPassword(server.id, data.pass)
+                                                                    }
+                                                                    serverManager.updateServer(server)
+                                                                    
+                                                                    val testPass = if (!data.pass.isNullOrEmpty()) data.pass else password
+                                                                    success = apiClient.login(
+                                                                        mapOf("username" to (server.username ?: ""), "password" to testPass),
+                                                                        server
+                                                                    )
+                                                                }
+                                                                if (success) {
+                                                                    onSelectServer(server)
+                                                                } else {
+                                                                    onEditServer(server)
+                                                                }
+                                                                isLoading = false
+                                                            }
+                                                        }
+                                                        return@launch // Let mqtt callback handle isLoading
+                                                    } else {
+                                                        isLoading = false
+                                                        onEditServer(server)
+                                                    }
+                                                }
+                                            } else {
+                                                isLoading = false
+                                                onEditServer(server)
+                                            }
                                         }
-                                    } else {
-                                        onEditServer(server)
+                                    } catch (e: Exception) {
+                                        isLoading = false
+                                        e.printStackTrace()
                                     }
                                 }
                             }

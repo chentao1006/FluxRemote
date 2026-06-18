@@ -120,9 +120,16 @@ fun DashboardScreen(
                     errorMessage = null
                     updateHistory(s)
                 }
+            } else {
+                if (stats == null) {
+                    errorMessage = "HTTP Error ${response.code()}"
+                }
             }
         } catch (e: Exception) {
             e.printStackTrace()
+            if (stats == null) {
+                errorMessage = e.message ?: "Failed to connect"
+            }
         }
     }
 
@@ -253,9 +260,37 @@ fun DashboardScreen(
         }
     }
 
+    suspend fun attemptMqttRecovery() {
+        val mqttSync = com.ct106.flux_remote.core.MQTTRemoteSync.getInstance(context)
+        if (mqttSync.isPaired.value) {
+            errorMessage = null
+            val deferredData = kotlinx.coroutines.CompletableDeferred<com.ct106.flux_remote.core.MQTTRemoteSync.FetchResult?>()
+            mqttSync.fetchLatestData(timeoutMs = 15000) { data ->
+                deferredData.complete(data)
+            }
+            val data = deferredData.await()
+            val newUrl = data?.url
+            if (newUrl != null && newUrl != server.url) {
+                server.url = newUrl
+                if (!data.user.isNullOrEmpty()) server.username = data.user
+                if (!data.hostname.isNullOrEmpty() && server.name == "Remote Mac") server.name = data.hostname
+                if (!data.pass.isNullOrEmpty()) {
+                    serverManager.setPassword(server.id, data.pass)
+                }
+                serverManager.updateServer(server)
+                val testPass = if (!data.pass.isNullOrEmpty()) data.pass else serverManager.getPassword(server.id)
+                apiClient.login(mapOf("username" to (server.username ?: ""), "password" to (testPass ?: "")), server)
+            }
+            fetchStats()
+        }
+    }
+
     LaunchedEffect(server.id, isCurrentAuthenticated) {
         if (isCurrentAuthenticated || hasSavedPassword) {
             fetchStats()
+            if (stats == null && errorMessage != null) {
+                attemptMqttRecovery()
+            }
             fetchSummaries()
             lastSummaryFetch = System.currentTimeMillis()
         }
@@ -307,8 +342,31 @@ fun DashboardScreen(
             )
         }
     ) { padding ->
-        if (stats == null && (errorMessage == null || (hasSavedPassword && !isCurrentAuthenticated))) {
+        if (stats == null && errorMessage == null) {
             LoadingView(Modifier.padding(padding))
+            return@Scaffold
+        }
+
+        if (stats == null && errorMessage != null) {
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(48.dp))
+                    Spacer(Modifier.height(16.dp))
+                    Text(errorMessage!!, color = MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.height(16.dp))
+                    Button(onClick = {
+                        errorMessage = null
+                        scope.launch { 
+                            fetchStats() 
+                            if (stats == null && errorMessage != null) {
+                                attemptMqttRecovery()
+                            }
+                        }
+                    }) {
+                        Text("Retry")
+                    }
+                }
+            }
             return@Scaffold
         }
 

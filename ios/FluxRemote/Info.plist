@@ -48,5 +48,7 @@
 	<string>$(PUBLIC_SERVICE_URL)</string>
 	<key>AptabaseAppKey</key>
 	<string>$(APTABASE_APP_KEY)</string>
+	<key>NSCameraUsageDescription</key>
+	<string>We need access to your camera to scan QR codes for adding new servers.</string>
 </dict>
 </plist>
