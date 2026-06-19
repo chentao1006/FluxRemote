@@ -62,11 +62,6 @@ struct FluxLoginView: View {
                                                 .textInputAutocapitalization(.never)
                                                 .focused($focusedField, equals: .url)
                                                 .submitLabel(.next)
-                                            
-                                            Button(action: { isShowingScanner = true }) {
-                                                Image(systemName: "qrcode.viewfinder")
-                                                    .foregroundStyle(Color("AccentColor"))
-                                            }
                                         }
                                         .padding()
                                         
@@ -198,17 +193,52 @@ struct FluxLoginView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                if isAddingServer {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            isShowingScanner = true
+                        } label: {
+                            Image(systemName: "qrcode.viewfinder")
+                        }
+                    }
+                }
             }
             .sheet(isPresented: $isShowingScanner) {
-                QRScannerView { result in
-                    isShowingScanner = false
-                    switch result {
-                    case .success(let code):
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                            parseQRCode(code)
+                ZStack {
+                    QRScannerView { result in
+                        isShowingScanner = false
+                        switch result {
+                        case .success(let code):
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                                parseQRCode(code)
+                            }
+                        case .failure(let error):
+                            print(error.localizedDescription)
                         }
-                    case .failure(let error):
-                        print(error.localizedDescription)
+                    }
+
+                    QRScannerGuide()
+                        .allowsHitTesting(false)
+
+                    VStack {
+                        HStack {
+                            Button {
+                                isShowingScanner = false
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 44, height: 44)
+                                    .background(.black.opacity(0.45), in: Circle())
+                            }
+                            .accessibilityLabel(languageManager.t("common.cancel"))
+
+                            Spacer()
+                        }
+                        .padding(.leading, 20)
+                        .padding(.top, 16)
+
+                        Spacer()
                     }
                 }
                 .ignoresSafeArea()
@@ -354,6 +384,47 @@ struct FluxLoginView: View {
                 }
             }
         }
+    }
+}
+
+private struct QRScannerGuide: View {
+    private let size: CGFloat = 250
+    private let cornerLength: CGFloat = 36
+    private let lineWidth: CGFloat = 4
+
+    var body: some View {
+        ZStack {
+            ScannerCorner(rotation: .degrees(0), length: cornerLength, lineWidth: lineWidth)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+            ScannerCorner(rotation: .degrees(90), length: cornerLength, lineWidth: lineWidth)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+
+            ScannerCorner(rotation: .degrees(-90), length: cornerLength, lineWidth: lineWidth)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+
+            ScannerCorner(rotation: .degrees(180), length: cornerLength, lineWidth: lineWidth)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+        }
+        .frame(width: size, height: size)
+        .shadow(color: .black.opacity(0.6), radius: 4)
+    }
+}
+
+private struct ScannerCorner: View {
+    let rotation: Angle
+    let length: CGFloat
+    let lineWidth: CGFloat
+
+    var body: some View {
+        Path { path in
+            path.move(to: CGPoint(x: length, y: lineWidth / 2))
+            path.addLine(to: CGPoint(x: lineWidth / 2, y: lineWidth / 2))
+            path.addLine(to: CGPoint(x: lineWidth / 2, y: length))
+        }
+        .stroke(.white, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
+        .frame(width: length, height: length)
+        .rotationEffect(rotation)
     }
 }
 

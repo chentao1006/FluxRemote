@@ -51,14 +51,11 @@ struct SettingsView: View {
                 Section(header: Text(languageManager.t("settings.aiConfig"))) {
                     NavigationLink(destination: AISettingsView(
                         languageManager: languageManager,
-                        aiConfig: Binding(
-                            get: { ServerManager.shared.sharedAIConfig },
-                            set: { newValue in
-                                ServerManager.shared.sharedAIConfig = newValue
-                                apiClient.aiConfig = newValue
-                            }
-                        ),
-                        onSave: { /* Local save is handled by ServerManager didSet */ },
+                        initialAIConfig: ServerManager.shared.sharedAIConfig,
+                        onSave: { newValue in
+                            ServerManager.shared.sharedAIConfig = newValue
+                            apiClient.aiConfig = newValue
+                        },
                         apiClient: apiClient
                     )) {
                         HStack {

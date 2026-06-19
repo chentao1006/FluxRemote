@@ -79,6 +79,7 @@ class ScannerViewController: UIViewController {
         previewLayer.frame = view.layer.bounds
         previewLayer.videoGravity = .resizeAspectFill
         view.layer.addSublayer(previewLayer)
+        updatePreviewOrientation()
         
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             self?.captureSession.startRunning()
@@ -87,6 +88,7 @@ class ScannerViewController: UIViewController {
     
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        updatePreviewOrientation()
         if (captureSession?.isRunning == false) {
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in
                 self?.captureSession.startRunning()
@@ -104,5 +106,36 @@ class ScannerViewController: UIViewController {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         previewLayer?.frame = view.layer.bounds
+        updatePreviewOrientation()
+    }
+
+    override func viewWillTransition(to size: CGSize, with coordinator: any UIViewControllerTransitionCoordinator) {
+        super.viewWillTransition(to: size, with: coordinator)
+        coordinator.animate(alongsideTransition: { [weak self] _ in
+            self?.previewLayer?.frame = self?.view.bounds ?? .zero
+            self?.updatePreviewOrientation()
+        })
+    }
+
+    private func updatePreviewOrientation() {
+        guard let connection = previewLayer?.connection, connection.isVideoOrientationSupported else { return }
+        connection.videoOrientation = currentVideoOrientation
+    }
+
+    private var currentVideoOrientation: AVCaptureVideoOrientation {
+        guard let interfaceOrientation = view.window?.windowScene?.interfaceOrientation else {
+            return .portrait
+        }
+
+        switch interfaceOrientation {
+        case .landscapeLeft:
+            return .landscapeLeft
+        case .landscapeRight:
+            return .landscapeRight
+        case .portraitUpsideDown:
+            return .portraitUpsideDown
+        default:
+            return .portrait
+        }
     }
 }
