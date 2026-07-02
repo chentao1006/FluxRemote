@@ -27,6 +27,7 @@ import kotlinx.coroutines.launch
 fun LaunchAgentEditScreen(
     apiClient: RemoteAPIClient,
     agent: LaunchAgentItem?,
+    listType: String = "agent",
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -89,6 +90,8 @@ fun LaunchAgentEditScreen(
                     val existingPath = apiClient.agentItems.firstOrNull()?.path
                     val basePath = if (existingPath != null) {
                         existingPath.substringBeforeLast("/") + "/"
+                    } else if (listType == "daemon") {
+                        "/Library/LaunchDaemons/"
                     } else {
                         "/Users/chentao/Library/LaunchAgents/"
                     }

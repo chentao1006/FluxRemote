@@ -1,6 +1,7 @@
 package com.ct106.flux_remote
 
 import android.os.Bundle
+import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -27,9 +28,11 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import com.ct106.flux_remote.R
+import com.ct106.flux_remote.core.AnalyticsTracker
 import com.ct106.flux_remote.core.RemoteAPIClient
 import com.ct106.flux_remote.core.ServerManager
 import com.ct106.flux_remote.core.MQTTRemoteSync
+import com.ct106.flux_remote.core.ServerConfig
 import com.ct106.flux_remote.ui.screens.*
 import kotlinx.coroutines.launch
 import android.content.Intent
@@ -58,6 +61,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             val isInitializing by serverManager.isInitializing.collectAsState()
             val selectedLanguage by serverManager.language.collectAsState()
+
+            LaunchedEffect(Unit) {
+                AnalyticsTracker.track(this@MainActivity, "app_started")
+            }
             
             val context = LocalContext.current
             val localizedContext = remember(context, selectedLanguage) {
@@ -115,6 +122,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainNavigation(serverManager: ServerManager, apiClient: RemoteAPIClient) {
+    val context = LocalContext.current
     val navController = rememberNavController()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -128,6 +136,29 @@ fun MainNavigation(serverManager: ServerManager, apiClient: RemoteAPIClient) {
     var commandButtonOffset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
     var showingCommandExecution by remember { mutableStateOf(false) }
     val startDestination = if (servers.isEmpty()) "server_list" else "dashboard"
+
+    val manageServers: () -> Unit = {
+        showingCommandExecution = false
+        navController.navigate("server_list") {
+            launchSingleTop = true
+        }
+    }
+
+    val selectServerFromSwitcher: (ServerConfig) -> Unit = { server ->
+        scope.launch {
+            serverManager.selectServer(server)
+            AnalyticsTracker.track(context, "server_switched")
+            showingCommandExecution = false
+
+            if (serverManager.isServerAuthenticated(server.id) || serverManager.hasSavedPassword(server.id)) {
+                navController.navigate("dashboard") {
+                    popUpTo(0)
+                }
+            } else {
+                navController.navigate("login?serverId=${server.id}")
+            }
+        }
+    }
 
     LaunchedEffect(servers.isEmpty(), currentRoute) {
         if (servers.isEmpty() && currentRoute !in listOf("server_list", "login", "login?serverId={serverId}")) {
@@ -232,7 +263,7 @@ fun MainNavigation(serverManager: ServerManager, apiClient: RemoteAPIClient) {
                                             serverDropdownExpanded = false
                                             scope.launch {
                                                 serverManager.selectServer(s)
-                                                com.aptabase.Aptabase.instance.trackEvent("server_switched")
+                                                AnalyticsTracker.track(context, "server_switched")
                                                 drawerState.close()
                                                 
                                                 if (serverManager.isServerAuthenticated(s.id) || serverManager.hasSavedPassword(s.id)) {
@@ -395,18 +426,26 @@ fun MainNavigation(serverManager: ServerManager, apiClient: RemoteAPIClient) {
                         serverManager = serverManager,
                         apiClient = apiClient,
                         onNavigateToServers = { scope.launch { drawerState.open() } },
+                        onSelectServer = selectServerFromSwitcher,
+                        onManageServers = manageServers,
                         onNavigate = { route -> navController.navigate(route) }
                     )
                 }
                 composable("docker") {
                     DockerScreen(
                         apiClient = apiClient,
+                        serverManager = serverManager,
+                        onSelectServer = selectServerFromSwitcher,
+                        onManageServers = manageServers,
                         onBack = { scope.launch { drawerState.open() } }
                     )
                 }
                 composable("nginx") {
                     NginxScreen(
                         apiClient = apiClient,
+                        serverManager = serverManager,
+                        onSelectServer = selectServerFromSwitcher,
+                        onManageServers = manageServers,
                         onEditSite = { site ->
                             if (site == null) navController.navigate("nginx_edit")
                             else navController.navigate("nginx_edit?name=${site.name}")
@@ -429,18 +468,27 @@ fun MainNavigation(serverManager: ServerManager, apiClient: RemoteAPIClient) {
                 composable("process") {
                     ProcessScreen(
                         apiClient = apiClient,
+                        serverManager = serverManager,
+                        onSelectServer = selectServerFromSwitcher,
+                        onManageServers = manageServers,
                         onBack = { scope.launch { drawerState.open() } }
                     )
                 }
                 composable("ports") {
                     PortsScreen(
                         apiClient = apiClient,
+                        serverManager = serverManager,
+                        onSelectServer = selectServerFromSwitcher,
+                        onManageServers = manageServers,
                         onBack = { scope.launch { drawerState.open() } }
                     )
                 }
                 composable("logs") {
                     LogsScreen(
                         apiClient = apiClient,
+                        serverManager = serverManager,
+                        onSelectServer = selectServerFromSwitcher,
+                        onManageServers = manageServers,
                         onViewLog = { log -> 
                             navController.navigate("log_content?path=${log.path}&name=${log.name}")
                         },
@@ -465,6 +513,9 @@ fun MainNavigation(serverManager: ServerManager, apiClient: RemoteAPIClient) {
                 composable("configs") {
                     ConfigsScreen(
                         apiClient = apiClient,
+                        serverManager = serverManager,
+                        onSelectServer = selectServerFromSwitcher,
+                        onManageServers = manageServers,
                         onViewConfig = { config -> 
                             navController.navigate("config_content?path=${config.path}&name=${config.name}")
                         },
@@ -489,22 +540,33 @@ fun MainNavigation(serverManager: ServerManager, apiClient: RemoteAPIClient) {
                 composable("launchagent") {
                     LaunchAgentScreen(
                         apiClient = apiClient,
-                        onEditAgent = { agent ->
-                            if (agent == null) navController.navigate("agent_edit")
-                            else navController.navigate("agent_edit?path=${agent.path}")
+                        serverManager = serverManager,
+                        onSelectServer = selectServerFromSwitcher,
+                        onManageServers = manageServers,
+                        onEditAgent = { agent, type ->
+                            if (agent == null) {
+                                navController.navigate("agent_edit?path=&type=$type")
+                            } else {
+                                navController.navigate("agent_edit?path=${Uri.encode(agent.path)}&type=$type")
+                            }
                         },
                         onBack = { scope.launch { drawerState.open() } }
                     )
                 }
                 composable(
-                    "agent_edit?path={path}",
-                    arguments = listOf(navArgument("path") { type = NavType.StringType; nullable = true; defaultValue = null })
+                    "agent_edit?path={path}&type={type}",
+                    arguments = listOf(
+                        navArgument("path") { type = NavType.StringType; nullable = true; defaultValue = null },
+                        navArgument("type") { type = NavType.StringType; defaultValue = "agent" }
+                    )
                 ) { backStackEntry ->
                     val path = backStackEntry.arguments?.getString("path")
+                    val type = backStackEntry.arguments?.getString("type") ?: "agent"
                     val agent = apiClient.agentItems.find { it.path == path }
                     LaunchAgentEditScreen(
                         apiClient = apiClient,
                         agent = agent,
+                        listType = type,
                         onBack = { navController.popBackStack() }
                     )
                 }
@@ -603,6 +665,9 @@ fun MainNavigation(serverManager: ServerManager, apiClient: RemoteAPIClient) {
                 ) {
                     TerminalScreen(
                         apiClient = apiClient,
+                        serverManager = serverManager,
+                        onSelectServer = selectServerFromSwitcher,
+                        onManageServers = manageServers,
                         onBack = { showingCommandExecution = false }
                     )
                 }

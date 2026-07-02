@@ -25,8 +25,10 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.ct106.flux_remote.R
 import com.ct106.flux_remote.core.RemoteAPIClient
+import com.ct106.flux_remote.core.ServerManager
 import com.ct106.flux_remote.model.DockerContainer
 import com.ct106.flux_remote.model.DockerImage
+import com.ct106.flux_remote.core.ServerConfig
 import com.ct106.flux_remote.ui.components.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -35,6 +37,9 @@ import kotlinx.coroutines.launch
 @Composable
 fun DockerScreen(
     apiClient: RemoteAPIClient,
+    serverManager: ServerManager,
+    onSelectServer: (ServerConfig) -> Unit,
+    onManageServers: () -> Unit,
     onBack: () -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -107,7 +112,14 @@ fun DockerScreen(
         topBar = {
             Column {
                 TopAppBar(
-                    title = { Text(stringResource(R.string.docker_mgmt)) },
+                    title = {
+                        ServerSwitcherTitle(
+                            title = stringResource(R.string.docker_mgmt),
+                            serverManager = serverManager,
+                            onSelectServer = onSelectServer,
+                            onManageServers = onManageServers
+                        )
+                    },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.modules))

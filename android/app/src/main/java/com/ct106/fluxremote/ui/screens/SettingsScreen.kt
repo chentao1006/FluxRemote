@@ -20,6 +20,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ct106.flux_remote.R
+import com.ct106.flux_remote.core.AnalyticsTracker
 import com.ct106.flux_remote.core.RemoteAPIClient
 import com.ct106.flux_remote.core.ServerManager
 import com.ct106.flux_remote.model.*
@@ -36,6 +37,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onLogout: () -> Unit
 ) {
+    val context = LocalContext.current
     val server = serverManager.getSelectedServer()
     var settings by remember { mutableStateOf<ServerSettings?>(null) }
     var isLoading by remember { mutableStateOf(false) }
@@ -82,7 +84,7 @@ fun SettingsScreen(
                 if (response.isSuccessful) {
                     newSettings.features?.let { apiClient.features = it }
                     newSettings.ai?.let { apiClient.aiConfig = it }
-                    com.aptabase.Aptabase.instance.trackEvent("settings_modified")
+                    AnalyticsTracker.track(context, "settings_modified")
                 }
             } catch (e: Exception) {
                 e.printStackTrace()

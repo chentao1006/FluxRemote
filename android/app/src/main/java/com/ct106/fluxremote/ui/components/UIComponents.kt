@@ -4,8 +4,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -16,6 +21,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ct106.flux_remote.R
+import com.ct106.flux_remote.core.ServerManager
+import com.ct106.flux_remote.core.ServerConfig
 
 @Composable
 fun StatusBadge(
@@ -141,6 +148,65 @@ fun LoadingView(
         contentAlignment = Alignment.Center
     ) {
         CircularProgressIndicator()
+    }
+}
+
+@Composable
+fun ServerSwitcherTitle(
+    title: String,
+    serverManager: ServerManager,
+    onSelectServer: (ServerConfig) -> Unit,
+    onManageServers: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val servers by serverManager.servers.collectAsState()
+    val selectedServerId by serverManager.selectedServerId.collectAsState()
+    val selectedServer = serverManager.getSelectedServer()
+    var expanded by remember { mutableStateOf(false) }
+
+    Box(modifier = modifier) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .clickable { expanded = true }
+                .padding(end = 4.dp)
+        ) {
+            Text(
+                text = selectedServer?.name ?: title,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 220.dp)
+            )
+            Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+        }
+
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            servers.forEach { server ->
+                DropdownMenuItem(
+                    text = { Text(server.name) },
+                    onClick = {
+                        expanded = false
+                        onSelectServer(server)
+                    },
+                    leadingIcon = { Icon(Icons.Default.Dns, contentDescription = null) },
+                    trailingIcon = {
+                        if (server.id == selectedServerId) {
+                            Icon(Icons.Default.Check, contentDescription = null)
+                        }
+                    }
+                )
+            }
+            HorizontalDivider()
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.manage_servers)) },
+                onClick = {
+                    expanded = false
+                    onManageServers()
+                },
+                leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) }
+            )
+        }
     }
 }
 

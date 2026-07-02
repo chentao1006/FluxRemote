@@ -21,11 +21,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ct106.flux_remote.R
 import com.ct106.flux_remote.core.RemoteAPIClient
+import com.ct106.flux_remote.core.ServerManager
 import com.ct106.flux_remote.model.PortEntry
 import com.ct106.flux_remote.model.PortProcessGroup
+import com.ct106.flux_remote.core.ServerConfig
 import com.ct106.flux_remote.ui.components.ActionIconButton
 import com.ct106.flux_remote.ui.components.ConfirmationDialog
 import com.ct106.flux_remote.ui.components.LoadingView
+import com.ct106.flux_remote.ui.components.ServerSwitcherTitle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -33,6 +36,9 @@ import kotlinx.coroutines.launch
 @Composable
 fun PortsScreen(
     apiClient: RemoteAPIClient,
+    serverManager: ServerManager,
+    onSelectServer: (ServerConfig) -> Unit,
+    onManageServers: () -> Unit,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -131,7 +137,14 @@ fun PortsScreen(
         topBar = {
             Column {
                 TopAppBar(
-                    title = { Text(stringResource(R.string.ports_mgmt)) },
+                    title = {
+                        ServerSwitcherTitle(
+                            title = stringResource(R.string.ports_mgmt),
+                            serverManager = serverManager,
+                            onSelectServer = onSelectServer,
+                            onManageServers = onManageServers
+                        )
+                    },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.modules))

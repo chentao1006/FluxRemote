@@ -24,8 +24,11 @@ import androidx.compose.ui.unit.dp
 import com.ct106.flux_remote.R
 import com.ct106.flux_remote.core.AIService
 import com.ct106.flux_remote.core.RemoteAPIClient
+import com.ct106.flux_remote.core.ServerManager
+import com.ct106.flux_remote.core.ServerConfig
 import com.ct106.flux_remote.ui.components.AIActionButton
 import com.ct106.flux_remote.ui.components.AIAnalysisCard
+import com.ct106.flux_remote.ui.components.ServerSwitcherTitle
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -48,6 +51,9 @@ private data class QuickCommand(
 @Composable
 fun TerminalScreen(
     apiClient: RemoteAPIClient,
+    serverManager: ServerManager,
+    onSelectServer: (ServerConfig) -> Unit,
+    onManageServers: () -> Unit,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -198,7 +204,14 @@ fun TerminalScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.terminal_title)) },
+                title = {
+                    ServerSwitcherTitle(
+                        title = stringResource(R.string.terminal_title),
+                        serverManager = serverManager,
+                        onSelectServer = onSelectServer,
+                        onManageServers = onManageServers
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.Close, contentDescription = stringResource(R.string.common_cancel))

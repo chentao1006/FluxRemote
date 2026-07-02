@@ -250,6 +250,13 @@ struct AppContainerView: View {
                         contentView(for: currentItem)
                             .id(currentItem)
                             .navigationTitle(languageManager.t(currentItem.title))
+                            .toolbar {
+                                if shouldShowServerPicker(for: currentItem) {
+                                    ToolbarItem(placement: .topBarLeading) {
+                                        ServerPickerMenu(selection: $selection, onManageServers: { showingServerManagement = true })
+                                    }
+                                }
+                            }
                     }
                     .tint(.primary)
                 } else {
@@ -277,6 +284,13 @@ struct AppContainerView: View {
                     NavigationStack {
                         contentView(for: item)
                             .navigationTitle(languageManager.t(item.title))
+                            .toolbar {
+                                if shouldShowServerPicker(for: item) {
+                                    ToolbarItem(placement: .topBarLeading) {
+                                        ServerPickerMenu(selection: $selection, onManageServers: { showingServerManagement = true })
+                                    }
+                                }
+                            }
                     }
                     .tint(.primary)
                     .tabItem { Label(languageManager.t(item.title), systemImage: item.icon) }
@@ -287,6 +301,14 @@ struct AppContainerView: View {
                     moreView
                         .navigationDestination(for: NavigationItem.self) { item in
                             contentView(for: item)
+                                .navigationTitle(languageManager.t(item.title))
+                                .toolbar {
+                                    if shouldShowServerPicker(for: item) {
+                                        ToolbarItem(placement: .topBarLeading) {
+                                            ServerPickerMenu(selection: $selection, onManageServers: { showingServerManagement = true })
+                                        }
+                                    }
+                                }
                         }
                 }
                 .tint(.primary)
@@ -481,6 +503,15 @@ struct AppContainerView: View {
         case .settings: return true
         case .servers: return true
         case .more: return true
+        }
+    }
+
+    private func shouldShowServerPicker(for item: NavigationItem) -> Bool {
+        switch item {
+        case .monitor, .processes, .ports, .logs, .configs, .launchagent, .docker, .nginx:
+            return true
+        case .settings, .servers, .more:
+            return false
         }
     }
 

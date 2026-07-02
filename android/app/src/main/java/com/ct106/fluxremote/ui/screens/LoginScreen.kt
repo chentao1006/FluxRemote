@@ -1,5 +1,7 @@
 package com.ct106.flux_remote.ui.screens
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
@@ -14,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -23,6 +26,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ct106.flux_remote.R
+import com.ct106.flux_remote.core.AnalyticsTracker
+import com.ct106.flux_remote.core.MQTTRemoteSync
 import com.ct106.flux_remote.core.RemoteAPIClient
 import com.ct106.flux_remote.core.ServerConfig
 import com.ct106.flux_remote.core.ServerManager
@@ -30,19 +35,15 @@ import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.launch
 import org.json.JSONObject
-import androidx.activity.compose.rememberLauncherForActivityResult
-import com.ct106.flux_remote.core.MQTTRemoteSync
-import androidx.compose.ui.platform.LocalContext
-import android.net.Uri
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
-    serverManager: ServerManager,
-    apiClient: RemoteAPIClient,
-    initialServerId: String? = null,
-    onLoginSuccess: () -> Unit,
-    onBack: () -> Unit
+        serverManager: ServerManager,
+        apiClient: RemoteAPIClient,
+        initialServerId: String? = null,
+        onLoginSuccess: () -> Unit,
+        onBack: () -> Unit
 ) {
     var url by remember { mutableStateOf("") }
     var serverName by remember { mutableStateOf("") }
@@ -51,10 +52,10 @@ fun LoginScreen(
     var autoLogin by remember { mutableStateOf(true) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    
+
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    
+
     LaunchedEffect(initialServerId) {
         if (initialServerId != null) {
             val server = serverManager.servers.value.find { it.id == initialServerId }
@@ -88,35 +89,41 @@ fun LoginScreen(
         scope.launch {
             isLoading = true
             errorMessage = null
-            
+
             var finalURL = url
-            if (!finalURL.lowercase().startsWith("http://") && !finalURL.lowercase().startsWith("https://")) {
+            if (!finalURL.lowercase().startsWith("http://") &&
+                            !finalURL.lowercase().startsWith("https://")
+            ) {
                 finalURL = "https://$finalURL"
             }
-            
-            val displayName = if (serverName.isBlank()) {
-                finalURL.replace("https://", "").replace("http://", "").removeSuffix("/")
-            } else serverName
 
-            val currentServer = if (initialServerId != null) {
-                serverManager.servers.value.find { it.id == initialServerId }
-            } else null
+            val displayName =
+                    if (serverName.isBlank()) {
+                        finalURL.replace("https://", "").replace("http://", "").removeSuffix("/")
+                    } else serverName
 
-            val tempServer = currentServer?.copy(
-                name = displayName,
-                url = finalURL,
-                username = username,
-                password = password,
-                autoLogin = autoLogin,
-                rememberPassword = true
-            ) ?: ServerConfig(
-                name = displayName,
-                url = finalURL,
-                username = username,
-                password = password,
-                autoLogin = autoLogin,
-                rememberPassword = true
-            )
+            val currentServer =
+                    if (initialServerId != null) {
+                        serverManager.servers.value.find { it.id == initialServerId }
+                    } else null
+
+            val tempServer =
+                    currentServer?.copy(
+                            name = displayName,
+                            url = finalURL,
+                            username = username,
+                            password = password,
+                            autoLogin = autoLogin,
+                            rememberPassword = true
+                    )
+                            ?: ServerConfig(
+                                    name = displayName,
+                                    url = finalURL,
+                                    username = username,
+                                    password = password,
+                                    autoLogin = autoLogin,
+                                    rememberPassword = true
+                            )
 
             if (initialServerId != null) {
                 serverManager.updateServer(tempServer)
@@ -124,16 +131,17 @@ fun LoginScreen(
                 serverManager.addServer(tempServer)
             }
             serverManager.selectServer(tempServer)
-            
-            val loginSuccess = apiClient.login(
-                mapOf("username" to username, "password" to password),
-                tempServer
-            )
-            
+
+            val loginSuccess =
+                    apiClient.login(
+                            mapOf("username" to username, "password" to password),
+                            tempServer
+                    )
+
             isLoading = false
             if (loginSuccess) {
                 if (initialServerId == null) {
-                    com.aptabase.Aptabase.instance.trackEvent("server_added")
+                    AnalyticsTracker.track(context, "server_added")
                 }
                 onLoginSuccess()
             } else {
@@ -142,213 +150,268 @@ fun LoginScreen(
         }
     }
 
-    val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
-        if (result.contents != null) {
-            val scannedContent = result.contents
-            // Try flux://connect pairing URI first
-            val pairing = MQTTRemoteSync.parsePairingURI(scannedContent)
-            if (pairing != null) {
-                scope.launch {
-                    val success = mqttSync.savePairing(pairing.topic, pairing.key)
-                    if (success) {
-                        showSnackbar = mqttPairedMsg
-                        
-                        url = "Fetching..."
-                        isLoading = true
-                        mqttSync.fetchLatestData(timeoutMs = 15000) { data ->
-                            if (data?.url != null) {
-                                url = data.url
-                                if (!data.user.isNullOrEmpty()) username = data.user
-                                if (!data.pass.isNullOrEmpty()) password = data.pass
-                                if (serverName.isEmpty()) serverName = data.hostname?.takeIf { it.isNotEmpty() } ?: "Remote Mac"
-                                
-                                performLogin()
+    val scanLauncher =
+            rememberLauncherForActivityResult(ScanContract()) { result ->
+                if (result.contents != null) {
+                    val scannedContent = result.contents
+                    // Try flux://connect pairing URI first
+                    val pairing = MQTTRemoteSync.parsePairingURI(scannedContent)
+                    if (pairing != null) {
+                        scope.launch {
+                            val success = mqttSync.savePairing(pairing.topic, pairing.key)
+                            if (success) {
+                                showSnackbar = mqttPairedMsg
+
+                                url = "Fetching..."
+                                isLoading = true
+                                mqttSync.fetchLatestData(timeoutMs = 15000) { data ->
+                                    if (data?.url != null) {
+                                        url = data.url
+                                        if (!data.user.isNullOrEmpty()) username = data.user
+                                        if (!data.pass.isNullOrEmpty()) password = data.pass
+                                        if (serverName.isEmpty())
+                                                serverName =
+                                                        data.hostname?.takeIf { it.isNotEmpty() }
+                                                                ?: "Remote Mac"
+
+                                        performLogin()
+                                    } else {
+                                        isLoading = false
+                                        url = ""
+                                        showSnackbar = "Failed to fetch URL from MQTT"
+                                    }
+                                }
                             } else {
-                                isLoading = false
-                                url = ""
-                                showSnackbar = "Failed to fetch URL from MQTT"
+                                showSnackbar = mqttPairFailedMsg
                             }
                         }
                     } else {
-                        showSnackbar = mqttPairFailedMsg
-                    }
-                }
-            } else {
-                // Fallback: try legacy JSON QR code format or LAN Universal Link
-                try {
-                    var scannedUrl = ""
-                    var scannedHostname = ""
-                    var scannedUser = ""
+                        // Fallback: try legacy JSON QR code format or LAN Universal Link
+                        try {
+                            var scannedUrl = ""
+                            var scannedHostname = ""
+                            var scannedUser = ""
 
-                    if (scannedContent.startsWith("http")) {
-                        val parsed = Uri.parse(scannedContent)
-                        if (parsed.host?.equals("chentao1006.github.io", ignoreCase = true) == true && parsed.path?.contains("/FluxRemote/connect.html", ignoreCase = true) == true) {
-                            scannedUrl = parsed.getQueryParameter("url") ?: ""
-                            scannedHostname = parsed.getQueryParameter("hostname") ?: ""
-                            scannedUser = parsed.getQueryParameter("u") ?: ""
+                            if (scannedContent.startsWith("http", ignoreCase = true)) {
+                                val parsed = Uri.parse(scannedContent)
+                                if (parsed.host?.equals("flux.ct106.com", ignoreCase = true) ==
+                                                true &&
+                                                parsed.path?.contains(
+                                                        "connect",
+                                                        ignoreCase = true
+                                                ) == true
+                                ) {
+                                    scannedUrl = parsed.getQueryParameter("url") ?: ""
+                                    scannedHostname = parsed.getQueryParameter("hostname") ?: ""
+                                    scannedUser = parsed.getQueryParameter("u") ?: ""
+                                } else {
+                                    scannedUrl = scannedContent
+                                }
+                            }
+
+                            if (scannedUrl.isEmpty() && scannedContent.trim().startsWith("{")) {
+                                val json = JSONObject(scannedContent)
+                                scannedUrl = json.optString("url")
+                                scannedHostname = json.optString("hostname")
+                                scannedUser = json.optString("u")
+                            }
+
+                            if (scannedUrl.isNotEmpty()) url = scannedUrl
+                            if (scannedHostname.isNotEmpty()) serverName = scannedHostname
+                            if (scannedUser.isNotEmpty()) username = scannedUser
+                        } catch (e: Exception) {
+                            // Ignore invalid content
                         }
-                    } 
-                    
-                    if (scannedUrl.isEmpty() && scannedContent.trim().startsWith("{")) {
-                        val json = JSONObject(scannedContent)
-                        scannedUrl = json.optString("url")
-                        scannedHostname = json.optString("hostname")
-                        scannedUser = json.optString("u")
                     }
-
-                    if (scannedUrl.isNotEmpty()) url = scannedUrl
-                    if (scannedHostname.isNotEmpty()) serverName = scannedHostname
-                    if (scannedUser.isNotEmpty()) username = scannedUser
-                } catch (e: Exception) {
-                    // Ignore invalid content
                 }
             }
-        }
-    }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.login_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                    }
-                },
-                actions = {
-                    val scanPromptMsg = stringResource(R.string.scan_qr_prompt)
-                    IconButton(onClick = {
-                        scanLauncher.launch(ScanOptions().apply {
-                            setPrompt(scanPromptMsg)
-                            setOrientationLocked(true)
-                            setCaptureActivity(CustomScannerActivity::class.java)
-                        })
-                    }) {
-                        Icon(Icons.Default.QrCodeScanner, contentDescription = "Scan QR Code")
-                    }
-                }
-            )
-        }
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            topBar = {
+                TopAppBar(
+                        title = { Text(stringResource(R.string.login_title)) },
+                        navigationIcon = {
+                            IconButton(onClick = onBack) {
+                                Icon(
+                                        Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = stringResource(R.string.back)
+                                )
+                            }
+                        },
+                        actions = {
+                            val scanPromptMsg = stringResource(R.string.scan_qr_prompt)
+                            IconButton(
+                                    onClick = {
+                                        scanLauncher.launch(
+                                                ScanOptions().apply {
+                                                    setPrompt(scanPromptMsg)
+                                                    setOrientationLocked(true)
+                                                    setCaptureActivity(
+                                                            CustomScannerActivity::class.java
+                                                    )
+                                                }
+                                        )
+                                    }
+                            ) {
+                                Icon(
+                                        Icons.Default.QrCodeScanner,
+                                        contentDescription = "Scan QR Code"
+                                )
+                            }
+                        }
+                )
+            }
     ) { padding ->
         Column(
-            modifier = Modifier
-                .padding(padding)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                modifier =
+                        Modifier.padding(padding)
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState())
+                                .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = stringResource(R.string.login_title),
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(vertical = 16.dp)
+                    text = stringResource(R.string.login_title),
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(vertical = 16.dp)
             )
 
             // Server Info Section
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    modifier = Modifier.fillMaxWidth(),
+                    colors =
+                            CardDefaults.cardColors(
+                                    containerColor =
+                                            MaterialTheme.colorScheme.surfaceVariant.copy(
+                                                    alpha = 0.5f
+                                            )
+                            )
             ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
                     OutlinedTextField(
-                        value = url,
-                        onValueChange = { url = it },
-                        label = { Text(stringResource(R.string.server_url)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("https://your-server.com") },
-                        leadingIcon = { Icon(Icons.Default.Link, contentDescription = null) },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Uri,
-                            imeAction = ImeAction.Next
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onNext = { focusManager.moveFocus(FocusDirection.Down) }
-                        )
+                            value = url,
+                            onValueChange = { url = it },
+                            label = { Text(stringResource(R.string.server_url)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("https://your-server.com") },
+                            leadingIcon = { Icon(Icons.Default.Link, contentDescription = null) },
+                            singleLine = true,
+                            keyboardOptions =
+                                    KeyboardOptions(
+                                            keyboardType = KeyboardType.Uri,
+                                            imeAction = ImeAction.Next
+                                    ),
+                            keyboardActions =
+                                    KeyboardActions(
+                                            onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                                    )
                     )
                     OutlinedTextField(
-                        value = serverName,
-                        onValueChange = { serverName = it },
-                        label = { Text(stringResource(R.string.server_name)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text(stringResource(R.string.optional)) },
-                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.Label, contentDescription = null) },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Text,
-                            imeAction = ImeAction.Next
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onNext = { focusManager.moveFocus(FocusDirection.Down) }
-                        )
+                            value = serverName,
+                            onValueChange = { serverName = it },
+                            label = { Text(stringResource(R.string.server_name)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text(stringResource(R.string.optional)) },
+                            leadingIcon = {
+                                Icon(Icons.AutoMirrored.Filled.Label, contentDescription = null)
+                            },
+                            singleLine = true,
+                            keyboardOptions =
+                                    KeyboardOptions(
+                                            keyboardType = KeyboardType.Text,
+                                            imeAction = ImeAction.Next
+                                    ),
+                            keyboardActions =
+                                    KeyboardActions(
+                                            onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                                    )
                     )
                 }
             }
 
             // Credentials Section
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    modifier = Modifier.fillMaxWidth(),
+                    colors =
+                            CardDefaults.cardColors(
+                                    containerColor =
+                                            MaterialTheme.colorScheme.surfaceVariant.copy(
+                                                    alpha = 0.5f
+                                            )
+                            )
             ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
                     OutlinedTextField(
-                        value = username,
-                        onValueChange = { username = it },
-                        label = { Text(stringResource(R.string.username)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Text,
-                            imeAction = ImeAction.Next
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onNext = { focusManager.moveFocus(FocusDirection.Down) }
-                        )
+                            value = username,
+                            onValueChange = { username = it },
+                            label = { Text(stringResource(R.string.username)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                            singleLine = true,
+                            keyboardOptions =
+                                    KeyboardOptions(
+                                            keyboardType = KeyboardType.Text,
+                                            imeAction = ImeAction.Next
+                                    ),
+                            keyboardActions =
+                                    KeyboardActions(
+                                            onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                                    )
                     )
                     OutlinedTextField(
-                        value = password,
-                        onValueChange = { password = it },
-                        label = { Text(stringResource(R.string.password)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
-                        visualTransformation = PasswordVisualTransformation(),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Password,
-                            imeAction = ImeAction.Done
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onDone = { focusManager.clearFocus() }
-                        )
+                            value = password,
+                            onValueChange = { password = it },
+                            label = { Text(stringResource(R.string.password)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+                            visualTransformation = PasswordVisualTransformation(),
+                            singleLine = true,
+                            keyboardOptions =
+                                    KeyboardOptions(
+                                            keyboardType = KeyboardType.Password,
+                                            imeAction = ImeAction.Done
+                                    ),
+                            keyboardActions =
+                                    KeyboardActions(onDone = { focusManager.clearFocus() })
                     )
                 }
             }
 
             // Auto Login Toggle
             Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    modifier = Modifier.fillMaxWidth(),
+                    colors =
+                            CardDefaults.cardColors(
+                                    containerColor =
+                                            MaterialTheme.colorScheme.surfaceVariant.copy(
+                                                    alpha = 0.5f
+                                            )
+                            )
             ) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Bolt, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Icon(
+                                Icons.Default.Bolt,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                        )
                         Spacer(Modifier.width(12.dp))
                         Text(stringResource(R.string.auto_login))
                     }
-                    Switch(
-                        checked = autoLogin,
-                        onCheckedChange = { autoLogin = it }
-                    )
+                    Switch(checked = autoLogin, onCheckedChange = { autoLogin = it })
                 }
             }
 
@@ -357,13 +420,20 @@ fun LoginScreen(
             }
 
             Button(
-                onClick = performLogin,
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                enabled = !isLoading && url.isNotBlank() && username.isNotBlank() && password.isNotBlank(),
-                shape = MaterialTheme.shapes.medium
+                    onClick = performLogin,
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    enabled =
+                            !isLoading &&
+                                    url.isNotBlank() &&
+                                    username.isNotBlank() &&
+                                    password.isNotBlank(),
+                    shape = MaterialTheme.shapes.medium
             ) {
                 if (isLoading) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+                    CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = MaterialTheme.colorScheme.onPrimary
+                    )
                 } else {
                     Text(stringResource(R.string.login_button), fontWeight = FontWeight.Bold)
                 }

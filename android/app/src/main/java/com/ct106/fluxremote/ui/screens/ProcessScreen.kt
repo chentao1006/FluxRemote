@@ -25,6 +25,8 @@ import androidx.compose.ui.unit.sp
 import com.ct106.flux_remote.R
 import com.ct106.flux_remote.core.AIService
 import com.ct106.flux_remote.core.RemoteAPIClient
+import com.ct106.flux_remote.core.ServerManager
+import com.ct106.flux_remote.core.ServerConfig
 import com.ct106.flux_remote.model.*
 import com.ct106.flux_remote.ui.components.*
 import kotlinx.coroutines.flow.catch
@@ -34,6 +36,9 @@ import kotlinx.coroutines.launch
 @Composable
 fun ProcessScreen(
     apiClient: RemoteAPIClient,
+    serverManager: ServerManager,
+    onSelectServer: (ServerConfig) -> Unit,
+    onManageServers: () -> Unit,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -107,7 +112,14 @@ fun ProcessScreen(
         topBar = {
             Column {
                 TopAppBar(
-                    title = { Text(stringResource(R.string.process_mgmt)) },
+                    title = {
+                        ServerSwitcherTitle(
+                            title = stringResource(R.string.process_mgmt),
+                            serverManager = serverManager,
+                            onSelectServer = onSelectServer,
+                            onManageServers = onManageServers
+                        )
+                    },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.modules))

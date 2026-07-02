@@ -306,12 +306,12 @@ struct FluxLoginView: View {
         var scannedHostname = ""
         var scannedUser = ""
 
-        // 1. Try Universal Link format: https://chentao1006.github.io/FluxRemote/connect.html?...
+        // 1. Try Universal Link format: https://flux.ct106.com/connect.html?...
         if code.hasPrefix("http"), let parsed = URLComponents(string: code) {
             let host = parsed.host ?? ""
             let path = parsed.path
-            if host.caseInsensitiveCompare("chentao1006.github.io") == .orderedSame &&
-               path.lowercased().contains("/fluxremote/connect.html") {
+            if host.caseInsensitiveCompare("flux.ct106.com") == .orderedSame &&
+               path.lowercased().contains("connect") {
 
                 // MQTT pairing QR uses topic+key params instead of url — show Android alert
                 let hasTopic = parsed.queryItems?.contains(where: { $0.name == "topic" }) == true

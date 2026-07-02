@@ -32,8 +32,8 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="http" />
                 <data android:scheme="https" />
-                <data android:host="chentao1006.github.io" />
-                <data android:pathPrefix="/FluxRemote/connect.html" />
+                <data android:host="flux.ct106.com" />
+                <data android:pathPrefix="/connect.html" />
             </intent-filter>
         </activity>
 

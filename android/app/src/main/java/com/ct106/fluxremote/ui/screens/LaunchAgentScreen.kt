@@ -18,7 +18,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ct106.flux_remote.R
 import com.ct106.flux_remote.core.RemoteAPIClient
+import com.ct106.flux_remote.core.ServerManager
 import com.ct106.flux_remote.model.LaunchAgentItem
+import com.ct106.flux_remote.core.ServerConfig
 import com.ct106.flux_remote.ui.components.*
 import kotlinx.coroutines.launch
 
@@ -26,10 +28,14 @@ import kotlinx.coroutines.launch
 @Composable
 fun LaunchAgentScreen(
     apiClient: RemoteAPIClient,
-    onEditAgent: (LaunchAgentItem?) -> Unit,
+    serverManager: ServerManager,
+    onSelectServer: (ServerConfig) -> Unit,
+    onManageServers: () -> Unit,
+    onEditAgent: (LaunchAgentItem?, String) -> Unit,
     onBack: () -> Unit
 ) {
     var isLoading by remember { mutableStateOf(false) }
+    var listType by remember { mutableStateOf("agent") }
     
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -44,7 +50,7 @@ fun LaunchAgentScreen(
             isLoading = true
             try {
                 val api = apiClient.getApi() ?: return@launch
-                val response = api.getLaunchAgents()
+                val response = api.getLaunchAgents(listType)
                 if (response.isSuccessful) {
                     apiClient.agentItems = response.body()?.data ?: emptyList()
                 }
@@ -72,24 +78,30 @@ fun LaunchAgentScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        if (agents.isEmpty()) {
-            fetchData()
-        }
+    LaunchedEffect(listType) {
+        apiClient.agentItems = emptyList()
+        fetchData()
     }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.launchagents_mgmt)) },
+                title = {
+                    ServerSwitcherTitle(
+                        title = stringResource(R.string.launchagents_mgmt),
+                        serverManager = serverManager,
+                        onSelectServer = onSelectServer,
+                        onManageServers = onManageServers
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.modules))
                     }
                 },
                 actions = {
-                    IconButton(onClick = { onEditAgent(null) }) {
+                    IconButton(onClick = { onEditAgent(null, listType) }) {
                         Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add))
                     }
                     IconButton(onClick = { fetchData() }) {
@@ -102,26 +114,44 @@ fun LaunchAgentScreen(
         if (isLoading && agents.isEmpty()) {
             LoadingView(Modifier.padding(padding))
         } else {
-            LazyColumn(
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
             ) {
-                itemsIndexed(agents) { index, agent ->
-                    LaunchAgentCard(
-                        agent = agent,
-                        onClick = { onEditAgent(agent) },
-                        onAction = { action -> 
-                            if (action == "load" || action == "unload" || action == "reload") {
-                                performAction(action, agent.path)
-                            } else {
-                                agentToAction = agent to action
-                            }
+                SingleChoiceSegmentedButtonRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    listOf("agent" to "LaunchAgents", "daemon" to "LaunchDaemons").forEachIndexed { index, item ->
+                        SegmentedButton(
+                            selected = listType == item.first,
+                            onClick = { listType = item.first },
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = 2)
+                        ) {
+                            Text(item.second)
                         }
-                    )
-                    if (index < agents.size - 1) {
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = Color.Gray.copy(alpha = 0.2f))
+                    }
+                }
+
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    itemsIndexed(agents) { index, agent ->
+                        LaunchAgentCard(
+                            agent = agent,
+                            onClick = { onEditAgent(agent, listType) },
+                            onAction = { action ->
+                                if (action == "load" || action == "unload" || action == "reload") {
+                                    performAction(action, agent.path)
+                                } else {
+                                    agentToAction = agent to action
+                                }
+                            }
+                        )
+                        if (index < agents.size - 1) {
+                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = Color.Gray.copy(alpha = 0.2f))
+                        }
                     }
                 }
             }

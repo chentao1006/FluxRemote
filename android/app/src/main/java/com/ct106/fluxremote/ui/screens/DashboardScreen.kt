@@ -31,6 +31,7 @@ import com.ct106.flux_remote.R
 import com.ct106.flux_remote.core.AIService
 import com.ct106.flux_remote.core.RemoteAPIClient
 import com.ct106.flux_remote.core.ServerManager
+import com.ct106.flux_remote.core.ServerConfig
 import com.ct106.flux_remote.model.*
 import com.ct106.flux_remote.ui.components.*
 import kotlinx.coroutines.delay
@@ -46,6 +47,8 @@ fun DashboardScreen(
     serverManager: ServerManager,
     apiClient: RemoteAPIClient,
     onNavigateToServers: () -> Unit,
+    onSelectServer: (ServerConfig) -> Unit,
+    onManageServers: () -> Unit,
     onNavigate: (String) -> Unit
 ) {
     val context = LocalContext.current
@@ -311,7 +314,14 @@ fun DashboardScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(server.name) },
+                title = {
+                    ServerSwitcherTitle(
+                        title = stringResource(R.string.dashboard),
+                        serverManager = serverManager,
+                        onSelectServer = onSelectServer,
+                        onManageServers = onManageServers
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onNavigateToServers) {
                         Icon(Icons.Default.Menu, contentDescription = null)

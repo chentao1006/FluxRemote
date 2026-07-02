@@ -14,7 +14,31 @@ struct LaunchAgentModuleView: View {
     @State private var sudoPassword = ""
     @State private var pendingAction: (String, String)? // (action, path)
     @State private var activeAlert: LaunchAgentAlert?
+    @State private var listType: LaunchAgentListType = .agent
     @Binding var selection: NavigationItem?
+
+    enum LaunchAgentListType: String, CaseIterable, Identifiable {
+        case agent
+        case daemon
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .agent: return "LaunchAgents"
+            case .daemon: return "LaunchDaemons"
+            }
+        }
+
+        var defaultDirectory: String {
+            switch self {
+            case .agent:
+                return "/Users/chentao/Library/LaunchAgents/"
+            case .daemon:
+                return "/Library/LaunchDaemons/"
+            }
+        }
+    }
     
     enum LaunchAgentAlert: Identifiable {
         case delete(LaunchAgentItem)
@@ -103,6 +127,17 @@ struct LaunchAgentModuleView: View {
         }
         .navigationTitle(languageManager.t("launchagent.title"))
         .searchable(text: $searchText, prompt: languageManager.t("configs.searchPlaceholder"))
+        .safeAreaInset(edge: .top) {
+            Picker("", selection: $listType) {
+                ForEach(LaunchAgentListType.allCases) { type in
+                    Text(type.title).tag(type)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+            .background(.bar)
+        }
         .refreshable {
             await fetchData()
             try? await Task.sleep(for: .milliseconds(600))
@@ -112,6 +147,13 @@ struct LaunchAgentModuleView: View {
                 self.launchAgents = apiClient.launchAgents
                 self.isLoading = false
             }
+            Task { @MainActor in await fetchData() }
+        }
+        .onChange(of: listType) { _, _ in
+            searchText = ""
+            launchAgents = []
+            apiClient.launchAgents = []
+            isLoading = true
             Task { @MainActor in await fetchData() }
         }
         .toolbar {
@@ -125,7 +167,7 @@ struct LaunchAgentModuleView: View {
         }
         .sheet(isPresented: $showingAddAgent) {
             NavigationStack {
-                AddAgentView { name, content in
+                AddAgentView(listType: listType) { name, content in
                     Task { @MainActor in
                         await createAgent(name: name, content: content)
                     }
@@ -256,7 +298,7 @@ struct LaunchAgentModuleView: View {
     func fetchData() async {
         guard selection == .launchagent || selection == .more else { return }
         do {
-            let response: LaunchAgentResponse = try await apiClient.request("/api/launchagent/list")
+            let response: LaunchAgentResponse = try await apiClient.request("/api/launchagent/list?type=\(listType.rawValue)")
             self.launchAgents = response.data
             self.apiClient.launchAgents = response.data
             self.errorMessage = nil
@@ -269,7 +311,7 @@ struct LaunchAgentModuleView: View {
     
     @MainActor
     func createAgent(name: String, content: String) async {
-        let firstPath = launchAgents.first?.path ?? "/Users/chentao/Library/LaunchAgents/placeholder.plist"
+        let firstPath = launchAgents.first?.path ?? "\(listType.defaultDirectory)placeholder.plist"
         let basePath = firstPath.components(separatedBy: "/").dropLast().joined(separator: "/") + "/"
         let fullName = name.hasSuffix(".plist") ? name : name + ".plist"
         let path = basePath + fullName
@@ -353,6 +395,7 @@ struct AddAgentView: View {
     @Environment(AppLanguageManager.self) private var languageManager
     @State private var name: String = ""
     @State private var content: String = ""
+    let listType: LaunchAgentModuleView.LaunchAgentListType
     var onAdd: (String, String) -> Void
     
     @State private var isAnalyzing = false
@@ -360,7 +403,8 @@ struct AddAgentView: View {
     @State private var aiTask: Task<Void, Never>?
     @State private var showingAIAssist = false
     
-    init(onAdd: @escaping (String, String) -> Void) {
+    init(listType: LaunchAgentModuleView.LaunchAgentListType, onAdd: @escaping (String, String) -> Void) {
+        self.listType = listType
         self.onAdd = onAdd
         _content = State(initialValue: """
 <?xml version="1.0" encoding="UTF-8"?>
@@ -440,7 +484,7 @@ struct AddAgentView: View {
         }
         .sheet(isPresented: $showingAIAssist) {
             NavigationStack {
-                AIAssistView(originalContent: content, contextInfo: "Action: Creating New macOS LaunchAgent Plist") { newContent in
+                AIAssistView(originalContent: content, contextInfo: "Action: Creating New macOS \(listType.title) Plist") { newContent in
                     self.content = newContent
                 }
             }
@@ -724,4 +768,3 @@ struct LaunchAgentDetailView: View {
             .environment(RemoteAPIClient())
     }
 }
-

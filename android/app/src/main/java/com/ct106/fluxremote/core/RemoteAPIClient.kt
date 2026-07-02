@@ -84,7 +84,7 @@ interface FluxRemoteApi {
 
     // Launch Agent
     @GET("api/launchagent/list")
-    suspend fun getLaunchAgents(): Response<LaunchAgentResponse>
+    suspend fun getLaunchAgents(@Query("type") type: String = "agent"): Response<LaunchAgentResponse>
     
     @POST("api/launchagent/action")
     suspend fun launchAgentAction(@Body body: Map<String, String>): Response<ActionResponse>

@@ -18,7 +18,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ct106.flux_remote.R
 import com.ct106.flux_remote.core.RemoteAPIClient
+import com.ct106.flux_remote.core.ServerManager
 import com.ct106.flux_remote.model.NginxSite
+import com.ct106.flux_remote.core.ServerConfig
 import com.ct106.flux_remote.ui.components.*
 import kotlinx.coroutines.launch
 
@@ -26,6 +28,9 @@ import kotlinx.coroutines.launch
 @Composable
 fun NginxScreen(
     apiClient: RemoteAPIClient,
+    serverManager: ServerManager,
+    onSelectServer: (ServerConfig) -> Unit,
+    onManageServers: () -> Unit,
     onEditSite: (NginxSite?) -> Unit,
     onBack: () -> Unit
 ) {
@@ -105,7 +110,14 @@ fun NginxScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.nginx_mgmt)) },
+                title = {
+                    ServerSwitcherTitle(
+                        title = stringResource(R.string.nginx_mgmt),
+                        serverManager = serverManager,
+                        onSelectServer = onSelectServer,
+                        onManageServers = onManageServers
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.modules))

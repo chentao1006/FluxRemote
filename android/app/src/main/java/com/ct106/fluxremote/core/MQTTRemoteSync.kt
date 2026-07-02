@@ -7,56 +7,59 @@ import android.util.Log
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.*
-import okhttp3.*
-import okio.ByteString.Companion.toByteString
 import java.nio.ByteBuffer
 import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
+import okhttp3.*
+import okio.ByteString.Companion.toByteString
 
 /**
  * MQTT Remote Sync for Android (Flux Remote)
  *
- * Subscribes to an encrypted MQTT topic published by the Mac's Flux Monitor app
- * to automatically discover the latest public URL when direct connection fails.
+ * Subscribes to an encrypted MQTT topic published by the Mac's Flux Monitor app to automatically
+ * discover the latest public URL when direct connection fails.
  *
- * Protocol: MQTT 3.1.1 over WebSocket
- * Encryption: AES-256-GCM (nonce + ciphertext + tag combined, Base64 encoded)
+ * Protocol: MQTT 3.1.1 over WebSocket Encryption: AES-256-GCM (nonce + ciphertext + tag combined,
+ * Base64 encoded)
  */
 class MQTTRemoteSync private constructor(private val context: Context) {
 
     companion object {
         private const val TAG = "MQTTRemoteSync"
 
-        @Volatile
-        private var instance: MQTTRemoteSync? = null
+        @Volatile private var instance: MQTTRemoteSync? = null
 
         fun getInstance(context: Context): MQTTRemoteSync {
-            return instance ?: synchronized(this) {
-                instance ?: MQTTRemoteSync(context.applicationContext).also { instance = it }
-            }
+            return instance
+                    ?: synchronized(this) {
+                        instance
+                                ?: MQTTRemoteSync(context.applicationContext).also { instance = it }
+                    }
         }
 
         data class PairingData(
-            val topic: String,
-            val key: String,
-            val user: String?,
-            val pass: String?
+                val topic: String,
+                val key: String,
+                val user: String?,
+                val pass: String?
         )
 
-        // Parse a flux://connect?topic=xxx&key=xxx or https://chentao1006.github.io/FluxRemote/connect.html?topic=... URI
+        // Parse a flux://connect?topic=xxx&key=xxx or https://flux.ct106.com/connect.html?topic=...
+        // URI
         fun parsePairingURI(uri: String): PairingData? {
             return try {
                 val parsed = Uri.parse(uri)
                 val isCustomScheme = parsed.scheme == "flux" && parsed.host == "connect"
-                val isUniversalLink = (parsed.scheme == "https" || parsed.scheme == "http") &&
-                        parsed.host == "chentao1006.github.io" &&
-                        parsed.path?.contains("/FluxRemote/connect.html") == true
-                        
+                val isUniversalLink =
+                        (parsed.scheme == "https" || parsed.scheme == "http") &&
+                                parsed.host?.equals("flux.ct106.com", ignoreCase = true) == true &&
+                                parsed.path?.contains("connect", ignoreCase = true) == true
+
                 if (!isCustomScheme && !isUniversalLink) return null
-                
+
                 val topic = parsed.getQueryParameter("topic") ?: return null
                 val rawKey = parsed.getQueryParameter("key") ?: return null
                 val key = rawKey.replace(" ", "+")
@@ -96,28 +99,33 @@ class MQTTRemoteSync private constructor(private val context: Context) {
 
     // --- MQTT Broker Failover ---
     private data class MQTTBroker(
-        val host: String,
-        val port: Int,
-        val path: String,
-        val useTLS: Boolean
+            val host: String,
+            val port: Int,
+            val path: String,
+            val useTLS: Boolean
     ) {
         val url: String
             get() = "${if (useTLS) "wss" else "ws"}://$host:$port$path"
     }
 
-    private val brokers = listOf(
-        MQTTBroker("broker.emqx.io", 8084, "/mqtt", true),
-        MQTTBroker("broker.hivemq.com", 8884, "/mqtt", true),
-    )
+    private val brokers =
+            listOf(
+                    MQTTBroker("broker.emqx.io", 8084, "/mqtt", true),
+                    MQTTBroker("broker.hivemq.com", 8884, "/mqtt", true),
+            )
 
     private var currentBrokerIndex = 0
     private var webSocket: WebSocket? = null
     private var isConnecting = false
     private var keepAliveJob: Job? = null
-    private val okHttpClient = OkHttpClient.Builder()
-        .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
-        .readTimeout(0, java.util.concurrent.TimeUnit.MILLISECONDS) // Keep WebSocket open
-        .build()
+    private val okHttpClient =
+            OkHttpClient.Builder()
+                    .connectTimeout(5, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(
+                            0,
+                            java.util.concurrent.TimeUnit.MILLISECONDS
+                    ) // Keep WebSocket open
+                    .build()
 
     init {
         // Load saved credentials
@@ -133,8 +141,7 @@ class MQTTRemoteSync private constructor(private val context: Context) {
     // MARK: - Public API
 
     /**
-     * Save pairing credentials from a QR code scan.
-     * Returns true if successfully parsed and saved.
+     * Save pairing credentials from a QR code scan. Returns true if successfully parsed and saved.
      */
     suspend fun savePairing(topic: String, aesKey: String): Boolean {
         return try {
@@ -160,19 +167,21 @@ class MQTTRemoteSync private constructor(private val context: Context) {
         }
     }
 
-    data class FetchResult(val url: String, val user: String?, val pass: String?, val hostname: String?)
+    data class FetchResult(
+            val url: String,
+            val user: String?,
+            val pass: String?,
+            val hostname: String?
+    )
 
     /**
-     * Try to fetch the latest URL and credentials via MQTT.
-     * This is called when direct connection fails or right after pairing.
+     * Try to fetch the latest URL and credentials via MQTT. This is called when direct connection
+     * fails or right after pairing.
      *
      * @param timeoutMs Maximum time to wait for an MQTT message
      * @param onDataReceived Callback with the decrypted data, or null if timeout
      */
-    fun fetchLatestData(
-        timeoutMs: Long = 15000,
-        onDataReceived: (FetchResult?) -> Unit
-    ) {
+    fun fetchLatestData(timeoutMs: Long = 15000, onDataReceived: (FetchResult?) -> Unit) {
         val topic = savedTopic
         val key = savedAESKey
         if (topic == null || key == null) {
@@ -183,29 +192,32 @@ class MQTTRemoteSync private constructor(private val context: Context) {
 
         scope.launch {
             val wasConnected = _isConnected.value
-            
+
             // Force reconnect to ensure we pull the fresh retained message from the broker
             disconnect()
             _latestURL.value = null
-            
+
             // Connect and subscribe, then wait for the retained message
             connectAndSubscribe()
 
             // Wait for the URL with timeout
-            val result = withTimeoutOrNull(timeoutMs) {
-                _latestURL.filterNotNull().first()
-            }
+            val result = withTimeoutOrNull(timeoutMs) { _latestURL.filterNotNull().first() }
             if (result != null) {
-                onDataReceived(FetchResult(result, _latestUser.value, _latestPass.value, _latestHostname.value))
+                onDataReceived(
+                        FetchResult(
+                                result,
+                                _latestUser.value,
+                                _latestPass.value,
+                                _latestHostname.value
+                        )
+                )
             } else {
                 onDataReceived(null)
             }
         }
     }
 
-    /**
-     * Connect to MQTT and subscribe. Used in background for continuous monitoring.
-     */
+    /** Connect to MQTT and subscribe. Used in background for continuous monitoring. */
     fun connectAndSubscribe() {
         if (isConnecting || _isConnected.value) return
         if (savedTopic == null || savedAESKey == null) return
@@ -214,9 +226,7 @@ class MQTTRemoteSync private constructor(private val context: Context) {
         connectToNextBroker()
     }
 
-    /**
-     * Disconnect from MQTT broker.
-     */
+    /** Disconnect from MQTT broker. */
     fun disconnect() {
         keepAliveJob?.cancel()
         keepAliveJob = null
@@ -226,9 +236,7 @@ class MQTTRemoteSync private constructor(private val context: Context) {
         _isConnected.value = false
     }
 
-    /**
-     * Clear all pairing data.
-     */
+    /** Clear all pairing data. */
     suspend fun clearPairing() {
         disconnect()
         context.mqttDataStore.edit { prefs ->
@@ -256,39 +264,45 @@ class MQTTRemoteSync private constructor(private val context: Context) {
         Log.i(TAG, "Connecting to MQTT broker: ${broker.host}")
         isConnecting = true
 
-        val request = Request.Builder()
-            .url(broker.url)
-            .header("Sec-WebSocket-Protocol", "mqtt")
-            .build()
+        val request =
+                Request.Builder().url(broker.url).header("Sec-WebSocket-Protocol", "mqtt").build()
 
-        webSocket = okHttpClient.newWebSocket(request, object : WebSocketListener() {
-            override fun onOpen(webSocket: WebSocket, response: Response) {
-                Log.i(TAG, "WebSocket opened to ${broker.host}")
-                sendMQTTConnect(webSocket)
-            }
+        webSocket =
+                okHttpClient.newWebSocket(
+                        request,
+                        object : WebSocketListener() {
+                            override fun onOpen(webSocket: WebSocket, response: Response) {
+                                Log.i(TAG, "WebSocket opened to ${broker.host}")
+                                sendMQTTConnect(webSocket)
+                            }
 
-            override fun onMessage(webSocket: WebSocket, bytes: okio.ByteString) {
-                handleMQTTPacket(webSocket, bytes.toByteArray())
-            }
+                            override fun onMessage(webSocket: WebSocket, bytes: okio.ByteString) {
+                                handleMQTTPacket(webSocket, bytes.toByteArray())
+                            }
 
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                Log.e(TAG, "WebSocket failure: ${t.message}")
-                _isConnected.value = false
-                isConnecting = false
-                // Try next broker
-                currentBrokerIndex++
-                scope.launch {
-                    delay(1000)
-                    connectToNextBroker()
-                }
-            }
+                            override fun onFailure(
+                                    webSocket: WebSocket,
+                                    t: Throwable,
+                                    response: Response?
+                            ) {
+                                Log.e(TAG, "WebSocket failure: ${t.message}")
+                                _isConnected.value = false
+                                isConnecting = false
+                                // Try next broker
+                                currentBrokerIndex++
+                                scope.launch {
+                                    delay(1000)
+                                    connectToNextBroker()
+                                }
+                            }
 
-            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                Log.i(TAG, "WebSocket closed: $reason")
-                _isConnected.value = false
-                isConnecting = false
-            }
-        })
+                            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                                Log.i(TAG, "WebSocket closed: $reason")
+                                _isConnected.value = false
+                                isConnecting = false
+                            }
+                        }
+                )
     }
 
     // MARK: - MQTT Protocol (Minimal 3.1.1)
@@ -407,7 +421,8 @@ class MQTTRemoteSync private constructor(private val context: Context) {
             } while (byte and 0x80 != 0)
 
             // Topic length (2 bytes)
-            val topicLen = ((data[offset].toInt() and 0xFF) shl 8) or (data[offset + 1].toInt() and 0xFF)
+            val topicLen =
+                    ((data[offset].toInt() and 0xFF) shl 8) or (data[offset + 1].toInt() and 0xFF)
             offset += 2 + topicLen // Skip topic
 
             // Check QoS - if QoS > 0, skip packet identifier
@@ -431,7 +446,7 @@ class MQTTRemoteSync private constructor(private val context: Context) {
                     val parsedUser = json.optString("u")
                     val parsedPass = json.optString("p")
                     val parsedHostname = json.optString("hostname")
-                    
+
                     if (parsedUrl.isNotEmpty()) {
                         _latestUser.value = parsedUser.takeIf { it.isNotEmpty() }
                         _latestPass.value = parsedPass.takeIf { it.isNotEmpty() }
@@ -452,12 +467,13 @@ class MQTTRemoteSync private constructor(private val context: Context) {
 
     private fun startKeepAlive(ws: WebSocket) {
         keepAliveJob?.cancel()
-        keepAliveJob = scope.launch {
-            while (isActive) {
-                delay(55_000) // 55 seconds (keep alive is 60)
-                sendPingReq(ws)
-            }
-        }
+        keepAliveJob =
+                scope.launch {
+                    while (isActive) {
+                        delay(55_000) // 55 seconds (keep alive is 60)
+                        sendPingReq(ws)
+                    }
+                }
     }
 
     // MARK: - AES-GCM Decryption
