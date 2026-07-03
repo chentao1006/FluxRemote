@@ -141,13 +141,20 @@ fun DetailRow(
 
 @Composable
 fun LoadingView(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    message: String? = null
 ) {
     Box(
         modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-        CircularProgressIndicator()
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            CircularProgressIndicator()
+            if (message != null) {
+                Spacer(Modifier.height(16.dp))
+                Text(message, style = androidx.compose.material3.MaterialTheme.typography.bodyMedium)
+            }
+        }
     }
 }
 

@@ -97,6 +97,10 @@ class MQTTRemoteSync private constructor(private val context: Context) {
     private var savedTopic: String? = null
     private var savedAESKey: String? = null
 
+    // Read-only public accessors for global fallback usage
+    val savedTopicPublic: String? get() = savedTopic
+    val savedKeyPublic: String? get() = savedAESKey
+
     // --- MQTT Broker Failover ---
     private data class MQTTBroker(
             val host: String,
@@ -189,27 +193,53 @@ class MQTTRemoteSync private constructor(private val context: Context) {
             onDataReceived(null)
             return
         }
+        fetchLatestData(topic, key, timeoutMs, onDataReceived)
+    }
 
+    /**
+     * Fetch the latest URL using explicit per-server MQTT credentials.
+     * This does NOT touch or overwrite the global savedTopic/savedAESKey.
+     *
+     * @param topic  The MQTT topic for this specific server
+     * @param aesKey The AES-256 key for this specific server
+     * @param timeoutMs Maximum time to wait for an MQTT message
+     * @param onDataReceived Callback with the decrypted data, or null if timeout
+     */
+    fun fetchLatestData(
+        topic: String,
+        aesKey: String,
+        timeoutMs: Long = 15000,
+        onDataReceived: (FetchResult?) -> Unit
+    ) {
         scope.launch {
-            val wasConnected = _isConnected.value
+            // Temporarily swap credentials for this one-shot fetch
+            val prevTopic = savedTopic
+            val prevKey = savedAESKey
 
-            // Force reconnect to ensure we pull the fresh retained message from the broker
+            savedTopic = topic
+            savedAESKey = aesKey
+
+            // Force reconnect to pull the fresh retained message from the broker
             disconnect()
             _latestURL.value = null
 
-            // Connect and subscribe, then wait for the retained message
             connectAndSubscribe()
 
             // Wait for the URL with timeout
             val result = withTimeoutOrNull(timeoutMs) { _latestURL.filterNotNull().first() }
+
+            // Restore previous credentials so the singleton doesn't get corrupted
+            savedTopic = prevTopic
+            savedAESKey = prevKey
+
             if (result != null) {
                 onDataReceived(
-                        FetchResult(
-                                result,
-                                _latestUser.value,
-                                _latestPass.value,
-                                _latestHostname.value
-                        )
+                    FetchResult(
+                        result,
+                        _latestUser.value,
+                        _latestPass.value,
+                        _latestHostname.value
+                    )
                 )
             } else {
                 onDataReceived(null)

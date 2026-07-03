@@ -52,6 +52,9 @@ fun LoginScreen(
     var autoLogin by remember { mutableStateOf(true) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    // Per-server MQTT pairing credentials set during QR scan
+    var pendingMqttTopic by remember { mutableStateOf<String?>(null) }
+    var pendingMqttKey by remember { mutableStateOf<String?>(null) }
 
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -114,7 +117,9 @@ fun LoginScreen(
                             username = username,
                             password = password,
                             autoLogin = autoLogin,
-                            rememberPassword = true
+                            rememberPassword = true,
+                            mqttTopic = pendingMqttTopic ?: currentServer.mqttTopic,
+                            mqttKey = pendingMqttKey ?: currentServer.mqttKey
                     )
                             ?: ServerConfig(
                                     name = displayName,
@@ -122,7 +127,9 @@ fun LoginScreen(
                                     username = username,
                                     password = password,
                                     autoLogin = autoLogin,
-                                    rememberPassword = true
+                                    rememberPassword = true,
+                                    mqttTopic = pendingMqttTopic,
+                                    mqttKey = pendingMqttKey
                             )
 
             if (initialServerId != null) {
@@ -160,11 +167,18 @@ fun LoginScreen(
                         scope.launch {
                             val success = mqttSync.savePairing(pairing.topic, pairing.key)
                             if (success) {
+                                // Remember this server's own MQTT credentials
+                                pendingMqttTopic = pairing.topic
+                                pendingMqttKey = pairing.key
                                 showSnackbar = mqttPairedMsg
 
                                 url = "Fetching..."
                                 isLoading = true
-                                mqttSync.fetchLatestData(timeoutMs = 15000) { data ->
+                                mqttSync.fetchLatestData(
+                                        pairing.topic,
+                                        pairing.key,
+                                        timeoutMs = 15000
+                                ) { data ->
                                     if (data?.url != null) {
                                         url = data.url
                                         if (!data.user.isNullOrEmpty()) username = data.user

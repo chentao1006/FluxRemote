@@ -266,4 +266,6 @@
     <string name="mqtt_paired_success">已成功与远控端配对</string>
     <string name="mqtt_pair_failed">远控端配对失败</string>
     <string name="scan_qr_prompt">请扫描二维码</string>
+    <string name="syncing_url">正在同步地址…</string>
+    <string name="reconnecting">正在重连…</string>
 </resources>

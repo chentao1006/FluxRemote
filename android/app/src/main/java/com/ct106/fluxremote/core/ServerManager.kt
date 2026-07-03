@@ -22,7 +22,9 @@ data class ServerConfig(
     var isLauncher: Boolean = false,
     var lastUpdatedAt: Long = System.currentTimeMillis(),
     var rememberPassword: Boolean = true,
-    var autoLogin: Boolean = true
+    var autoLogin: Boolean = true,
+    var mqttTopic: String? = null,
+    var mqttKey: String? = null
 ) {
     val baseURL: String
         get() = if (url.startsWith("http")) (if (url.endsWith("/")) url else "$url/") else "http://" + (if (url.endsWith("/")) url else "$url/")

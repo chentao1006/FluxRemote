@@ -57,6 +57,7 @@ fun DashboardScreen(
     var history by remember { mutableStateOf<List<MetricPoint>>(emptyList()) }
     var prevNetBytes by remember { mutableStateOf<RemoteNetBytes?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isRecovering by remember { mutableStateOf(false) }
 
     // Summary states
     var dockerSummary by remember { mutableStateOf(Pair(0, 0)) }
@@ -111,9 +112,10 @@ fun DashboardScreen(
         apiClient.dashboardHistory.addAll(history)
     }
 
-    suspend fun fetchStats() {
-        try {
-            val api = apiClient.getApi() ?: return
+    // Returns true on success. Pass reportError=false to suppress UI error during silent probes.
+    suspend fun fetchStats(reportError: Boolean = true): Boolean {
+        return try {
+            val api = apiClient.getApi() ?: return false
             val response = api.getStats()
             if (response.isSuccessful) {
                 val s = response.body()?.data
@@ -122,17 +124,20 @@ fun DashboardScreen(
                     apiClient.dashboardStats = s
                     errorMessage = null
                     updateHistory(s)
-                }
+                    true
+                } else false
             } else {
-                if (stats == null) {
+                if (stats == null && reportError) {
                     errorMessage = "HTTP Error ${response.code()}"
                 }
+                false
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            if (stats == null) {
+            if (stats == null && reportError) {
                 errorMessage = e.message ?: "Failed to connect"
             }
+            false
         }
     }
 
@@ -263,44 +268,77 @@ fun DashboardScreen(
         }
     }
 
-    suspend fun attemptMqttRecovery() {
+    // Returns true if re-login succeeded after fetching latest URL via MQTT
+    suspend fun attemptMqttRecovery(): Boolean {
         val mqttSync = com.ct106.flux_remote.core.MQTTRemoteSync.getInstance(context)
-        if (mqttSync.isPaired.value) {
-            errorMessage = null
-            val deferredData = kotlinx.coroutines.CompletableDeferred<com.ct106.flux_remote.core.MQTTRemoteSync.FetchResult?>()
-            mqttSync.fetchLatestData(timeoutMs = 15000) { data ->
-                deferredData.complete(data)
+        val serverTopic = server.mqttTopic
+        val serverKey = server.mqttKey
+        // Use per-server credentials if available, fall back to global pairing
+        val fetchTopic = serverTopic ?: mqttSync.savedTopicPublic
+        val fetchKey   = serverKey   ?: mqttSync.savedKeyPublic
+        if (fetchTopic == null || fetchKey == null) return false
+
+        val deferred = kotlinx.coroutines.CompletableDeferred<com.ct106.flux_remote.core.MQTTRemoteSync.FetchResult?>()
+        mqttSync.fetchLatestData(fetchTopic, fetchKey, timeoutMs = 15000) { deferred.complete(it) }
+        val data = deferred.await()
+        val newUrl = data?.url ?: return false
+
+        if (newUrl != server.url) {
+            server.url = newUrl
+            if (!data.user.isNullOrEmpty()) server.username = data.user
+            if (!data.hostname.isNullOrEmpty() && server.name == "Remote Mac") server.name = data.hostname
+            if (!data.pass.isNullOrEmpty()) serverManager.setPassword(server.id, data.pass)
+            // Persist mqtt credentials to server if it didn't have them (migration for pre-update servers)
+            if (serverTopic == null) {
+                server.mqttTopic = fetchTopic
+                server.mqttKey = fetchKey
             }
-            val data = deferredData.await()
-            val newUrl = data?.url
-            if (newUrl != null && newUrl != server.url) {
-                server.url = newUrl
-                if (!data.user.isNullOrEmpty()) server.username = data.user
-                if (!data.hostname.isNullOrEmpty() && server.name == "Remote Mac") server.name = data.hostname
-                if (!data.pass.isNullOrEmpty()) {
-                    serverManager.setPassword(server.id, data.pass)
-                }
-                serverManager.updateServer(server)
-                val testPass = if (!data.pass.isNullOrEmpty()) data.pass else serverManager.getPassword(server.id)
-                apiClient.login(mapOf("username" to (server.username ?: ""), "password" to (testPass ?: "")), server)
-            }
-            fetchStats()
+            serverManager.updateServer(server)
         }
+        val testPass = if (!data.pass.isNullOrEmpty()) data.pass else serverManager.getPassword(server.id)
+        return apiClient.login(
+            mapOf("username" to (server.username ?: ""), "password" to (testPass ?: "")),
+            server
+        )
     }
 
     LaunchedEffect(server.id, isCurrentAuthenticated) {
         if (isCurrentAuthenticated || hasSavedPassword) {
-            fetchStats()
-            if (stats == null && errorMessage != null) {
-                attemptMqttRecovery()
+            // Silent probe first — no error flash
+            if (!fetchStats(reportError = false)) {
+                // MQTT recovery: show loading indicator, never show error mid-recovery
+                isRecovering = true
+                errorMessage = null
+                val recovered = attemptMqttRecovery()
+                isRecovering = false
+                if (!recovered) {
+                    // Both failed — now surface the error
+                    fetchStats(reportError = true)
+                }
+                // If recovered: login succeeded; while loop will fetch stats silently
             }
             fetchSummaries()
             lastSummaryFetch = System.currentTimeMillis()
         }
-        
+
+        var consecutiveFailures = 0
         while (true) {
             if (serverManager.isServerAuthenticated(server.id) || serverManager.hasSavedPassword(server.id)) {
-                fetchStats()
+                val ok = fetchStats(reportError = false)
+                if (ok) {
+                    consecutiveFailures = 0
+                } else {
+                    consecutiveFailures++
+                    if (consecutiveFailures >= 3) {
+                        // ~6 s of consecutive failures — try MQTT recovery
+                        consecutiveFailures = 0
+                        isRecovering = true
+                        errorMessage = null
+                        val recovered = attemptMqttRecovery()
+                        isRecovering = false
+                        if (!recovered) fetchStats(reportError = true)
+                    }
+                }
                 val now = System.currentTimeMillis()
                 if (now - lastSummaryFetch > 30_000) {
                     fetchSummaries()
@@ -352,31 +390,12 @@ fun DashboardScreen(
             )
         }
     ) { padding ->
-        if (stats == null && errorMessage == null) {
-            LoadingView(Modifier.padding(padding))
-            return@Scaffold
-        }
-
-        if (stats == null && errorMessage != null) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(48.dp))
-                    Spacer(Modifier.height(16.dp))
-                    Text(errorMessage!!, color = MaterialTheme.colorScheme.error)
-                    Spacer(Modifier.height(16.dp))
-                    Button(onClick = {
-                        errorMessage = null
-                        scope.launch { 
-                            fetchStats() 
-                            if (stats == null && errorMessage != null) {
-                                attemptMqttRecovery()
-                            }
-                        }
-                    }) {
-                        Text("Retry")
-                    }
-                }
-            }
+        if (stats == null) {
+            val msg = if (isRecovering) stringResource(R.string.reconnecting) else errorMessage
+            LoadingView(
+                Modifier.padding(padding),
+                message = msg
+            )
             return@Scaffold
         }
 

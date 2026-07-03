@@ -147,8 +147,8 @@ class RemoteAPIClient(val serverManager: ServerManager) {
         }
         .build()
 
-    fun getApi(): FluxRemoteApi? {
-        val server = serverManager.getSelectedServer() ?: return null
+    fun getApi(forServer: ServerConfig? = null): FluxRemoteApi? {
+        val server = forServer ?: serverManager.getSelectedServer() ?: return null
         val baseUrl = server.baseURL
         
         if (currentRetrofit?.baseUrl()?.toString() != baseUrl) {
@@ -173,7 +173,7 @@ class RemoteAPIClient(val serverManager: ServerManager) {
 
     suspend fun login(credentials: Map<String, String>, server: ServerConfig): Boolean {
         try {
-            val api = getApi() ?: return false
+            val api = getApi(server) ?: return false
             val response = api.login(credentials)
             if (response.isSuccessful && response.body()?.success == true) {
                 serverManager.setAuthenticated(server.id, true)

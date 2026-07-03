@@ -266,4 +266,6 @@
     <string name="mqtt_paired_success">Successfully paired with remote server</string>
     <string name="mqtt_pair_failed">Failed to pair with remote server</string>
     <string name="scan_qr_prompt">Scan QR Code</string>
+    <string name="syncing_url">Syncing URL…</string>
+    <string name="reconnecting">Reconnecting…</string>
 </resources>
