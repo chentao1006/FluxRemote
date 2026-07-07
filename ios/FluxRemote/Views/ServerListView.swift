@@ -22,17 +22,17 @@ struct ServerListView: View {
     var body: some View {
         List {
             Section {
-                Toggle(languageManager.t("settings.cloudSync"), isOn: Bindable(ServerManager.shared).isCloudSyncEnabled)
-                    .tint(Color("AccentColor"))
-            } header: {
-                HStack {
-                    Text(languageManager.t("settings.cloudSync"))
-                    Spacer()
-                    if ServerManager.shared.isSyncingServers {
-                        ProgressView()
-                            .controlSize(.small)
+                Toggle(isOn: Bindable(ServerManager.shared).isCloudSyncEnabled) {
+                    HStack {
+                        Text(languageManager.t("settings.cloudSync"))
+                        if ServerManager.shared.isSyncingServers {
+                            ProgressView()
+                                .controlSize(.small)
+                                .padding(.leading, 4)
+                        }
                     }
                 }
+                .tint(Color("AccentColor"))
             }
             
             Section {

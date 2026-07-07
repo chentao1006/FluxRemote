@@ -38,7 +38,7 @@ struct SettingsView: View {
                     }
                 }
                 
-                Section(header: Text(languageManager.t("settings.featureControl"))) {
+                Section {
                     Toggle(languageManager.t("sidebar.processes"), isOn: featureBinding(\.processes))
                     Toggle(languageManager.t("sidebar.ports"), isOn: featureBinding(\.ports))
                     Toggle(languageManager.t("sidebar.logs"), isOn: featureBinding(\.logs))
@@ -46,6 +46,15 @@ struct SettingsView: View {
                     Toggle(languageManager.t("sidebar.launchagent"), isOn: featureBinding(\.launchagent))
                     Toggle(languageManager.t("sidebar.docker"), isOn: featureBinding(\.docker))
                     Toggle(languageManager.t("sidebar.nginx"), isOn: featureBinding(\.nginx))
+                } header: {
+                    HStack {
+                        Text(languageManager.t("settings.featureControl"))
+                        Spacer()
+                        if let serverName = ServerManager.shared.selectedServer?.name {
+                            Text(serverName)
+                                .textCase(.none)
+                        }
+                    }
                 }
                 
                 Section(header: Text(languageManager.t("settings.aiConfig"))) {

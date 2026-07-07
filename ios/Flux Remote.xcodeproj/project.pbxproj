@@ -33,6 +33,7 @@
 		110000000000000000000A03 /* Views/AISettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110000000000000000000A13 /* Views/AISettingsView.swift */; };
 		7CE3652A6A9ABB4A0CC38DD0 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = F9B3ACFF36B10B32D4D3456F /* LaunchScreen.storyboard */; };
 		C60E6BFF2FCADA19008E0F02 /* Aptabase in Frameworks */ = {isa = PBXBuildFile; productRef = C60E6BFE2FCADA19008E0F02 /* Aptabase */; };
+		C6905E732FFCCEEE009B5C69 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6905E722FFCCEEE009B5C69 /* AboutView.swift */; };
 		C6C798322F6FC0F50036158B /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = C6C798312F6FC0F50036158B /* InfoPlist.strings */; };
 		C6C798412F6FC1170036158B /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = C6C798402F6FC1170036158B /* Localizable.xcstrings */; };
 		C6C798512F6FC1170036158B /* Components/Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6C798502F6FC1170036158B /* Components/Components.swift */; };
@@ -65,6 +66,7 @@
 		110000000000000000000A13 /* Views/AISettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/AISettingsView.swift; sourceTree = "<group>"; };
 		110000000000000000000A14 /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 		C66C85D82F76CBF400848FC6 /* FluxRemote.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FluxRemote.entitlements; sourceTree = "<group>"; };
+		C6905E722FFCCEEE009B5C69 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
 		C6C798302F6FC0F50036158B /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		C6C798332F6FC1170036158B /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		C6C798402F6FC1170036158B /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
@@ -103,6 +105,7 @@
 		110000000000000000000051 /* FluxRemote */ = {
 			isa = PBXGroup;
 			children = (
+				C6905E722FFCCEEE009B5C69 /* AboutView.swift */,
 				C66C85D82F76CBF400848FC6 /* FluxRemote.entitlements */,
 				110000000000000000000A14 /* Config.xcconfig */,
 				C6C798502F6FC1170036158B /* Components/Components.swift */,
@@ -249,6 +252,7 @@
 				110000000000000000000216 /* Views/PortModuleView.swift in Sources */,
 				110000000000000000000204 /* Views/LogModuleView.swift in Sources */,
 				110000000000000000000205 /* Views/SettingsView.swift in Sources */,
+				C6905E732FFCCEEE009B5C69 /* AboutView.swift in Sources */,
 				11000000000000000000000E /* Views/ServerListView.swift in Sources */,
 				11000000000000000000000F /* Views/ServerPickerMenu.swift in Sources */,
 				110000000000000000000301 /* Views/ConfigsModuleView.swift in Sources */,
@@ -410,7 +414,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1.4;
+				MARKETING_VERSION = 1.1.5;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.chentao.flux-remote";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 6.0;
@@ -436,7 +440,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1.4;
+				MARKETING_VERSION = 1.1.5;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.chentao.flux-remote";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 6.0;

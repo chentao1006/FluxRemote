@@ -163,6 +163,17 @@ struct DockerModuleView: View {
             
             List {
                 Section {
+                    Picker("Tabs", selection: $selectedTab) {
+                        ForEach(Tab.allCases, id: \.self) { tab in
+                            Text(languageManager.t(tab.rawValue)).tag(tab)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+
+                Section {
                     if let error = errorMessage, containers.isEmpty && images.isEmpty {
                         ContentUnavailableView(languageManager.t("common.error"), systemImage: "exclamationmark.triangle.fill", description: Text(error))
                             .listRowBackground(Color.clear)
@@ -201,16 +212,6 @@ struct DockerModuleView: View {
     
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .principal) {
-            Picker("Tabs", selection: $selectedTab) {
-                ForEach(Tab.allCases, id: \.self) { tab in
-                    Text(languageManager.t(tab.rawValue)).tag(tab)
-                }
-            }
-            .pickerStyle(.segmented)
-            .frame(width: 200)
-        }
-        
         ToolbarItem(placement: .topBarTrailing) {
             HStack(spacing: 16) {
                 if selectedTab == Tab.images {
@@ -218,8 +219,8 @@ struct DockerModuleView: View {
                         if loadingAction[""] == "prune" {
                             ProgressView().controlSize(.small)
                         } else {
-                            Image(systemName: "trash")
-                                .foregroundStyle(.red)
+                            Image(systemName: "eraser")
+                                .foregroundStyle(.orange)
                         }
                     }
                     .disabled(loadingAction[""] != nil)

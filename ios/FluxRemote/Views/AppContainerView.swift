@@ -1,4 +1,5 @@
 import SwiftUI
+import StoreKit
 
 struct AppContainerView: View {
     @Environment(RemoteAPIClient.self) private var apiClient
@@ -318,7 +319,7 @@ struct AppContainerView: View {
             .onChange(of: selection) { oldValue, newValue in
                 guard horizontalSizeClass == .compact else { return }
                 guard let newValue = newValue else { return }
-                let moreItems = primaryTabCandidates + [.settings, .servers]
+                let moreItems = primaryTabCandidates + [.settings, .servers, .about]
                 if moreItems.contains(newValue), !visiblePrimaryTabs.contains(newValue) {
                     selection = .more
                     morePath = [newValue]
@@ -365,9 +366,50 @@ struct AppContainerView: View {
                     Label(languageManager.t("navigation.customizeTabs"), systemImage: "square.grid.2x2")
                 }
             }
+            
+            Section(languageManager.t("settings.about")) {
+                Button(action: {
+                    if let url = URL(string: "itms-apps://itunes.apple.com/app/id6761290185") {
+                        UIApplication.shared.open(url)
+                    }
+                }) {
+                    HStack {
+                        Label(languageManager.t("settings.version"), systemImage: "info.circle")
+                        Spacer()
+                        Text(appVersionString)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                
+                Link(destination: URL(string: "https://flux.ct106.com")!) {
+                    HStack {
+                        Label(languageManager.t("settings.serverInstall"), systemImage: "globe")
+                        Spacer()
+                        Text("flux.ct106.com")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                
+                Link(destination: URL(string: "https://github.com/chentao1006/FluxMonitor/issues")!) {
+                    Label(languageManager.t("settings.feedback"), systemImage: "quote.bubble")
+                }
+                
+                Button(action: {
+                    if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
+                        SKStoreReviewController.requestReview(in: scene)
+                    }
+                }) {
+                    Label(languageManager.t("settings.rateApp"), systemImage: "star")
+                }
+            }
         }
         .listStyle(.insetGrouped)
         .navigationTitle(languageManager.t("common.more"))
+    }
+    
+    private var appVersionString: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
+        return "v\(version)"
     }
 
     private var primaryTabCandidates: [NavigationItem] {
@@ -415,24 +457,16 @@ struct AppContainerView: View {
             Section {
                 Menu {
                     ForEach(ServerManager.shared.servers) { server in
-                        Button {
-                            apiClient.switchServer(to: server)
-                        } label: {
-                            HStack {
-                                let status = ServerManager.shared.reachabilityStatuses[server.id]
-                                Circle()
-                                    .fill(status == nil ? Color.gray : (status == true ? Color.red : Color.green))
-                                    .frame(width: 8, height: 8)
-
-                                Text(server.name)
-                                    .foregroundStyle(status == true ? .secondary : .primary)
-
-                                if server.id == ServerManager.shared.selectedServerId {
-                                    Spacer()
-                                    Image(systemName: "checkmark")
-                                        .font(.body)
+                        let isSelected = server.id == ServerManager.shared.selectedServerId
+                        Toggle(isOn: Binding(
+                            get: { isSelected },
+                            set: { newValue in
+                                if newValue && !isSelected {
+                                    apiClient.switchServer(to: server)
                                 }
                             }
+                        )) {
+                            Text(server.name)
                         }
                         .disabled(ServerManager.shared.reachabilityStatuses[server.id] == true)
                     }
@@ -484,6 +518,7 @@ struct AppContainerView: View {
             Section(languageManager.t("sidebar.system")) {
                 tabRow(for: .settings)
                 tabRow(for: .servers)
+                tabRow(for: .about)
             }
         }
         .listStyle(.sidebar)
@@ -502,6 +537,7 @@ struct AppContainerView: View {
         case .nginx: return apiClient.features.nginx ?? true
         case .settings: return true
         case .servers: return true
+        case .about: return true
         case .more: return true
         }
     }
@@ -510,7 +546,7 @@ struct AppContainerView: View {
         switch item {
         case .monitor, .processes, .ports, .logs, .configs, .launchagent, .docker, .nginx:
             return true
-        case .settings, .servers, .more:
+        case .settings, .servers, .about, .more:
             return false
         }
     }
@@ -535,6 +571,7 @@ struct AppContainerView: View {
         case .nginx: NginxModuleView(selection: $selection)
         case .settings: SettingsView(selection: $selection)
         case .servers: ServerListView(selection: $selection)
+        case .about: AboutView()
         case .more: EmptyView()
         }
     }

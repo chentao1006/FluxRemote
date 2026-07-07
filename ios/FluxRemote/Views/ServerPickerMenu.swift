@@ -10,24 +10,18 @@ struct ServerPickerMenu: View {
     var body: some View {
         Menu {
             ForEach(ServerManager.shared.servers) { server in
-                Button {
-                    apiClient.switchServer(to: server)
-                    Aptabase.shared.trackEvent("server_switched")
-                    selection = .monitor
-                } label: {
-                    HStack {
-                        let status = ServerManager.shared.reachabilityStatuses[server.id]
-                        Circle()
-                            .fill(status == nil ? Color.gray : (status == true ? Color.red : Color.green))
-                            .frame(width: 8, height: 8)
-                        
-                        Text(server.name)
-                        
-                        if server.id == ServerManager.shared.selectedServerId {
-                            Image(systemName: "checkmark")
-                                .font(.body)
+                let isSelected = server.id == ServerManager.shared.selectedServerId
+                Toggle(isOn: Binding(
+                    get: { isSelected },
+                    set: { newValue in
+                        if newValue && !isSelected {
+                            apiClient.switchServer(to: server)
+                            Aptabase.shared.trackEvent("server_switched")
+                            selection = .monitor
                         }
                     }
+                )) {
+                    Text(server.name)
                 }
                 .disabled(ServerManager.shared.reachabilityStatuses[server.id] == true)
             }
@@ -48,9 +42,8 @@ struct ServerPickerMenu: View {
                 Text(ServerManager.shared.selectedServer?.name ?? languageManager.t("common.none"))
                     .font(.headline)
                     .foregroundStyle(.primary)
-                Image(systemName: "chevron.down")
-                    .font(.caption2)
-                    .fontWeight(.bold)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }

@@ -60,6 +60,17 @@ struct LaunchAgentModuleView: View {
     var body: some View {
         ZStack {
             List {
+                Section {
+                    Picker("", selection: $listType) {
+                        ForEach(LaunchAgentListType.allCases) { type in
+                            Text(type.title).tag(type)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+
                 if let error = errorMessage, launchAgents.isEmpty {
                     ContentUnavailableView(languageManager.t("common.error"), systemImage: "wifi.exclamationmark.fill", description: Text(error))
                         .listRowBackground(Color.clear)
@@ -127,17 +138,6 @@ struct LaunchAgentModuleView: View {
         }
         .navigationTitle(languageManager.t("launchagent.title"))
         .searchable(text: $searchText, prompt: languageManager.t("configs.searchPlaceholder"))
-        .safeAreaInset(edge: .top) {
-            Picker("", selection: $listType) {
-                ForEach(LaunchAgentListType.allCases) { type in
-                    Text(type.title).tag(type)
-                }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal)
-            .padding(.vertical, 8)
-            .background(.bar)
-        }
         .refreshable {
             await fetchData()
             try? await Task.sleep(for: .milliseconds(600))

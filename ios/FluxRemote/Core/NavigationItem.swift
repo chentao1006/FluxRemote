@@ -1,7 +1,7 @@
 import Foundation
 
 enum NavigationItem: String, CaseIterable, Identifiable {
-    case monitor, processes, ports, logs, configs, launchagent, docker, nginx, settings, servers, more
+    case monitor, processes, ports, logs, configs, launchagent, docker, nginx, settings, servers, about, more
     
     var id: String { self.rawValue }
     
@@ -17,6 +17,7 @@ enum NavigationItem: String, CaseIterable, Identifiable {
         case .nginx: return "sidebar.nginx"
         case .settings: return "sidebar.settings"
         case .servers: return "sidebar.servers"
+        case .about: return "settings.about"
         case .more: return "common.more"
         }
     }
@@ -33,6 +34,7 @@ enum NavigationItem: String, CaseIterable, Identifiable {
         case .nginx: return "server.rack"
         case .settings: return "slider.horizontal.3"
         case .servers: return "list.bullet.rectangle.portrait"
+        case .about: return "info.circle"
         case .more: return "ellipsis.circle.fill"
         }
     }

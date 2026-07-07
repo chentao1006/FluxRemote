@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -41,11 +42,83 @@ fun ServerListScreen(
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
 
+    var isRefreshingAll by remember { mutableStateOf(false) }
+
+    val refreshAll = {
+        if (!isRefreshingAll && servers.isNotEmpty()) {
+            isRefreshingAll = true
+            scope.launch {
+                val mqttSync = com.ct106.flux_remote.core.MQTTRemoteSync.getInstance(context)
+                var pendingCount = servers.size
+                
+                servers.forEach { server ->
+                    val serverTopic = server.mqttTopic
+                    val serverKey = server.mqttKey
+                    val hasMqtt = (serverTopic != null && serverKey != null) || mqttSync.isPaired.value
+                    if (hasMqtt) {
+                        val fetchTopic = serverTopic ?: mqttSync.savedTopicPublic
+                        val fetchKey   = serverKey   ?: mqttSync.savedKeyPublic
+                        if (fetchTopic != null && fetchKey != null) {
+                            mqttSync.fetchLatestData(fetchTopic, fetchKey, timeoutMs = 15000) { data ->
+                                scope.launch {
+                                    val newUrl = data?.url
+                                    if (newUrl != null && newUrl != server.url) {
+                                        server.url = newUrl
+                                        if (!data.user.isNullOrEmpty()) server.username = data.user
+                                        if (!data.hostname.isNullOrEmpty() && server.name == "Remote Mac") server.name = data.hostname
+                                        if (!data.pass.isNullOrEmpty()) {
+                                            serverManager.setPassword(server.id, data.pass)
+                                        }
+                                        serverManager.updateServer(server)
+                                        if (serverTopic == null && fetchTopic != null) {
+                                            server.mqttTopic = fetchTopic
+                                            server.mqttKey = fetchKey
+                                            serverManager.updateServer(server)
+                                        }
+                                    }
+                                    pendingCount--
+                                    if (pendingCount <= 0) {
+                                        isRefreshingAll = false
+                                    }
+                                }
+                            }
+                        } else {
+                            pendingCount--
+                        }
+                    } else {
+                        pendingCount--
+                    }
+                }
+                if (pendingCount <= 0) {
+                    isRefreshingAll = false
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(servers.isNotEmpty()) {
+        if (servers.isNotEmpty()) {
+            refreshAll()
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.server_list)) },
                 actions = {
+                    if (isRefreshingAll) {
+                        CircularProgressIndicator(
+                            modifier = Modifier
+                                .padding(end = 16.dp)
+                                .size(24.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        IconButton(onClick = { refreshAll() }) {
+                            Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.refresh))
+                        }
+                    }
                     IconButton(onClick = { onAddServer() }) {
                         Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_server))
                     }
