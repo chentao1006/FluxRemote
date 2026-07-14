@@ -4,6 +4,7 @@
     <string name="add_server">서버 추가</string>
     <string name="no_servers">서버 없음</string>
     <string name="add_first_server">첫 서버 추가</string>
+    <string name="server_setup_description">먼저 Mac에 Flux Launcher를 다운로드하고 설치한 뒤, 여기서 추가하여 원격 관리를 시작하세요.</string>
     <string name="launcher">런처</string>
     <string name="selected">선택됨</string>
     <string name="delete">삭제</string>

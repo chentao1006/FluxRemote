@@ -4,6 +4,7 @@
     <string name="add_server">新增伺服器</string>
     <string name="no_servers">暫無伺服器</string>
     <string name="add_first_server">新增第一台伺服器</string>
+    <string name="server_setup_description">請先在 Mac 上下載並安裝 Flux 啟動器，再回到這裡新增伺服器，即可開始遠端管理。</string>
     <string name="launcher">啟動器</string>
     <string name="selected">已選取</string>
     <string name="delete">刪除</string>

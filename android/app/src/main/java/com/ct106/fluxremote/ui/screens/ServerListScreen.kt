@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import com.ct106.flux_remote.R
 import com.ct106.flux_remote.core.RemoteAPIClient
@@ -363,13 +364,31 @@ fun ServerRow(
 
 @Composable
 fun EmptyServerState(onAddServer: () -> Unit, modifier: Modifier = Modifier) {
+    val uriHandler = LocalUriHandler.current
+
     Column(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(stringResource(R.string.no_servers), style = MaterialTheme.typography.headlineMedium)
+        Spacer(Modifier.height(12.dp))
+        Text(
+            text = stringResource(R.string.server_setup_description),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
         Spacer(Modifier.height(16.dp))
+        OutlinedButton(onClick = { uriHandler.openUri("https://flux.ct106.com/") }) {
+            Text(
+                text = "flux.ct106.com",
+                style = MaterialTheme.typography.titleLarge
+            )
+        }
+        Spacer(Modifier.height(24.dp))
         Button(onClick = onAddServer) {
             Icon(Icons.Default.Add, contentDescription = null)
             Spacer(Modifier.width(8.dp))

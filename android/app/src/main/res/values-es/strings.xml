@@ -4,6 +4,7 @@
     <string name="add_server">Añadir servidor</string>
     <string name="no_servers">Sin servidores</string>
     <string name="add_first_server">Añadir primer servidor</string>
+    <string name="server_setup_description">Instala primero Flux Launcher en tu Mac y añádelo aquí para empezar a administrarlo de forma remota.</string>
     <string name="launcher">Launcher</string>
     <string name="selected">Seleccionado</string>
     <string name="delete">Eliminar</string>

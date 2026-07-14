@@ -4,6 +4,7 @@
     <string name="add_server">サーバーを追加</string>
     <string name="no_servers">サーバーなし</string>
     <string name="add_first_server">最初のサーバーを追加</string>
+    <string name="server_setup_description">まず Mac に Flux Launcher をダウンロードしてインストールし、ここから追加してリモート管理を始めましょう。</string>
     <string name="launcher">ランチャー</string>
     <string name="selected">選択済み</string>
     <string name="delete">削除</string>

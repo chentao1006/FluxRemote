@@ -4,6 +4,7 @@
     <string name="add_server">Add Server</string>
     <string name="no_servers">No Servers</string>
     <string name="add_first_server">Add First Server</string>
+    <string name="server_setup_description">Install Flux Launcher on your Mac first, then add it here to start managing it remotely.</string>
     <string name="launcher">Launcher</string>
     <string name="selected">Selected</string>
     <string name="delete">Delete</string>

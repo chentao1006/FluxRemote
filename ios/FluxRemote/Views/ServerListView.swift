@@ -61,20 +61,17 @@ struct ServerListView: View {
                             StepItem(icon: "1.circle.fill", text: languageManager.t("settings.launcherStep1"))
                             StepItem(icon: "2.circle.fill", text: languageManager.t("settings.launcherStep2"))
                             
-                            HStack(alignment: .top, spacing: 12) {
-                                Image(systemName: "safari.fill")
-                                    .foregroundStyle(.blue)
-                                    .font(.system(size: 20))
-                                
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(languageManager.t("settings.launcherVisitWebsite"))
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                    Link("https://flux.ct106.com/", destination: URL(string: "https://flux.ct106.com/")!)
-                                        .font(.subheadline.bold())
-                                        .foregroundStyle(Color("AccentColor"))
-                                }
+                            Text(languageManager.t("settings.launcherVisitWebsite"))
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+
+                            Link(destination: URL(string: "https://flux.ct106.com/")!) {
+                                Label("flux.ct106.com", systemImage: "arrow.up.right")
+                                    .font(.title3.bold())
+                                    .frame(maxWidth: .infinity)
                             }
+                            .buttonStyle(.bordered)
+                            .tint(Color("AccentColor"))
                         }
                         .padding(.horizontal, 24)
                         .padding(.vertical, 20)

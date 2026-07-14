@@ -16751,55 +16751,55 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Please install the launcher on your Mac server first."
+            "value" : "Bitte installieren Sie zuerst den Flux Launcher auf Ihrem Mac."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Please install the launcher on your Mac server first."
+            "value" : "Please install the Flux Launcher on your Mac first."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Please install the launcher on your Mac server first."
+            "value" : "Instala primero Flux Launcher en tu Mac."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Please install the launcher on your Mac server first."
+            "value" : "Installez d’abord Flux Launcher sur votre Mac."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Please install the launcher on your Mac server first."
+            "value" : "Installa prima Flux Launcher sul tuo Mac."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Please install the launcher on your Mac server first."
+            "value" : "まず Mac に Flux Launcher をインストールしてください。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Please install the launcher on your Mac server first."
+            "value" : "먼저 Mac에 Flux Launcher를 설치해 주세요."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "需要在 Mac 服务器安装启动器"
+            "value" : "请先在您的 Mac 上安装浮光启动器。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "請先在 Mac 伺服器上安裝啟動器。"
+            "value" : "請先在您的 Mac 上安裝 Flux 啟動器。"
           }
         }
       }
@@ -16810,7 +16810,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "1. Download and install Flux Launcher on your Mac."
+            "value" : "1. Laden Sie Flux Launcher auf Ihren Mac herunter und installieren Sie ihn."
           }
         },
         "en" : {
@@ -16822,43 +16822,43 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "1. Download and install Flux Launcher on your Mac."
+            "value" : "1. Descarga e instala Flux Launcher en tu Mac."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "1. Download and install Flux Launcher on your Mac."
+            "value" : "1. Téléchargez et installez Flux Launcher sur votre Mac."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "1. Download and install Flux Launcher on your Mac."
+            "value" : "1. Scarica e installa Flux Launcher sul tuo Mac."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "1. Download and install Flux Launcher on your Mac."
+            "value" : "1. Mac に Flux Launcher をダウンロードしてインストールします。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "1. Download and install Flux Launcher on your Mac."
+            "value" : "1. Mac에 Flux Launcher를 다운로드하고 설치하세요."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "1. 在您的 Mac 服务器上下载并安装 Flux 启动器"
+            "value" : "1. 请在您的 Mac 上下载并安装 Flux 启动器。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "1. 在您的 Mac 服务器上下载并安装 Flux 启动器"
+            "value" : "1. 請在您的 Mac 上下載並安裝 Flux 啟動器。"
           }
         }
       }
@@ -16869,55 +16869,55 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "2. Sign in to sync your server automatically."
+            "value" : "2. Melden Sie sich im Launcher an, damit Ihr Server automatisch synchronisiert wird."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "2. Sign in to sync your server automatically."
+            "value" : "2. Sign in to the launcher to sync your server automatically."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "2. Sign in to sync your server automatically."
+            "value" : "2. Inicia sesión en Launcher para sincronizar tu servidor automáticamente."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "2. Sign in to sync your server automatically."
+            "value" : "2. Connectez-vous à Launcher pour synchroniser automatiquement votre serveur."
           }
         },
         "it" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "2. Sign in to sync your server automatically."
+            "value" : "2. Accedi a Launcher per sincronizzare automaticamente il tuo server."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "2. Sign in to sync your server automatically."
+            "value" : "2. Launcher にサインインすると、サーバーが自動的に同期されます。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "2. Sign in to sync your server automatically."
+            "value" : "2. Launcher에 로그인하면 서버가 자동으로 동기화됩니다."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "2. 登录启动器以自动同步您的服务器"
+            "value" : "2. 登录启动器，即可自动同步您的服务器。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "2. 登录启动器以自动同步您的服务器"
+            "value" : "2. 登入啟動器，即可自動同步您的伺服器。"
           }
         }
       }
