@@ -271,15 +271,11 @@ fun DashboardScreen(
     // Returns true if re-login succeeded after fetching latest URL via MQTT
     suspend fun attemptMqttRecovery(): Boolean {
         val mqttSync = com.ct106.flux_remote.core.MQTTRemoteSync.getInstance(context)
-        val serverTopic = server.mqttTopic
-        val serverKey = server.mqttKey
-        // Use per-server credentials if available, fall back to global pairing
-        val fetchTopic = serverTopic ?: mqttSync.savedTopicPublic
-        val fetchKey   = serverKey   ?: mqttSync.savedKeyPublic
-        if (fetchTopic == null || fetchKey == null) return false
+        val serverTopic = server.mqttTopic ?: return false
+        val serverKey = server.mqttKey ?: return false
 
         val deferred = kotlinx.coroutines.CompletableDeferred<com.ct106.flux_remote.core.MQTTRemoteSync.FetchResult?>()
-        mqttSync.fetchLatestData(fetchTopic, fetchKey, timeoutMs = 15000) { deferred.complete(it) }
+        mqttSync.fetchLatestData(serverTopic, serverKey, timeoutMs = 15000) { deferred.complete(it) }
         val data = deferred.await()
         val newUrl = data?.url ?: return false
 
@@ -288,11 +284,6 @@ fun DashboardScreen(
             if (!data.user.isNullOrEmpty()) server.username = data.user
             if (!data.hostname.isNullOrEmpty() && server.name == "Remote Mac") server.name = data.hostname
             if (!data.pass.isNullOrEmpty()) serverManager.setPassword(server.id, data.pass)
-            // Persist mqtt credentials to server if it didn't have them (migration for pre-update servers)
-            if (serverTopic == null) {
-                server.mqttTopic = fetchTopic
-                server.mqttKey = fetchKey
-            }
             serverManager.updateServer(server)
         }
         val testPass = if (!data.pass.isNullOrEmpty()) data.pass else serverManager.getPassword(server.id)

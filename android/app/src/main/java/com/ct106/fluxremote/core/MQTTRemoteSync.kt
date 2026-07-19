@@ -13,6 +13,8 @@ import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import okhttp3.*
 import okio.ByteString.Companion.toByteString
 
@@ -97,9 +99,8 @@ class MQTTRemoteSync private constructor(private val context: Context) {
     private var savedTopic: String? = null
     private var savedAESKey: String? = null
 
-    // Read-only public accessors for global fallback usage
-    val savedTopicPublic: String? get() = savedTopic
-    val savedKeyPublic: String? get() = savedAESKey
+    // A single MQTT client is shared by the app, so explicit fetches must not overlap.
+    private val fetchMutex = Mutex()
 
     // --- MQTT Broker Failover ---
     private data class MQTTBroker(
@@ -212,6 +213,7 @@ class MQTTRemoteSync private constructor(private val context: Context) {
         onDataReceived: (FetchResult?) -> Unit
     ) {
         scope.launch {
+            fetchMutex.withLock {
             // Temporarily swap credentials for this one-shot fetch
             val prevTopic = savedTopic
             val prevKey = savedAESKey
@@ -243,6 +245,7 @@ class MQTTRemoteSync private constructor(private val context: Context) {
                 )
             } else {
                 onDataReceived(null)
+            }
             }
         }
     }

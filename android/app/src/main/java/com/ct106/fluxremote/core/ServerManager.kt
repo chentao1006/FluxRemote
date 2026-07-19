@@ -68,7 +68,33 @@ class ServerManager(private val context: Context) {
                 val serversJson = preferences[SERVERS_KEY] ?: "[]"
                 try {
                     val servers = json.decodeFromString<List<ServerConfig>>(serversJson)
-                    _servers.value = servers.sortedBy { it.name }
+                    // Version 2.2 briefly copied the one global QR pairing onto every
+                    // legacy server during list refresh. MQTT credentials are unique to a
+                    // Mac, so repeated topics are unsafe: clear them rather than allowing
+                    // another refresh to overwrite more saved URLs.
+                    val duplicatedTopics = servers
+                        .mapNotNull { it.mqttTopic }
+                        .groupingBy { it }
+                        .eachCount()
+                        .filterValues { it > 1 }
+                        .keys
+                    val sanitizedServers = if (duplicatedTopics.isEmpty()) {
+                        servers
+                    } else {
+                        servers.map { server ->
+                            if (server.mqttTopic in duplicatedTopics) {
+                                server.copy(mqttTopic = null, mqttKey = null)
+                            } else {
+                                server
+                            }
+                        }
+                    }
+                    _servers.value = sanitizedServers.sortedBy { it.name }
+                    if (sanitizedServers !== servers) {
+                        context.dataStore.edit { updatedPreferences ->
+                            updatedPreferences[SERVERS_KEY] = json.encodeToString(sanitizedServers)
+                        }
+                    }
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }

@@ -49,18 +49,16 @@ fun ServerListScreen(
         if (!isRefreshingAll && servers.isNotEmpty()) {
             isRefreshingAll = true
             scope.launch {
-                val mqttSync = com.ct106.flux_remote.core.MQTTRemoteSync.getInstance(context)
                 var pendingCount = servers.size
                 
                 servers.forEach { server ->
                     val serverTopic = server.mqttTopic
                     val serverKey = server.mqttKey
-                    val hasMqtt = (serverTopic != null && serverKey != null) || mqttSync.isPaired.value
-                    if (hasMqtt) {
-                        val fetchTopic = serverTopic ?: mqttSync.savedTopicPublic
-                        val fetchKey   = serverKey   ?: mqttSync.savedKeyPublic
-                        if (fetchTopic != null && fetchKey != null) {
-                            mqttSync.fetchLatestData(fetchTopic, fetchKey, timeoutMs = 15000) { data ->
+                    // A global pairing belongs to one Mac. Never use it to refresh arbitrary
+                    // saved servers, or it will overwrite every URL with that Mac's URL.
+                    if (serverTopic != null && serverKey != null) {
+                        com.ct106.flux_remote.core.MQTTRemoteSync.getInstance(context)
+                            .fetchLatestData(serverTopic, serverKey, timeoutMs = 15000) { data ->
                                 scope.launch {
                                     val newUrl = data?.url
                                     if (newUrl != null && newUrl != server.url) {
@@ -71,11 +69,6 @@ fun ServerListScreen(
                                             serverManager.setPassword(server.id, data.pass)
                                         }
                                         serverManager.updateServer(server)
-                                        if (serverTopic == null && fetchTopic != null) {
-                                            server.mqttTopic = fetchTopic
-                                            server.mqttKey = fetchKey
-                                            serverManager.updateServer(server)
-                                        }
                                     }
                                     pendingCount--
                                     if (pendingCount <= 0) {
@@ -83,9 +76,6 @@ fun ServerListScreen(
                                     }
                                 }
                             }
-                        } else {
-                            pendingCount--
-                        }
                     } else {
                         pendingCount--
                     }
@@ -189,13 +179,9 @@ fun ServerListScreen(
                                                     val mqttSync = com.ct106.flux_remote.core.MQTTRemoteSync.getInstance(context)
                                                     val serverTopic = server.mqttTopic
                                                     val serverKey = server.mqttKey
-                                                    // Use per-server credentials if available, fall back to global pairing
-                                                    val hasMqtt = (serverTopic != null && serverKey != null) || mqttSync.isPaired.value
-                                                    if (hasMqtt) {
-                                                        val fetchTopic = serverTopic ?: mqttSync.savedTopicPublic
-                                                        val fetchKey   = serverKey   ?: mqttSync.savedKeyPublic
-                                                        if (fetchTopic != null && fetchKey != null) {
-                                                            mqttSync.fetchLatestData(fetchTopic, fetchKey, timeoutMs = 15000) { data ->
+                                                    // A global pairing must not be applied to another saved Mac.
+                                                    if (serverTopic != null && serverKey != null) {
+                                                            mqttSync.fetchLatestData(serverTopic, serverKey, timeoutMs = 15000) { data ->
                                                                 scope.launch {
                                                                     val newUrl = data?.url
                                                                     if (newUrl != null && newUrl != server.url) {
@@ -206,12 +192,6 @@ fun ServerListScreen(
                                                                             serverManager.setPassword(server.id, data.pass)
                                                                         }
                                                                         serverManager.updateServer(server)
-                                                                        // Also persist mqtt credentials to this server if it didn't have them
-                                                                        if (serverTopic == null && fetchTopic != null) {
-                                                                            server.mqttTopic = fetchTopic
-                                                                            server.mqttKey = fetchKey
-                                                                            serverManager.updateServer(server)
-                                                                        }
                                                                     }
                                                                     // Always retry login after MQTT fetch (URL or session may have changed)
                                                                     if (newUrl != null) {
@@ -230,7 +210,6 @@ fun ServerListScreen(
                                                                 }
                                                             }
                                                             return@launch // Let mqtt callback handle loadingServerId
-                                                        }
                                                     }
                                                     loadingServerId = null
                                                     onEditServer(server)
