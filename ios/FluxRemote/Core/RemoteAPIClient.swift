@@ -82,7 +82,9 @@ class RemoteAPIClient {
         
         if isAuthenticated {
             Task { await fetchSettings() }
-        } else if server.autoLogin, let username = server.username, let password = ServerManager.shared.getPassword(for: server.id) {
+        } else if (server.autoLogin || ServerManager.shared.autoLoginLastServer),
+                  let username = server.username,
+                  let password = ServerManager.shared.getPassword(for: server.id) {
             // Attempt auto login
             print("RemoteAPIClient: Attempting auto-login for server \(server.name)")
             Task {
@@ -366,6 +368,61 @@ class RemoteAPIClient {
             }
         } catch {
             print("Fetch settings for features failed: \(error)")
+        }
+    }
+
+    // Fetch lightweight dashboard data for a server without changing the
+    // currently selected server or its cached dashboard state.
+    func fetchStats(for server: ServerConfig) async -> RemoteSystemStats? {
+        guard let baseURL = server.baseURL,
+              let url = URL(string: "api/system/stats", relativeTo: baseURL)
+        else { return nil }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 10
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+        request.setValue("FluxRemote/1.0", forHTTPHeaderField: "User-Agent")
+
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode) else { return nil }
+            return try JSONDecoder().decode(RemoteStatsResponse.self, from: data).data
+        } catch {
+            return nil
+        }
+    }
+
+    // Authenticate a saved server for management-list refreshes without changing
+    // the selected server or any dashboard state.
+    func loginSilently(for server: ServerConfig) async -> Bool {
+        guard let username = server.username,
+              let password = ServerManager.shared.getPassword(for: server.id),
+              let baseURL = server.baseURL
+        else { return false }
+
+        do {
+            var request = URLRequest(url: baseURL.appendingPathComponent("api/auth/login"))
+            request.httpMethod = "POST"
+            request.timeoutInterval = 15
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONEncoder().encode([
+                "username": username,
+                "password": password
+            ])
+
+            let (_, response) = try await session.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode)
+            else { return false }
+
+            ServerManager.shared.setAuthenticated(true, for: server.id)
+            return true
+        } catch {
+            return false
         }
     }
 }

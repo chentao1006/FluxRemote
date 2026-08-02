@@ -1,5 +1,5 @@
 import SwiftUI
-import AVFoundation
+@preconcurrency import AVFoundation
 
 struct QRScannerView: UIViewControllerRepresentable {
     var completion: (Result<String, Error>) -> Void
@@ -80,19 +80,14 @@ class ScannerViewController: UIViewController {
         previewLayer.videoGravity = .resizeAspectFill
         view.layer.addSublayer(previewLayer)
         updatePreviewOrientation()
-        
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            self?.captureSession.startRunning()
-        }
+        startCaptureSession()
     }
     
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         updatePreviewOrientation()
         if (captureSession?.isRunning == false) {
-            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                self?.captureSession.startRunning()
-            }
+            startCaptureSession()
         }
     }
     
@@ -118,24 +113,32 @@ class ScannerViewController: UIViewController {
     }
 
     private func updatePreviewOrientation() {
-        guard let connection = previewLayer?.connection, connection.isVideoOrientationSupported else { return }
-        connection.videoOrientation = currentVideoOrientation
+        guard let connection = previewLayer?.connection else { return }
+        let angle = currentVideoRotationAngle
+        guard connection.isVideoRotationAngleSupported(angle) else { return }
+        connection.videoRotationAngle = angle
     }
 
-    private var currentVideoOrientation: AVCaptureVideoOrientation {
-        guard let interfaceOrientation = view.window?.windowScene?.interfaceOrientation else {
-            return .portrait
+    private func startCaptureSession() {
+        // Read the main-actor property before entering the @Sendable GCD closure.
+        // AVCaptureSession.startRunning() may block, so it must stay off the UI thread.
+        let session = captureSession
+        DispatchQueue.global(qos: .userInitiated).async {
+            session?.startRunning()
         }
+    }
 
-        switch interfaceOrientation {
+    private var currentVideoRotationAngle: CGFloat {
+        switch view.window?.windowScene?.interfaceOrientation {
         case .landscapeLeft:
-            return .landscapeLeft
+            return 90
         case .landscapeRight:
-            return .landscapeRight
+            return 270
         case .portraitUpsideDown:
-            return .portraitUpsideDown
+            return 180
         default:
-            return .portrait
+            return 0
         }
     }
+
 }

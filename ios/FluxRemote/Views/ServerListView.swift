@@ -6,11 +6,14 @@ struct ServerListView: View {
     @Environment(AppLanguageManager.self) private var languageManager
     @State private var serverManager = ServerManager.shared
     @State private var showingAddServer = false
+    @State private var showingSettings = false
     @State private var serverToEdit: ServerConfig?
     @State private var showingDeleteAlert = false
     @State private var serverToDelete: ServerConfig?
-    @State private var showingLoginForServer: ServerConfig?
+    @State private var serverStats: [UUID: RemoteSystemStats] = [:]
+    @State private var unloggedServerIds: Set<UUID> = []
     @Binding var selection: NavigationItem?
+    var onServerSelected: (() -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
     
     private var isBackgroundLoading: Bool {
@@ -95,16 +98,16 @@ struct ServerListView: View {
                     .listRowBackground(Color.clear)
                 } else {
                     ForEach(ServerManager.shared.servers) { server in
-                        ServerRow(server: server, isActive: server.id == ServerManager.shared.selectedServerId) {
+                        ServerRow(
+                            server: server,
+                            isActive: server.id == ServerManager.shared.selectedServerId,
+                            stats: serverStats[server.id],
+                            isUnlogged: unloggedServerIds.contains(server.id)
+                        ) {
                             apiClient.switchServer(to: server)
                             Aptabase.shared.trackEvent("server_switched")
                             selection = .monitor
-                            if !ServerManager.shared.isServerAuthenticated(server.id) && (!server.autoLogin || ServerManager.shared.getPassword(for: server.id) == nil) {
-                                showingLoginForServer = server
-                            } else if ServerManager.shared.isServerAuthenticated(server.id) {
-                                // Close the modal if we're authenticated
-                                dismiss()
-                            }
+                            onServerSelected?()
                         } onEdit: {
                             serverToEdit = server
                         } onDelete: {
@@ -130,14 +133,20 @@ struct ServerListView: View {
             try? await Task.sleep(nanoseconds: 500_000_000) 
         }
         .navigationTitle(languageManager.t("settings.serverList"))
-        .onAppear {
-            checkAndShowLogin()
-        }
-        .onChange(of: ServerManager.shared.selectedServerId) { _, _ in
-            checkAndShowLogin()
+        .task {
+            while !Task.isCancelled {
+                await refreshServerStats()
+                try? await Task.sleep(for: .seconds(5))
+            }
         }
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button {
+                    showingSettings = true
+                } label: {
+                    Image(systemName: "gearshape")
+                }
+
                 Button {
                     showingAddServer = true
                 } label: {
@@ -150,10 +159,12 @@ struct ServerListView: View {
                 .environment(apiClient)
                 .environment(languageManager)
         }
-        .sheet(item: $showingLoginForServer) { server in
-            FluxLoginView(initialURL: server.url, initialServerName: server.name, serverId: server.id)
-                .environment(apiClient)
-                .environment(languageManager)
+        .sheet(isPresented: $showingSettings) {
+            NavigationStack {
+                SettingsView(selection: $selection)
+            }
+            .environment(apiClient)
+            .environment(languageManager)
         }
         .sheet(item: $serverToEdit) { server in
             ServerEditView(server: server) { updatedServer in
@@ -176,24 +187,39 @@ struct ServerListView: View {
         }
     }
     
-    private func checkAndShowLogin() {
-        let status = ServerManager.shared.reachabilityStatuses[ServerManager.shared.selectedServerId ?? UUID()]
-        if let server = ServerManager.shared.selectedServer, 
-           !ServerManager.shared.isServerAuthenticated(server.id),
-           status == false {
-            // Delay slightly to ensure any background auto-login tasks have a chance or UI is ready
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                if !ServerManager.shared.isServerAuthenticated(server.id) {
-                    showingLoginForServer = server
-                }
+    private func refreshServerStats() async {
+        let connectedServers = ServerManager.shared.servers.filter { server in
+            // Green is the server-management screen's connection contract. Metrics
+            // must refresh for every reachable server, not only the checked server.
+            ServerManager.shared.reachabilityStatuses[server.id] == false
+        }
+
+        var refreshedStats: [UUID: RemoteSystemStats] = [:]
+        var detectedUnloggedServerIds = unloggedServerIds.intersection(Set(connectedServers.map(\.id)))
+        for server in connectedServers {
+            if !ServerManager.shared.isServerAuthenticated(server.id),
+               !(await apiClient.loginSilently(for: server)) {
+                detectedUnloggedServerIds.insert(server.id)
+                continue
+            }
+
+            detectedUnloggedServerIds.remove(server.id)
+
+            if let stats = await apiClient.fetchStats(for: server) {
+                refreshedStats[server.id] = stats
             }
         }
+
+        serverStats = refreshedStats
+        unloggedServerIds = detectedUnloggedServerIds
     }
 }
 
 struct ServerRow: View {
     let server: ServerConfig
     let isActive: Bool
+    let stats: RemoteSystemStats?
+    let isUnlogged: Bool
     let onSelect: () -> Void
     let onEdit: () -> Void
     let onDelete: () -> Void
@@ -236,6 +262,17 @@ struct ServerRow: View {
                     Text(server.url)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+
+                    if isUnlogged {
+                        Text("未登录")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    } else if let stats {
+                        Text(stats.summaryText)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
                 }
                 
                 Spacer()
@@ -263,6 +300,21 @@ struct ServerRow: View {
                 .tint(.orange)
             }
         }
+    }
+}
+
+private extension RemoteSystemStats {
+    var summaryText: String {
+        let cpuPercent = cpu.map { max(0, min(100, 100 - $0.idle)) }
+        let memoryPercent = totalMemoryPercent
+        let cpuText = cpuPercent.map { "CPU \(Int($0.rounded()))%" } ?? "CPU –"
+        let memoryText = memoryPercent.map { "RAM \(Int($0.rounded()))%" } ?? "RAM –"
+        return "\(cpuText) · \(memoryText) · Disk \(disk.percent) · Load \(loadAvg)"
+    }
+
+    var totalMemoryPercent: Double? {
+        guard memory.totalMB > 0 else { return nil }
+        return Double(memory.usedMB) / Double(memory.totalMB) * 100
     }
 }
 

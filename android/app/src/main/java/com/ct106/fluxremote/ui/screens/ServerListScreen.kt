@@ -28,6 +28,18 @@ import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
 
+private fun com.ct106.flux_remote.model.RemoteSystemStats.summaryText(): String {
+    val cpuPercent = cpu?.let { (100.0 - it.idle).coerceIn(0.0, 100.0) }
+    val memoryPercent = if (memory.totalMB > 0) {
+        memory.usedMB.toDouble() / memory.totalMB * 100.0
+    } else {
+        null
+    }
+    val cpuText = cpuPercent?.let { "CPU ${it.toInt()}%" } ?: "CPU –"
+    val memoryText = memoryPercent?.let { "RAM ${it.toInt()}%" } ?: "RAM –"
+    return "$cpuText · $memoryText · Disk ${disk.percent} · Load $loadAvg"
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ServerListScreen(
@@ -44,6 +56,7 @@ fun ServerListScreen(
     val context = androidx.compose.ui.platform.LocalContext.current
 
     var isRefreshingAll by remember { mutableStateOf(false) }
+    var serverStats by remember { mutableStateOf<Map<String, com.ct106.flux_remote.model.RemoteSystemStats>>(emptyMap()) }
 
     val refreshAll = {
         if (!isRefreshingAll && servers.isNotEmpty()) {
@@ -90,6 +103,21 @@ fun ServerListScreen(
     LaunchedEffect(servers.isNotEmpty()) {
         if (servers.isNotEmpty()) {
             refreshAll()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            val connectedServers = serverManager.servers.value.filter { server ->
+                // A green status light means the server is reachable. Refresh its
+                // list metrics regardless of which server is currently checked.
+                serverManager.reachabilityStatuses.value[server.id] == false
+            }
+            val refreshedStats = connectedServers.mapNotNull { server ->
+                server.id to apiClient.fetchStats(server)
+            }.mapNotNull { (serverId, stats) -> stats?.let { serverId to it } }.toMap()
+            serverStats = refreshedStats
+            kotlinx.coroutines.delay(5_000)
         }
     }
 
@@ -152,6 +180,7 @@ fun ServerListScreen(
                         server = server,
                         isSelected = server.id == selectedServerId,
                         isOffline = reachabilityStatuses[server.id],
+                        stats = serverStats[server.id],
                         isUpdating = loadingServerId == server.id,
                         onSelect = {
                             if (loadingServerId != null) return@ServerRow // block while any server is loading
@@ -245,6 +274,7 @@ fun ServerRow(
     server: ServerConfig,
     isSelected: Boolean,
     isOffline: Boolean?,
+    stats: com.ct106.flux_remote.model.RemoteSystemStats?,
     isUpdating: Boolean = false,
     onSelect: () -> Unit,
     onEdit: () -> Unit,
@@ -280,7 +310,17 @@ fun ServerRow(
                         color = MaterialTheme.colorScheme.primary
                     )
                 } else {
-                    Text(server.url)
+                    Column {
+                        Text(server.url)
+                        stats?.let {
+                            Text(
+                                it.summaryText(),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                        }
+                    }
                 }
             },
             leadingContent = {

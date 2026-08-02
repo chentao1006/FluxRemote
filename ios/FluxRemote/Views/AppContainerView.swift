@@ -153,7 +153,9 @@ struct AppContainerView: View {
         }
         .sheet(isPresented: $showingServerManagement) {
             NavigationStack {
-                ServerListView(selection: $selection)
+                ServerListView(selection: $selection) {
+                    showingServerManagement = false
+                }
                     .toolbar {
                         ToolbarItem(placement: .topBarLeading) {
                             Button { showingServerManagement = false } label: {
@@ -180,8 +182,15 @@ struct AppContainerView: View {
     }
 
     private var shouldWaitForInitialServerStatus: Bool {
+        let shouldAutoLoginLastServer = ServerManager.shared.autoLoginLastServer &&
+            ServerManager.shared.servers.count > 1
+        if shouldAutoLoginLastServer {
+            return !initialServerEntryAttempted && startupConfiguredServer != nil
+        }
+
         guard !initialServerEntryAttempted,
-              selectedConfiguredServer != nil,
+              ServerManager.shared.servers.count == 1,
+              startupConfiguredServer != nil,
               !ServerManager.shared.servers.isEmpty
         else { return false }
 
@@ -191,12 +200,18 @@ struct AppContainerView: View {
     }
 
     private var selectedServerReachability: Bool? {
-        guard let server = selectedConfiguredServer else { return nil }
+        guard let server = startupConfiguredServer else { return nil }
         return ServerManager.shared.reachabilityStatuses[server.id] ?? nil
     }
 
-    private var selectedConfiguredServer: ServerConfig? {
-        guard let sid = ServerManager.shared.selectedServerId else { return nil }
+    private var startupConfiguredServer: ServerConfig? {
+        let sid: UUID?
+        if ServerManager.shared.autoLoginLastServer, ServerManager.shared.servers.count > 1 {
+            sid = ServerManager.shared.lastSelectedServerId
+        } else {
+            sid = ServerManager.shared.selectedServerId
+        }
+        guard let sid else { return nil }
         return ServerManager.shared.servers.first { $0.id == sid }
     }
 
@@ -204,23 +219,35 @@ struct AppContainerView: View {
         guard !initialServerEntryAttempted,
               !apiClient.isAuthenticated,
               !apiClient.isAutoLoggingIn,
-              !ServerManager.shared.isInitializing,
-              !ServerManager.shared.isCheckingReachability,
-              let server = selectedConfiguredServer,
+              !ServerManager.shared.isInitializing
+        else { return }
+
+        // The unauthenticated root already is the server-management page. With
+        // multiple servers, remain there rather than presenting that same page
+        // again as a sheet.
+        if ServerManager.shared.servers.count > 1 {
+            guard ServerManager.shared.autoLoginLastServer else {
+                initialServerEntryAttempted = true
+                ServerManager.shared.selectedServerId = nil
+                return
+            }
+        }
+
+        guard !ServerManager.shared.isCheckingReachability,
+              let server = startupConfiguredServer,
               let isOffline = selectedServerReachability
         else { return }
 
         initialServerEntryAttempted = true
 
-        if isOffline {
-            showingServerManagement = true
-        } else {
+        if !isOffline {
             apiClient.switchServer(to: server)
         }
     }
 
     private func checkOfflineStatus() {
-        if let sid = ServerManager.shared.selectedServerId,
+        if apiClient.isAuthenticated,
+           let sid = ServerManager.shared.selectedServerId,
            ServerManager.shared.reachabilityStatuses[sid] == true {
             showingServerManagement = true
         }

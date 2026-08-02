@@ -19,11 +19,19 @@ struct SettingsView: View {
     
     var body: some View {
         Form {
-            if isLoading {
-                ProgressView(languageManager.t("common.loading"))
-                    .frame(maxWidth: .infinity)
-                    .listRowBackground(Color.clear)
-            } else {
+            Section {
+                Toggle("自动登录上一次的服务器", isOn: Bindable(ServerManager.shared).autoLoginLastServer)
+                    .tint(Color("AccentColor"))
+            }
+
+            // These sections act on the currently selected server. When the
+            // multi-server startup flow has no checkmark, keep them hidden.
+            if ServerManager.shared.selectedServerId != nil {
+                if isLoading {
+                    ProgressView(languageManager.t("common.loading"))
+                        .frame(maxWidth: .infinity)
+                        .listRowBackground(Color.clear)
+                } else {
                 Section(header: Text(languageManager.t("settings.connection"))) {
                     NavigationLink(destination: ServerListView(selection: $selection)) {
                         LabeledContent(languageManager.t("settings.server"), value: ServerManager.shared.selectedServer?.name ?? languageManager.t("common.none"))
@@ -82,24 +90,25 @@ struct SettingsView: View {
                         }
                     }
                 }
+                }
+            }
 
-                Section(header: Text(languageManager.systemT("settings.language"))) {
-                    Picker(languageManager.systemT("settings.language"), selection: Bindable(languageManager).selectedLanguage) {
-                        ForEach(AppLanguage.allCases) { lang in
-                            Text(lang == .system ? languageManager.systemT(lang.displayNameKey) : lang.displayNameKey).tag(lang)
-                        }
+            Section(header: Text(languageManager.systemT("settings.language"))) {
+                Picker(languageManager.systemT("settings.language"), selection: Bindable(languageManager).selectedLanguage) {
+                    ForEach(AppLanguage.allCases) { lang in
+                        Text(lang == .system ? languageManager.systemT(lang.displayNameKey) : lang.displayNameKey).tag(lang)
                     }
                 }
-                
-                Section {
-                    VStack(spacing: 8) {
-                        Text(appVersionString)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .listRowBackground(Color.clear)
+            }
+
+            Section {
+                VStack(spacing: 8) {
+                    Text(appVersionString)
                 }
+                .frame(maxWidth: .infinity)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .listRowBackground(Color.clear)
             }
         }
         .tint(Color("AccentColor"))

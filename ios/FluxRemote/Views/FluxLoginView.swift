@@ -380,8 +380,8 @@ struct FluxLoginView: View {
             if apiClient.isAuthenticated {
                 if isAddingServer {
                     Aptabase.shared.trackEvent("server_added")
-                    dismiss()
                 }
+                dismiss()
             }
         }
     }

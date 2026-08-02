@@ -197,4 +197,17 @@ class RemoteAPIClient(val serverManager: ServerManager) {
         }
         return false
     }
+
+    suspend fun fetchStats(server: ServerConfig): RemoteSystemStats? {
+        return try {
+            val response = getApi(server)?.getStats()
+            if (response?.isSuccessful == true && response.body()?.success == true) {
+                response.body()?.data
+            } else {
+                null
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
 }

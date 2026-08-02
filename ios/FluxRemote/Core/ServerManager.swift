@@ -68,6 +68,16 @@ class ServerManager {
             UserDefaults.standard.set(selectedServerId?.uuidString, forKey: "selected_server_id_v2")
         }
     }
+    var lastSelectedServerId: UUID? {
+        didSet {
+            UserDefaults.standard.set(lastSelectedServerId?.uuidString, forKey: "last_selected_server_id_v1")
+        }
+    }
+    var autoLoginLastServer: Bool {
+        didSet {
+            UserDefaults.standard.set(autoLoginLastServer, forKey: "auto_login_last_server_v1")
+        }
+    }
     var authenticatedServerIds: Set<UUID> = []
     private var localPasswords: [UUID: String] = [:]
     
@@ -103,6 +113,10 @@ class ServerManager {
     var isInitializing = true
     
     init() {
+        let storedSelectedServerId = UserDefaults.standard.string(forKey: "selected_server_id_v2").flatMap(UUID.init(uuidString:))
+        let storedLastSelectedServerId = UserDefaults.standard.string(forKey: "last_selected_server_id_v1").flatMap(UUID.init(uuidString:))
+        let storedAutoLoginLastServer = UserDefaults.standard.bool(forKey: "auto_login_last_server_v1")
+
         if let data = UserDefaults.standard.data(forKey: aiConfigKey),
            let decoded = try? JSONDecoder().decode(AIConfig.self, from: data) {
             self.sharedAIConfig = decoded
@@ -110,9 +124,9 @@ class ServerManager {
         
         self.isCloudSyncEnabled = UserDefaults.standard.object(forKey: "is_cloud_sync_enabled") as? Bool ?? true
         
-        if let idString = UserDefaults.standard.string(forKey: "selected_server_id_v2") {
-            self.selectedServerId = UUID(uuidString: idString)
-        }
+        self.selectedServerId = storedSelectedServerId
+        self.lastSelectedServerId = storedLastSelectedServerId ?? storedSelectedServerId
+        self.autoLoginLastServer = storedAutoLoginLastServer
         
         // Load local passwords
         if let data = UserDefaults.standard.data(forKey: passwordsKey),
@@ -285,6 +299,7 @@ class ServerManager {
     
     func selectServer(_ server: ServerConfig) {
         selectedServerId = server.id
+        lastSelectedServerId = server.id
         // selectedServerId didSet already saves to UserDefaults. 
         // Cloud upload is NOT needed just for selecting a server.
     }

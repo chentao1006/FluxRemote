@@ -135,7 +135,11 @@ fun MainNavigation(serverManager: ServerManager, apiClient: RemoteAPIClient) {
     var serverDropdownExpanded by remember { mutableStateOf(false) }
     var commandButtonOffset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
     var showingCommandExecution by remember { mutableStateOf(false) }
-    val startDestination = if (servers.isEmpty()) "server_list" else "dashboard"
+    val startDestination = when (servers.size) {
+        0 -> "server_list"
+        1 -> "dashboard"
+        else -> "server_list"
+    }
 
     val manageServers: () -> Unit = {
         showingCommandExecution = false
